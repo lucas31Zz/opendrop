@@ -46,6 +46,8 @@ public partial class SettingsWindow : Window
         }
         catch { }
 
+        LanguageCombo.SelectedIndex = Lang.Current == "fr" ? 1 : 0;
+
         UpdateQuotaUsage();
     }
 
@@ -53,7 +55,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var folder = await PickFolderAsync("Choisir le dossier de reception");
+            var folder = await PickFolderAsync(Lang.T("Browse.ReceiveTitle"));
             if (folder != null)
             {
                 DownloadDirText.Text = folder;
@@ -67,7 +69,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var folder = await PickFolderAsync("Choisir le dossier de partage");
+            var folder = await PickFolderAsync(Lang.T("Browse.ShareTitle"));
             if (folder != null)
             {
                 ShareDirText.Text = folder;
@@ -76,7 +78,7 @@ public partial class SettingsWindow : Window
         catch { }
     }
 
-    // Selectionneur de dossier natif (GTK sous Linux, Windows sous Windows).
+    // Native folder picker (GTK on Linux, Windows on Windows).
     private async Task<string?> PickFolderAsync(string title)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
@@ -93,8 +95,8 @@ public partial class SettingsWindow : Window
         {
             var configPath = GetConfigPath();
 
-            // On repart du fichier existant : l'ecraser entierement supprimerait
-            // les cles que cette fenetre ne gere pas (session_expires_in,
+            // Start from the existing file: overwriting it entirely would
+            // drop the keys this window does not manage (session_expires_in,
             // trust_proxy, ...).
             var config = new Dictionary<string, object>();
             if (File.Exists(configPath))
@@ -112,36 +114,29 @@ public partial class SettingsWindow : Window
                 catch { }
             }
 
+            config["language"] = LanguageCombo.SelectedIndex == 1 ? "fr" : "en";
             config["download_directory"] = DownloadDirText.Text ?? "";
             config["share_directory"] = ShareDirText.Text ?? "";
             config["preferred_port"] = int.TryParse(PortBox.Text, out var p) ? p : 8080;
             config["generate_new_token"] = ToggleNewToken.IsChecked == true;
 
-            // Avertissement si le quota demande depasse 20% de l'espace libre
-            // du disque : on laisse l'utilisateur choisir, mais il le fait en
-            // connaissance de cause.
+            // Warn when the requested quota exceeds 20% of the disk's free
+            // space: the user may still choose it, but knowingly.
             var quotaBytes = 0L;
             if (!TryParseQuota(QuotaBox.Text ?? "", out quotaBytes))
             {
                 await Msg.ShowAsync(this,
-                    "Quota invalide : \"" + QuotaBox.Text + "\"\n\n" +
-                    "Exemples acceptes : 0,5 go (512 Mo), 500 mo, 10.75.\n" +
-                    "Un nombre sans unite est compte en Go. 0 = illimite.",
-                    "Quota global");
+                    Lang.Format("Quota.Invalid", QuotaBox.Text),
+                    Lang.T("Field.GlobalQuota"));
                 return;
             }
             var freeBytes = GetFreeSpace(DownloadDirText.Text ?? "");
             if (ExceedsFreeSpaceWarning(quotaBytes, freeBytes))
             {
                 var answer = await Msg.ConfirmAsync(this,
-                    "Quota global de " + FormatSize(quotaBytes) + "\n\n" +
-                    "Ce quota depasse 20% de l'espace libre sur ce disque (" +
-                    FormatSize(freeBytes) + " libres).\n\n" +
-                    "Des transferts successifs finiraient par saturer ce disque : " +
-                    "la machine peut ralentir, voir ne plus pouvoir ecrire " +
-                    "(systeme, mises a jour, fichiers temporaires).\n\n" +
-                    "A vos risques et perils : enregistrer quand meme ?",
-                    "Quota global important");
+                    Lang.Format("Quota.BigBody",
+                                FormatSize(quotaBytes), FormatSize(freeBytes)),
+                    Lang.T("Quota.BigTitle"));
                 if (!answer)
                     return;
             }
@@ -158,15 +153,21 @@ public partial class SettingsWindow : Window
 
             File.WriteAllText(configPath, json);
 
+            // Apply the language live; the main window restarts the server
+            // afterwards, so the console banner follows the choice too.
+            var newLang = LanguageCombo.SelectedIndex == 1 ? "fr" : "en";
+            if (newLang != Lang.Current)
+                Lang.Set(newLang);
+
             SettingsChanged = true;
 
-            BtnSave.Content = "Enregistre !";
+            BtnSave.Content = Lang.T("Btn.Saved");
             BtnSave.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
 
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             timer.Tick += (_, _) =>
             {
-                BtnSave.Content = "Enregistrer";
+                BtnSave.Content = Lang.T("Btn.Save");
                 BtnSave.Background = new SolidColorBrush(Color.FromRgb(74, 158, 255));
                 timer.Stop();
             };
@@ -178,22 +179,22 @@ public partial class SettingsWindow : Window
     private void UpdateQuotaUsage()
     {
         var dir = DownloadDirText.Text;
-        QuotaUsageText.Text = "Analyse du dossier...";
+        QuotaUsageText.Text = Lang.T("Quota.Scanning");
         Task.Run(() =>
         {
             var used = QuotaUsage.ScanDirectory(dir);
             Dispatcher.UIThread.Invoke(() =>
             {
                 QuotaUsageText.Text = used > 0
-                    ? "Actuellement recu : " + QuotaUsage.Format(used) + " dans ce dossier"
-                    : "Aucun fichier recu dans ce dossier pour l'instant";
+                    ? Lang.Format("Quota.Usage", QuotaUsage.Format(used))
+                    : Lang.T("Quota.NoFiles");
             });
         });
     }
 
-    // Unites : "0,5 go" ou "0.5" (sans unite = Go), "500 mo", "512000 ko".
-    // Retourne false si le texte n'est pas compris : mieux vaut refuser
-    // l'enregistrement que desactiver le quota en silence.
+    // Units: "0,5 gb" or "0.5" (no unit = GB), "500 mb", "512000 kb".
+    // Returns false when the text is not understood: refusing the save is
+    // better than silently disabling the quota.
     private static readonly (string Suffix, double Factor)[] QuotaUnits =
     {
         ("tib", 1024d * 1024 * 1024 * 1024), ("tb", 1024d * 1024 * 1024 * 1024),
@@ -209,10 +210,10 @@ public partial class SettingsWindow : Window
     {
         bytes = 0;
         if (string.IsNullOrWhiteSpace(text))
-            return true;                       // vide = illimite
+            return true;                       // empty = unlimited
 
         var t = text.Trim().ToLowerInvariant().Replace(',', '.').Replace(" ", "");
-        var factor = 1024d * 1024d * 1024d;    // nombre seul = Go
+        var factor = 1024d * 1024d * 1024d;    // bare number = GB
 
         foreach (var (suffix, f) in QuotaUnits)
         {
@@ -236,19 +237,22 @@ public partial class SettingsWindow : Window
     {
         if (bytes <= 0)
             return "0";
-        return (bytes / (1024d * 1024d * 1024d))
-            .ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',');
+        var text = (bytes / (1024d * 1024d * 1024d))
+            .ToString("0.###", CultureInfo.InvariantCulture);
+        // Decimal comma in French, decimal point in English.
+        return Lang.Current == "fr" ? text.Replace('.', ',') : text;
     }
 
-    // Affichage du quota relut : "500 mo" reste "500 mo" a la relecture,
-    // sinon l'utilisateur retrouverait "0.488" pour ce qu'il a tape en Mo.
+    // Quota round-trip display: "500 mb" stays "500 mb" when re-read,
+    // otherwise the user would see "0.488" for what they typed in MB.
     private static string QuotaToText(long bytes)
     {
         if (bytes <= 0)
             return "0";
+        var fr = Lang.Current == "fr";
         if (bytes % (1024L * 1024) == 0 && bytes / (1024L * 1024) < 1024)
-            return bytes / (1024L * 1024) + " mo";
-        return BytesToGo(bytes) + " go";
+            return bytes / (1024L * 1024) + (fr ? " mo" : " mb");
+        return BytesToGo(bytes) + (fr ? " go" : " gb");
     }
 
     private static string FormatSize(long bytes)
@@ -256,8 +260,8 @@ public partial class SettingsWindow : Window
         return QuotaUsage.Format(bytes);
     }
 
-    // Alerte si le quota depasse 20% de l'espace libre (0 = quota desactive,
-    // espace libre inconnu = pas d'alerte pour ne pas bloquer a tort).
+    // Warn when the quota exceeds 20% of the free space (0 = quota
+    // disabled, unknown free space = no warning, to avoid false alarms).
     internal static bool ExceedsFreeSpaceWarning(long quotaBytes, long freeBytes)
     {
         if (quotaBytes <= 0 || freeBytes <= 0)

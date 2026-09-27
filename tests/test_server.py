@@ -72,36 +72,36 @@ def test_server():
     except Exception as e:
         r.check("SHA-256 hash returned", False, str(e))
 
-    # Double bind : un second serveur sur le meme port est refuse, et le
-    # serveur deja en place est bien identifie comme OpenDrop.
+    # Double bind: a second server on the same port is rejected, and the
+    # server already in place is correctly identified as OpenDrop.
     try:
         create_server(ip, port, "token_doublon", dd, sd, tls_cert_dir=cert_dir)
-        r.check("Second serveur sur meme port refuse", False, "aucune exception")
+        r.check("Second server on same port rejected", False, "no exception")
     except PortInUseError as e:
-        r.check("Second serveur sur meme port refuse", "OpenDrop" in str(e), str(e))
+        r.check("Second server on same port rejected", "OpenDrop" in str(e), str(e))
     except Exception as e:
-        r.check("Second serveur sur meme port refuse", False, str(e))
+        r.check("Second server on same port rejected", False, str(e))
 
-    # Un port tenu par un autre programme est aussi refuse (handshake TLS
-    # qui echoue : ce n'est pas un serveur OpenDrop).
+    # A port held by another program is also rejected (TLS handshake
+    # fails: it is not an OpenDrop server).
     busy = socket.socket()
     busy.bind(("0.0.0.0", 0))
     busy_port = busy.getsockname()[1]
     busy.listen(5)
     try:
         create_server(ip, busy_port, "token_etranger", dd, sd, tls_cert_dir=cert_dir)
-        r.check("Port occupe par autre programme refuse", False, "aucune exception")
+        r.check("Port occupied by another program rejected", False, "no exception")
     except PortInUseError as e:
-        r.check("Port occupe par autre programme refuse", "autre programme" in str(e), str(e))
+        r.check("Port occupied by another program rejected", "another program" in str(e), str(e))
     except Exception as e:
-        r.check("Port occupe par autre programme refuse", False, str(e))
+        r.check("Port occupied by another program rejected", False, str(e))
     finally:
         busy.close()
 
     server.shutdown()
 
-    # Cleanup : noms exacts ecrits par ce test (ne jamais vider le dossier,
-    # il peut contenir les fichiers de l'utilisateur)
+    # Cleanup: exact names written by this test (never empty the folder,
+    # it may contain the user's files)
     for f in ("server_test.txt", "sha_test.txt"):
         try:
             os.remove(os.path.join(dd, f))

@@ -2,7 +2,8 @@
 Type=Application
 Name=OpenDrop
 GenericName=File transfer
-Comment=Transfert de fichiers direct sur le reseau local (sans cloud)
+Comment=Direct local-network file transfer (no cloud)
+Comment[fr]=Transfert de fichiers direct sur le reseau local (sans cloud)
 Exec=opendrop-desktop
 Icon=opendrop
 Terminal=false

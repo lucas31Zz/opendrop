@@ -1,16 +1,15 @@
-# Contribuer a OpenDrop
+# Contributing to OpenDrop
 
-Merci de l'interet porte au projet. Ce document decrit comment proposer une
-correction ou une fonctionnalite.
+Thanks for your interest in the project. This document explains how to
+submit a fix or a feature.
 
-## Prérequis
+## Prerequisites
 
-- Python **3.10+** (developpe et teste en 3.12)
-- **.NET 8 SDK** si vous touchez a l'application bureau (Avalonia, Windows
-  ou Linux)
+- Python **3.10+** (developed and tested on 3.12)
+- **.NET 8 SDK** if you touch the desktop app (Avalonia, Windows or Linux)
 - `git`
 
-## Mise en place
+## Setup
 
 ```powershell
 git clone https://github.com/lucas31Zz/opendrop.git
@@ -20,8 +19,8 @@ pip install -e .
 
 ## Tests
 
-Les suites sont maison (aucun framework externe), a lancer depuis la racine.
-**Tout doit passer avant une PR** :
+The suites are homegrown (no external framework), run from the repo root.
+**Everything must pass before a PR**:
 
 ```powershell
 python -m tests.test_security     # 36
@@ -34,41 +33,41 @@ python -m tests.test_server       # 11
 python -m tests.test_beta         # 64
 ```
 
-- Chaque suite sort avec un code d'erreur non nul en cas d'echec.
-- `python -m tests.test_beta --large` (76) est plus lent : a lancer avant de
-  fusionner des changements qui touchent le protocole ou le multipart.
-- Les tests travaillent **toujours** dans un dossier temporaire cree par
-  `tests/conftest.py` : aucun fichier utilisateur n'est lu, ecrit ou
-  supprime. Ne jamais briser cette isolation.
+- Every suite exits with a non-zero status when it fails.
+- `python -m tests.test_beta --large` (76) is slower: run it before merging
+  changes that touch the protocol or the multipart handling.
+- Tests **always** work in a temporary folder created by
+  `tests/conftest.py`: no user file is read, written, or deleted. Never
+  break that isolation.
 
 ## Conventions
 
-- **Code et commentaires en francais, sans accents** (l'encodage reste simple
-  partout). Le markdown (README, docs) accepte les accents.
-- **Pas de refactoring hors perimetre** : si un correctif touche 3 lignes, il
-  reste sur 3 lignes.
-- Aucune nouvelle dependance sans en discuter d'abord (issues).
-- Aucun secret, cle, certificat ou chemin personnel dans le depot
-  (`config.json`, `session.json`, `certs/` sont hors depot).
-- Si une suite gagne ou perd des verifications, mettez a jour les comptes du
-  README (section *Tests*) et le `CHANGELOG.md`.
+- **Code and comments in French, without accents** (keeps encoding simple
+  everywhere). Markdown (README, docs) may use accents.
+- **No out-of-scope refactoring**: if a fix is 3 lines long, it stays 3
+  lines.
+- No new dependency without discussing it first (issues).
+- No secrets, keys, certificates, or personal paths in the repo
+  (`config.json`, `session.json`, `certs/` stay out of it).
+- If a suite gains or loses checks, update the counts in the README (the
+  *Tests* section) and `CHANGELOG.md`.
 
-## Commits et pull requests
+## Commits and pull requests
 
-- Premiere ligne courte a l'impératif (« Ajoute le quota... », « Corrige... »),
-  corps si le pourquoi n'est pas evident.
-- Decrire le **pourquoi** du changement, pas seulement le quoi.
-- Lister les suites lancees dans la description de la PR.
-- Interface (web/bureau) : joindre une capture avant/apres.
-- Les suites CI (tests + build bureau) doivent passer.
+- Short first line in the imperative ("Add the quota...", "Fix ..."), body
+  if the why isn't obvious.
+- Describe the **why** of the change, not just the what.
+- List the suites you ran in the PR description.
+- UI (web/desktop): attach a before/after screenshot.
+- The CI suites (tests + desktop build) must pass.
 
 ## Issues
 
-- **Bug** : systeme d'exploitation, version Python, etapes pour reproduire,
-  comportement attendu vs observe.
-- **Fonctionnalite** : decrir l'usage reel avant la solution proposee.
+- **Bug**: OS, Python version, steps to reproduce, expected vs. observed
+  behavior.
+- **Feature**: describe the real-world use before the proposed solution.
 
-## Securite
+## Security
 
-Ne publiez pas une faille en issue publique : voir
-[SECURITY.md](SECURITY.md) (formulaire prive GitHub ou e-mail).
+Don't report a vulnerability in a public issue: see
+[SECURITY.md](SECURITY.md) (GitHub private form or e-mail).

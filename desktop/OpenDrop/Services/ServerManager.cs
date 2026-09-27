@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -50,9 +50,9 @@ public class ServerManager
     {
         if (IsRunning) return true;
 
-        // Un ancien serveur peut survivre a la fermeture de l'app (crash,
-        // arret force) : sans cela, il garde le port et sert un token et un
-        // code differents de ceux affiches ici.
+        // An older server can survive an app close (crash, forced stop):
+        // without this it keeps the port and serves a token and code
+        // different from the ones shown here.
         KillStaleServer();
 
         _infoReceived.Reset();
@@ -65,7 +65,7 @@ public class ServerManager
                 OnStatusChanged?.Invoke(this, new ServerStatus
                 {
                     State = "error",
-                    Message = "Impossible de trouver le projet OpenDrop."
+                    Message = Lang.T("Sm.ProjectNotFound")
                 });
                 return false;
             }
@@ -92,10 +92,10 @@ public class ServerManager
                 startInfo.EnvironmentVariables["PYTHONPATH"] = pythonPath;
             }
 
-            // Python : d'abord le venv cree par l'installeur (depot
-            // installe avec ses wheels, dependances garanties), sinon
-            // python3/python du PATH. Sous Linux la commande s'appelle
-            // python3 (Debian/Kali n'ont pas d'alias "python").
+            // Python: first the venv created by the installer (repo installed
+            // with its wheels, dependencies guaranteed), otherwise
+            // python3/python from PATH. On Linux the command is
+            // python3 (Debian/Kali have no "python" alias).
             var pythons = new List<string>();
             var venvWin = Path.Combine(projectDir, "venv", "Scripts", "python.exe");
             var venvUnix3 = Path.Combine(projectDir, "venv", "bin", "python3");
@@ -120,7 +120,7 @@ public class ServerManager
                 }
                 catch
                 {
-                    // Executable introuvable (Win32Exception) : on tente le suivant.
+                    // Executable not found (Win32Exception): try the next one.
                     _process = null;
                 }
                 if (_process != null)
@@ -132,8 +132,7 @@ public class ServerManager
                 OnStatusChanged?.Invoke(this, new ServerStatus
                 {
                     State = "error",
-                    Message = "Python introuvable. Installez Python 3.10+ puis " +
-                              "pip install qrcode cryptography."
+                    Message = Lang.T("Sm.NoPython")
                 });
                 return false;
             }
@@ -197,7 +196,7 @@ public class ServerManager
                 OnStatusChanged?.Invoke(this, new ServerStatus
                 {
                     State = "error",
-                    Message = "Timeout: le serveur n'a pas repondu."
+                    Message = Lang.T("Sm.Timeout")
                 });
                 return false;
             }
@@ -207,7 +206,7 @@ public class ServerManager
                 OnStatusChanged?.Invoke(this, new ServerStatus
                 {
                     State = "error",
-                    Message = "Le serveur Python s'est arrete immediatement."
+                    Message = Lang.T("Sm.Exited")
                 });
                 return false;
             }
@@ -219,7 +218,7 @@ public class ServerManager
             OnStatusChanged?.Invoke(this, new ServerStatus
             {
                 State = "error",
-                Message = $"Erreur: {ex.Message}"
+                Message = $"{Lang.T("Err.Prefix")} {ex.Message}"
             });
             return false;
         }
@@ -254,10 +253,10 @@ public class ServerManager
     {
         try
         {
-            // Le dossier de config peut ne pas exister au 1er lancement (le
-            // serveur Python ne l'a pas encore cree) : sans cela, l'ecriture
-            // echoue en silence et KillStaleServer ne retrouve pas le serveur
-            // au lancement suivant (port deja pris).
+            // The config folder may not exist on first start (the Python
+            // server has not created it yet): without this the write
+            // fails silently and KillStaleServer does not find the server
+            // on the next launch (port already taken).
             Directory.CreateDirectory(QuotaUsage.ConfigDir);
             File.WriteAllText(PidFilePath,
                 $"{process.Id}|{process.StartTime.ToString("O", CultureInfo.InvariantCulture)}");
@@ -292,9 +291,9 @@ public class ServerManager
             }
 
             using var stale = Process.GetProcessById(pid);
-            // Verifications anti-recyclage de PID : on ne tue que python (la
-            // commande s'appelle python3 sous Linux), et seulement si son
-            // heure de demarrage correspond a celle notee.
+            // Anti-PID-recycling checks: only kill python (the command is
+            // python3 on Linux), and only when its start time matches
+            // the recorded one.
             if (!stale.ProcessName.StartsWith("python", StringComparison.OrdinalIgnoreCase))
                 return;
             if (recorded != DateTime.MinValue &&
@@ -304,7 +303,7 @@ public class ServerManager
             stale.Kill(entireProcessTree: true);
             stale.WaitForExit(3000);
         }
-        catch (ArgumentException) { /* PID deja mort */ }
+        catch (ArgumentException) { /* PID already dead */ }
         catch (InvalidOperationException) { }
         catch (IOException) { }
         catch { }
@@ -312,10 +311,10 @@ public class ServerManager
 
     private static string? FindProjectRoot()
     {
-        // Priorite au dossier reel de l'executable : avec un binaire livre en
-        // fichier unique (dotnet publish -p:PublishSingleFile), le dossier
-        // temporaire d'extraction ne contient pas pyproject.toml. Le dossier
-        // livre doit contenir pyproject.toml + src/ + web/.
+        // Prefer the real executable folder: with a single-file binary
+        // (dotnet publish -p:PublishSingleFile), the temporary extraction
+        // folder has no pyproject.toml. The delivered folder must contain
+        // pyproject.toml + src/ + web/.
         var dir = Path.GetDirectoryName(Environment.ProcessPath)
                   ?? AppContext.BaseDirectory;
 

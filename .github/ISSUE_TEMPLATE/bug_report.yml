@@ -1,22 +1,22 @@
-name: "Signaler un bug"
-description: Un comportement inattendu, une erreur, un crash.
+name: "Report a bug"
+description: Unexpected behavior, an error, a crash.
 title: "[Bug] "
 labels: ["bug"]
 body:
   - type: textarea
     id: env
     attributes:
-      label: Environnement
-      description: Systeme, version Python, version OpenDrop, application bureau ou serveur seul.
+      label: Environment
+      description: OS, Python version, OpenDrop version, desktop app or server only.
       placeholder: |
-        Windows 11, Python 3.12.10, OpenDrop 0.1.0, application bureau
+        Windows 11, Python 3.12.10, OpenDrop 0.1.0, desktop app
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Etapes pour reproduire
-      description: Le plus precisement possible.
+      label: Steps to reproduce
+      description: As precisely as possible.
       placeholder: |
         1. ...
         2. ...
@@ -26,22 +26,22 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Comportement attendu
+      label: Expected behavior
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Comportement observe
-      description: Messages d'erreur et journaux du serveur (les tokens y sont deja masques : token=***).
+      label: Observed behavior
+      description: "Error messages and server logs (tokens are already masked there: token=***)."
     validations:
       required: true
   - type: checkboxes
     id: checks
     attributes:
-      label: Avant d'envoyer
+      label: Before submitting
       options:
-        - label: J'ai cherche si l'issue existe deja
+        - label: I checked whether the issue already exists
           required: true
-        - label: Je n'ai pas signale de faille de securite ici (voir l'onglet Security)
+        - label: I am not reporting a security vulnerability here (see the Security tab)
           required: true

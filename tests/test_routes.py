@@ -1,10 +1,10 @@
-"""Audit des routes : qui exige vraiment un token, et comment on repond.
+"""Route audit: who really requires a token, and how we answer.
 
-Ce fichier fait office de table de verite du contrat d'acces :
-- les routes API sensibles exigent un token (403 sinon)
-- les routes volontairement publiques ne laissent fuzzer aucun secret
-- les reponses d'erreur ont le bon format (JSON pour l'API) et les
-  en-tetes de securite, sans exposer la version de Python
+This file is the source of truth for the access contract:
+- sensitive API routes require a token (403 otherwise)
+- intentionally public routes let a fuzzer find no secret
+- error responses have the right format (JSON for the API) and the
+  security headers, without exposing the Python version
 """
 import http.client
 import json
@@ -55,74 +55,74 @@ def _security_headers_ok(headers):
 
 
 def _token_tests():
-    print("--- Routes exigeant un token ---\n")
+    print("--- Routes requiring a token ---\n")
     server, port, token = _start_server()
     try:
         for path in TOKEN_ROUTES_GET:
             status, _, _ = _get(port, path)
-            r.check(f"GET {path} sans token = 403", status == 403, status)
+            r.check(f"GET {path} without token = 403", status == 403, status)
 
         status, _, _ = _request(port, "POST", "/api/upload", b"{}",
                                 "multipart/form-data; boundary=X")
-        r.check("POST /api/upload sans token = 403", status == 403, status)
+        r.check("POST /api/upload without token = 403", status == 403, status)
 
         status, _, _ = _get(port, "/api/files?token=token_invalide")
-        r.check("GET /api/files mauvais token = 403", status == 403, status)
+        r.check("GET /api/files bad token = 403", status == 403, status)
 
         status, _, _ = _get(port, "/api/quota?token=")
-        r.check("GET /api/quota token vide = 403", status == 403, status)
+        r.check("GET /api/quota empty token = 403", status == 403, status)
     finally:
         server.shutdown()
         server.server_close()
 
 
 def _info_tests():
-    print("--- GET /api/info (route de decouverte) ---\n")
+    print("--- GET /api/info (discovery route) ---\n")
     server, port, token = _start_server()
     try:
         status, headers, body = _get(port, "/api/info")
         data = json.loads(body)
-        r.check("GET /api/info sans token = 200 (decouverte desktop)",
+        r.check("GET /api/info without token = 200 (desktop discovery)",
                 status == 200, status)
-        r.check("Sans token: ip et port presents",
+        r.check("Without token: ip and port present",
                 "ip" in data and "port" in data, data)
-        r.check("Sans token: aucune information de session",
+        r.check("Without token: no session information",
                 "session" not in data, data)
-        r.check("Sans token: ni token ni code de session dans la reponse",
+        r.check("Without token: neither token nor session code in the response",
                 token.encode() not in body
                 and server.sessions.code.encode() not in body,
                 data)
-        r.check("GET /api/info sans token: en-tetes de securite",
+        r.check("GET /api/info without token: security headers",
                 _security_headers_ok(headers), headers.get("Server"))
 
         status, _, body = _get(port, f"/api/info?token={token}")
         data = json.loads(body)
-        r.check("GET /api/info avec token = 200", status == 200, status)
-        r.check("Avec token: bloc session present",
+        r.check("GET /api/info with token = 200", status == 200, status)
+        r.check("With token: session block present",
                 "session" in data and data["session"]["active_sessions"] >= 1,
                 data)
 
         status, _, _ = _get(port, "/api/info?token=token_invalide")
-        r.check("GET /api/info mauvais token = 403", status == 403, status)
+        r.check("GET /api/info bad token = 403", status == 403, status)
     finally:
         server.shutdown()
         server.server_close()
 
 
 def _asset_tests():
-    print("--- Assets publics (shell de l'interface web) ---\n")
+    print("--- Public assets (web UI shell) ---\n")
     server, port, token = _start_server()
     try:
         for asset in ASSETS_PUBLICS:
             status, headers, body = _get(port, asset)
-            r.check(f"{asset} servi sans token", status == 200, status)
-            r.check(f"{asset}: aucun secret dedans",
+            r.check(f"{asset} served without token", status == 200, status)
+            r.check(f"{asset}: no secret inside",
                     token.encode() not in body
                     and server.sessions.code.encode() not in body,
                     asset)
-            r.check(f"{asset}: en-tetes de securite",
+            r.check(f"{asset}: security headers",
                     _security_headers_ok(headers), headers.get("Server"))
-            r.check(f"{asset}: Server sans version Python",
+            r.check(f"{asset}: Server without Python version",
                     "Python" not in headers.get("Server", ""),
                     headers.get("Server"))
     finally:
@@ -131,12 +131,12 @@ def _asset_tests():
 
 
 def _error_format_tests():
-    print("--- Reponses d'erreur (format + en-tetes) ---\n")
+    print("--- Error responses (format + headers) ---\n")
     server, port, token = _start_server()
     try:
         status, headers, body = _get(port, f"/api/route-inconnue?token={token}")
         ct = headers.get("Content-Type", "")
-        r.check("Route API inconnue = 404 JSON", status == 404 and "application/json" in ct,
+        r.check("Unknown API route = 404 JSON", status == 404 and "application/json" in ct,
                 f"{status} {ct}")
         payload = {}
         if "application/json" in ct and body:
@@ -144,29 +144,29 @@ def _error_format_tests():
                 payload = json.loads(body)
             except ValueError:
                 payload = {}
-        r.check("404 JSON: corps au format {error, code}",
+        r.check("404 JSON: body in {error, code} format",
                 payload.get("code") == 404 and "error" in payload, payload)
-        r.check("404 API: en-tetes de securite",
+        r.check("404 API: security headers",
                 _security_headers_ok(headers), headers.get("Server"))
 
         status, headers, body = _get(port, "/page-inconnue")
         ct = headers.get("Content-Type", "")
-        r.check("Page inconnue = 404 HTML", status == 404 and "text/html" in ct,
+        r.check("Unknown page = 404 HTML", status == 404 and "text/html" in ct,
                 f"{status} {ct}")
-        r.check("404 HTML: en-tetes de securite",
+        r.check("404 HTML: security headers",
                 _security_headers_ok(headers), headers.get("Server"))
 
         status, headers, _ = _request(port, "POST", "/api/post-inconnu", b"{}",
                                       "application/json")
         ct = headers.get("Content-Type", "")
-        r.check("POST route inconnue = 404 JSON",
+        r.check("POST unknown route = 404 JSON",
                 status == 404 and "application/json" in ct, f"{status} {ct}")
 
         status, headers, _ = _request(port, "PUT", "/api/upload", b"{}")
-        r.check("Methode inconnue = 501", status == 501, status)
-        r.check("501: Server sans version Python",
+        r.check("Unknown method = 501", status == 501, status)
+        r.check("501: Server without Python version",
                 "Python" not in headers.get("Server", ""), headers.get("Server"))
-        r.check("501: en-tetes de securite",
+        r.check("501: security headers",
                 _security_headers_ok(headers), headers.get("Server"))
     finally:
         server.shutdown()
@@ -174,7 +174,7 @@ def _error_format_tests():
 
 
 def _download_tests():
-    print("--- Telechargement (en-tete Content-Disposition) ---\n")
+    print("--- Download (Content-Disposition header) ---\n")
     server, port, token = _start_server()
     try:
         ascii_name = "route_ascii.txt"
@@ -182,10 +182,10 @@ def _download_tests():
             fh.write(b"ascii")
         status, headers, body = _get(
             port, "/api/download/" + quote(ascii_name) + f"?token={token}")
-        r.check("Telechargement d'un nom ASCII", status == 200 and body == b"ascii",
+        r.check("Download of an ASCII name", status == 200 and body == b"ascii",
                 f"{status} {body[:40]}")
 
-        # Nom hors latin-1 : l'ancien encodage d'en-tete plantait ici.
+        # Name outside latin-1: the old header encoding crashed here.
         unicode_name = "fichier_测试.txt"
         with open(os.path.join(sd, unicode_name), "wb") as fh:
             fh.write(b"unicode")
@@ -193,16 +193,16 @@ def _download_tests():
             status, headers, body = _get(
                 port, "/api/download/" + quote(unicode_name) + f"?token={token}")
             disposition = headers.get("Content-Disposition", "")
-            r.check("Telechargement d'un nom non-ASCII", status == 200 and body == b"unicode",
+            r.check("Download of a non-ASCII name", status == 200 and body == b"unicode",
                     f"{status} {body[:60]}")
-            r.check("Content-Disposition encode en UTF-8 (filename*)",
+            r.check("Content-Disposition encoded in UTF-8 (filename*)",
                     "filename*=UTF-8''" in disposition, disposition)
         finally:
             os.remove(os.path.join(sd, unicode_name))
         os.remove(os.path.join(sd, ascii_name))
 
         status, _, _ = _get(port, "/api/download/inexistant.txt?token=" + token)
-        r.check("Telechargement fichier absent = 404 JSON",
+        r.check("Download of missing file = 404 JSON",
                 status == 404, status)
     finally:
         server.shutdown()
@@ -210,25 +210,25 @@ def _download_tests():
 
 
 def _rate_limit_tests():
-    print("--- Routes publiques rate-limitees ---\n")
+    print("--- Rate-limited public routes ---\n")
     server, port, token = _start_server()
     try:
-        # /qr rend un PNG et porte le token : il doit passer par le rate
-        # limiting general comme le reste de l'API.
+        # /qr returns a PNG and carries the token: it must go through the
+        # general rate limiting like the rest of the API.
         limiter_general.reset()
         limited = False
         for i in range(125):
             status, _, _ = _get(port, f"/qr?token={token}")
             if status == 429:
                 limited = True
-                r.check("GET /qr rate-limite (429)", True, f"requete #{i+1}")
+                r.check("GET /qr rate-limited (429)", True, f"request #{i+1}")
                 break
         if not limited:
-            r.check("GET /qr rate-limite (429)", False, "aucun 429 en 125 requetes")
+            r.check("GET /qr rate-limited (429)", False, "no 429 in 125 requests")
         limiter_general.reset()
 
-        # POST /api/session/unlock est public par nature (auth par code) :
-        # le force brute doit etre borne (5/min/IP).
+        # POST /api/session/unlock is public by nature (code auth):
+        # brute force must be capped (5/min/IP).
         limiter_session.reset()
         codes_403 = 0
         got_429 = False
@@ -238,8 +238,8 @@ def _rate_limit_tests():
                 got_429 = True
             elif status == 403:
                 codes_403 += 1
-        r.check("POST /api/session/unlock: 403 sur code faux", codes_403 >= 5, codes_403)
-        r.check("POST /api/session/unlock: force brute bornee (429)", got_429, got_429)
+        r.check("POST /api/session/unlock: 403 on wrong code", codes_403 >= 5, codes_403)
+        r.check("POST /api/session/unlock: brute force capped (429)", got_429, got_429)
         limiter_session.reset()
         limiter_general.reset()
     finally:
@@ -248,7 +248,7 @@ def _rate_limit_tests():
 
 
 def test_routes():
-    print("--- Routes / audit d'acces ---\n")
+    print("--- Routes / access audit ---\n")
     _token_tests()
     _info_tests()
     _asset_tests()

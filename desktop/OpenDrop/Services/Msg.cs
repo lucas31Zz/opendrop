@@ -6,8 +6,8 @@ using Avalonia.Threading;
 
 namespace OpenDrop;
 
-// Avalonia n'a pas de MessageBox : fenetre minimaliste alignee sur le theme
-// sombre de l'application, meme usage que System.Windows.MessageBox.
+// Avalonia has no MessageBox: minimal window matching the app's dark
+// theme, same usage as System.Windows.MessageBox.
 internal static class Msg
 {
     public static Task ShowAsync(Window owner, string text, string title = "OpenDrop")
@@ -41,7 +41,7 @@ internal static class Msg
 
         var primary = new Button
         {
-            Content = confirm ? "Oui" : "OK",
+            Content = confirm ? Lang.T("Msg.Yes") : "OK",
             MinWidth = 90,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             Background = new SolidColorBrush(Color.FromRgb(0x4a, 0x9e, 0xff)),
@@ -59,7 +59,7 @@ internal static class Msg
         {
             var cancel = new Button
             {
-                Content = "Non",
+                Content = Lang.T("Msg.No"),
                 MinWidth = 90,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
                 Background = new SolidColorBrush(Color.FromRgb(0x2a, 0x2a, 0x2a)),

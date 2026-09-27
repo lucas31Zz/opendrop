@@ -1,15 +1,15 @@
-"""Quota global du dossier de reception.
+"""Quota for the receive folder as a whole.
 
-MAX_UPLOAD_SIZE borne chaque fichier separement ; ce module ajoute la
-limite cumulee : a chaque envoi le dossier de reception est scanne (taille
-totale des fichiers), et la place annoncee par Content-Length est reservee
-pendant la duree de l'envoi.
+MAX_UPLOAD_SIZE bounds each file individually; this module adds the
+cumulative limit: on every upload the receive folder is scanned (total size
+of the files), and the space announced by Content-Length is reserved for the
+duration of the upload.
 
-La reservation est exacte : le corps de la requete est strictement borne a
-Content-Length, un fichier ne peut donc jamais ecrire plus que la valeur
-reservee, meme avec deux envois simultanes.
+The reservation is exact: the request body is strictly bounded by
+Content-Length, so a file can never write more than the reserved value, even
+with two simultaneous uploads.
 
-Le quota est optionnel : 0 (ou cle absente) = illimite.
+The quota is optional: 0 (or missing key) = unlimited.
 """
 import os
 import threading
@@ -19,7 +19,7 @@ from opendrop.server.errors import QuotaExceededError
 
 
 def directory_usage(path) -> int:
-    """Taille totale en octets des fichiers du dossier, recursivement."""
+    """Total size in bytes of the folder's files, recursively."""
     base = Path(path)
     if not base.is_dir():
         return 0
@@ -33,24 +33,31 @@ def directory_usage(path) -> int:
     return total
 
 
-def format_size(value: int) -> str:
-    """Format court et lisible : 1536 -> '1.5 Ko'."""
+def format_size(value: int, lang: str = "en") -> str:
+    """Short, readable format: 1536 -> '1.50 KB' (English) or '1.50 Ko' (French)."""
     value = int(value)
-    for unit, step in (("Go", 1024 ** 3), ("Mo", 1024 ** 2), ("Ko", 1024)):
+    if lang == "fr":
+        units = (("Go", 1024 ** 3), ("Mo", 1024 ** 2), ("Ko", 1024))
+        zero = "o"
+    else:
+        units = (("GB", 1024 ** 3), ("MB", 1024 ** 2), ("KB", 1024))
+        zero = "B"
+    for unit, step in units:
         if value >= step:
             return f"{value / step:.2f} {unit}"
-    return f"{value} o"
+    return f"{value} {zero}"
 
 
 class QuotaTracker:
-    """Usage du dossier + reservations en cours, de facon thread-safe."""
+    """Folder usage + reservations in flight, thread-safe."""
 
-    def __init__(self, directory, limit_bytes: int = 0):
+    def __init__(self, directory, limit_bytes: int = 0, lang: str = "en"):
         self.directory = directory
+        self.lang = lang
         try:
-            # Negative = quota incoherent (config editee a la main) : on le
-            # traite comme "desactive" plutot que comme une limite refusant
-            # tout. L'interface, elle, refuse deja les valeurs negatives.
+            # Negative = inconsistent quota (config edited by hand): treat it
+            # as "disabled" rather than as a limit that refuses everything.
+            # The UI, for its part, already rejects negative values.
             self.limit_bytes = max(0, int(limit_bytes or 0))
         except (TypeError, ValueError):
             self.limit_bytes = 0
@@ -62,7 +69,7 @@ class QuotaTracker:
         return self.limit_bytes > 0
 
     def usage(self) -> int:
-        """Octets deja occupes (fichiers du dossier + envois en cours)."""
+        """Bytes already in use (folder files + uploads in progress)."""
         with self._lock:
             return directory_usage(self.directory) + self._reserved
 
@@ -73,10 +80,11 @@ class QuotaTracker:
             return max(0, self.limit_bytes - directory_usage(self.directory) - self._reserved)
 
     def reserve(self, additional: int) -> None:
-        """Verifie la quota puis garde `additional` octets de reserve.
+        """Check the quota, then hold `additional` bytes in reserve.
 
-        Leve QuotaExceededError (507) si l'envoi ferait depasser le quota.
-        Chaque reserve doit etre couplee a un release dans un finally.
+        Raises QuotaExceededError (507) if the upload would push usage over
+        the quota. Every reservation must be paired with a release in a
+        finally block.
         """
         if not self.enabled:
             return
@@ -84,10 +92,15 @@ class QuotaTracker:
         with self._lock:
             used = directory_usage(self.directory) + self._reserved
             if used + additional > self.limit_bytes:
+                if self.lang == "fr":
+                    raise QuotaExceededError(
+                        "Quota global atteint : "
+                        f"{format_size(used, self.lang)} utilise sur "
+                        f"{format_size(self.limit_bytes, self.lang)}")
                 raise QuotaExceededError(
-                    "Quota global atteint : "
-                    f"{format_size(used)} utilise sur "
-                    f"{format_size(self.limit_bytes)}")
+                    "Global quota reached: "
+                    f"{format_size(used, self.lang)} used of "
+                    f"{format_size(self.limit_bytes, self.lang)}")
             self._reserved += additional
 
     def release(self, additional: int) -> None:

@@ -1,13 +1,13 @@
 """
-OpenDrop v0.1.0 - Campagne de tests bêta
-=========================================
-Couvre: gros fichiers, collisions, rate limiting, cas d'échec,
-        transferts multiples, annulation, SHA-256, types variés.
+OpenDrop v0.1.0 - Beta test campaign
+====================================
+Covers: large files, collisions, rate limiting, failure cases,
+        multiple transfers, cancellation, SHA-256, various types.
 
 Usage:
     python tests/test_beta.py
-    python tests/test_beta.py --large        # Tests gros fichiers (10MB, 100MB)
-    python tests/test_beta.py --all          # Tous les tests
+    python tests/test_beta.py --large        # Large file tests (10MB, 100MB)
+    python tests/test_beta.py --all          # All tests
 """
 import hashlib
 import http.client
@@ -64,9 +64,9 @@ class R:
     def summary(self):
         total = self.passed + self.failed
         print(f"\n{'='*50}")
-        print(f"Resultat: {self.passed}/{total} passed, {self.failed} failed")
+        print(f"Result: {self.passed}/{total} passed, {self.failed} failed")
         if self.bugs:
-            print(f"\nBugs trouves ({len(self.bugs)}):")
+            print(f"\nBugs found ({len(self.bugs)}):")
             for name, detail in self.bugs:
                 print(f"  - {name}: {detail}")
         print(f"{'='*50}")
@@ -126,7 +126,7 @@ def _upload(port, token, filename, content, content_type="application/octet-stre
 
 
 def _safe_upload(port, token, filename, content, content_type="application/octet-stream"):
-    """Upload qui gère le 429 sans crasher."""
+    """Upload that handles 429 without crashing."""
     try:
         return _upload(port, token, filename, content, content_type), None
     except urllib.error.HTTPError as e:
@@ -143,12 +143,12 @@ def _json(resp):
 
 
 # ============================================================
-# 1. GROS FICHIERS
+# 1. LARGE FILES
 # ============================================================
 def test_large_files(r):
     limiter_upload.reset()
     limiter_general.reset()
-    print("\n--- 1. Gros fichiers ---\n")
+    print("\n--- 1. Large files ---\n")
 
     sizes = [
         ("10 KB", 10 * 1024),
@@ -173,19 +173,19 @@ def test_large_files(r):
         except Exception as e:
             r.ok(f"Upload {label}", False, str(e))
 
-        # Vérifier que le fichier existe bien sur disque
+        # Check that the file exists on disk
         expected_path = os.path.join(dd, f"large_{label}.bin")
         if os.path.exists(expected_path):
             actual_size = os.path.getsize(expected_path)
-            r.ok(f"Taille {label}", actual_size == size, f"attendu={size}, obtenu={actual_size}")
+            r.ok(f"Size {label}", actual_size == size, f"expected={size}, actual={actual_size}")
         else:
-            r.ok(f"Taille {label}", False, "fichier non trouvé sur disque")
+            r.ok(f"Size {label}", False, "file not found on disk")
 
-        # Vérifier SHA-256 sur disque
+        # Check SHA-256 on disk
         if os.path.exists(expected_path):
             with open(expected_path, "rb") as f:
                 actual_hash = hashlib.sha256(f.read()).hexdigest()
-            r.ok(f"SHA-256 {label}", actual_hash == sha_expected, f"attendu={sha_expected}, obtenu={actual_hash}")
+            r.ok(f"SHA-256 {label}", actual_hash == sha_expected, f"expected={sha_expected}, actual={actual_hash}")
 
         server.shutdown()
 
@@ -197,16 +197,16 @@ def test_large_files(r):
 
 
 # ============================================================
-# 2. COLLISIONS DE NOMS
+# 2. NAME COLLISIONS
 # ============================================================
 def test_name_collisions(r):
-    print("\n--- 2. Collisions de noms ---\n")
+    print("\n--- 2. Name collisions ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
     server, port, token = _start("collisions")
 
-    # Upload 3 fichiers avec le même nom
+    # Upload 3 files with the same name
     for i in range(3):
         resp, err = _safe_upload(port, token, "collision.txt", f"version {i}".encode())
         if err == "rate_limited":
@@ -218,21 +218,21 @@ def test_name_collisions(r):
         data = _json(resp)
         r.ok(f"Upload collision #{i+1}", data.get("success"), data)
 
-    # Vérifier que 3 fichiers collision existent sur disque
+    # Check that 3 collision files exist on disk
     collision_files = [f for f in os.listdir(dd) if "collision" in f and f.endswith(".txt")]
-    r.ok("3 fichiers collision sur disque", len(collision_files) == 3, f"trouvé: {len(collision_files)}: {collision_files}")
+    r.ok("3 collision files on disk", len(collision_files) == 3, f"found: {len(collision_files)}: {collision_files}")
 
-    # Vérifier que les noms sont différents
-    r.ok("Noms uniques", len(collision_files) == len(set(collision_files)), f"noms: {collision_files}")
+    # Check that the names are different
+    r.ok("Unique names", len(collision_files) == len(set(collision_files)), f"names: {collision_files}")
 
     server.shutdown()
 
 
 # ============================================================
-# 3. TYPES DE FICHIERS VARIÉS
+# 3. VARIOUS FILE TYPES
 # ============================================================
 def test_file_types(r):
-    print("\n--- 3. Types de fichiers ---\n")
+    print("\n--- 3. File types ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
@@ -250,8 +250,8 @@ def test_file_types(r):
         ("émojis 🎉.txt", b"emojis"),
     ]
 
-    # Pas de nettoyage prealable : dd est un dossier temporaire propre a
-    # chaque execution (cf. tests/conftest.py).
+    # No prior cleanup: dd is a temporary folder unique to each run
+    # (see tests/conftest.py).
 
     for filename, content in test_files:
         resp, err = _safe_upload(port, token, filename, content)
@@ -264,64 +264,64 @@ def test_file_types(r):
         data = _json(resp)
         r.ok(f"Upload {filename}", data.get("success"), data)
 
-    # Vérifier que tous les fichiers existent sur disque
+    # Check that all files exist on disk
     uploaded = 0
     for tf_name, _ in test_files:
         matches = [f for f in os.listdir(dd) if f.startswith(tf_name.split(".")[0])]
         if matches:
             uploaded += 1
-    r.ok(f"Fichiers sur disque: {uploaded}/{len(test_files)}", uploaded > 0,
-         f"{uploaded} fichiers trouves dans {dd}")
+    r.ok(f"Files on disk: {uploaded}/{len(test_files)}", uploaded > 0,
+         f"{uploaded} files found in {dd}")
 
     server.shutdown()
 
 
 # ============================================================
-# 4. SHA-256 INTÉGRITÉ
+# 4. SHA-256 INTEGRITY
 # ============================================================
 def test_sha256_integrity(r):
-    print("\n--- 4. SHA-256 integrite ---\n")
+    print("\n--- 4. SHA-256 integrity ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
     server, port, token = _start("sha256")
 
-    # Upload avec contenu connu
+    # Upload with known content
     content = b"Ce fichier doit etre verifie via SHA-256. " * 1000
     expected_hash = hashlib.sha256(content).hexdigest()
 
     resp, err = _safe_upload(port, token, "sha_test.bin", content)
     if err == "rate_limited":
-        r.ok("SHA-256 dans réponse", True, "skip: rate limited")
+        r.ok("SHA-256 in response", True, "skip: rate limited")
     elif err:
-        r.ok("SHA-256 dans réponse", False, err)
+        r.ok("SHA-256 in response", False, err)
     else:
         data = _json(resp)
-        r.ok("SHA-256 dans réponse", data.get("sha256") == expected_hash,
-             f"attendu={expected_hash}, reçu={data.get('sha256')}")
+        r.ok("SHA-256 in response", data.get("sha256") == expected_hash,
+             f"expected={expected_hash}, got={data.get('sha256')}")
 
-    # Vérifier SHA-256 du fichier sur disque
+    # Check the file's SHA-256 on disk
     filepath = os.path.join(dd, "sha_test.bin")
     if os.path.exists(filepath):
         with open(filepath, "rb") as f:
             actual_hash = hashlib.sha256(f.read()).hexdigest()
-        r.ok("SHA-256 sur disque", actual_hash == expected_hash,
-             f"attendu={expected_hash}, disque={actual_hash}")
+        r.ok("SHA-256 on disk", actual_hash == expected_hash,
+             f"expected={expected_hash}, disk={actual_hash}")
     else:
-        r.ok("SHA-256 sur disque", False, "fichier non trouvé")
+        r.ok("SHA-256 on disk", False, "file not found")
 
-    # Upload un deuxième fichier, vérifier qu'il est différent
+    # Upload a second file, check that it differs
     content2 = b"Contenu different pour test hash unique"
     hash2 = hashlib.sha256(content2).hexdigest()
     resp2, err2 = _safe_upload(port, token, "sha_test2.bin", content2)
     if err2 == "rate_limited":
-        r.ok("Hash unique par fichier", True, "skip: rate limited")
+        r.ok("Unique hash per file", True, "skip: rate limited")
     elif err2:
-        r.ok("Hash unique par fichier", False, err2)
+        r.ok("Unique hash per file", False, err2)
     else:
         data2 = _json(resp2)
-        r.ok("Hash unique par fichier", data2.get("sha256") != expected_hash,
-             "deux fichiers = deux hashes différents")
+        r.ok("Unique hash per file", data2.get("sha256") != expected_hash,
+             "two files = two different hashes")
 
     server.shutdown()
 
@@ -334,7 +334,7 @@ def test_sha256_integrity(r):
 
 
 # ============================================================
-# 5. RATE LIMITING EXHAUSTIF
+# 5. EXHAUSTIVE RATE LIMITING
 # ============================================================
 def test_rate_limiting(r):
     print("\n--- 5. Rate limiting ---\n")
@@ -363,13 +363,13 @@ def test_rate_limiting(r):
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 upload_limited = True
-                r.ok(f"Upload rate limit à requête #{i+1}", True)
+                r.ok(f"Upload rate limit hit at request #{i+1}", True)
                 break
-    r.ok("Upload rate limit déclenché", upload_limited, "pas de 429 après 15 uploads")
+    r.ok("Upload rate limit triggered", upload_limited, "no 429 after 15 uploads")
     server.shutdown()
 
     # Download limit: 30/min
-    # Créer un fichier dans share_dir pour télécharger
+    # Create a file in share_dir to download
     share_file = os.path.join(sd, "rate_dl.txt")
     with open(share_file, "wb") as f:
         f.write(b"rate limit test")
@@ -382,9 +382,9 @@ def test_rate_limiting(r):
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 download_limited = True
-                r.ok(f"Download rate limit à requête #{i+1}", True)
+                r.ok(f"Download rate limit hit at request #{i+1}", True)
                 break
-    r.ok("Download rate limit déclenché", download_limited, "pas de 429 après 35 downloads")
+    r.ok("Download rate limit triggered", download_limited, "no 429 after 35 downloads")
     server2.shutdown()
 
     # General limit: 120/min (applies to all /api/* GET endpoints)
@@ -396,12 +396,12 @@ def test_rate_limiting(r):
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 general_limited = True
-                r.ok(f"General rate limit a requete #{i+1}", True)
+                r.ok(f"General rate limit hit at request #{i+1}", True)
                 break
-    r.ok("General rate limit declenche", general_limited, "pas de 429 apres 125 requetes")
+    r.ok("General rate limit triggered", general_limited, "no 429 after 125 requests")
     server3.shutdown()
 
-    # Cleanup : uniquement le fichier ecrit par ce test (dossier temporaire)
+    # Cleanup: only the file written by this test (temporary folder)
     try:
         os.remove(share_file)
     except OSError:
@@ -409,40 +409,40 @@ def test_rate_limiting(r):
 
 
 # ============================================================
-# 6. CAS D'ÉCHEC
+# 6. FAILURE CASES
 # ============================================================
 def test_failure_cases(r):
-    print("\n--- 6. Cas d'echec ---\n")
+    print("\n--- 6. Failure cases ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
     server, port, token = _start("failures")
 
-    # Mauvais token
+    # Bad token
     try:
         urlopen(_url(port, "/api/files", "mauvais_token"), timeout=30)
-        r.ok("Mauvais token -> 403", False, "pas d'erreur")
+        r.ok("Bad token -> 403", False, "no error")
     except urllib.error.HTTPError as e:
-        r.ok("Mauvais token -> 403", e.code == 403, f"code={e.code}")
+        r.ok("Bad token -> 403", e.code == 403, f"code={e.code}")
 
-    # Token expiré
+    # Expired token
     server_exp, port_exp, token_exp = _start("expires", expires=2)
     time.sleep(3)
     try:
         urlopen(_url(port_exp, "/api/files", token_exp), timeout=30)
-        r.ok("Token expiré -> 403", False, "pas d'erreur")
+        r.ok("Expired token -> 403", False, "no error")
     except urllib.error.HTTPError as e:
         body = _json(e)
-        r.ok("Token expiré -> 403", e.code == 403 and "expire" in body.get("error", "").lower(),
+        r.ok("Expired token -> 403", e.code == 403 and "expire" in body.get("error", "").lower(),
              f"code={e.code}, msg={body.get('error')}")
     server_exp.shutdown()
 
-    # Fichier inexistant
+    # Missing file
     try:
         urlopen(_url(port, "/api/download/INEXISTANT.txt", token), timeout=30)
-        r.ok("Fichier inexistant -> 404", False, "pas d'erreur")
+        r.ok("Missing file -> 404", False, "no error")
     except urllib.error.HTTPError as e:
-        r.ok("Fichier inexistant -> 404", e.code == 404, f"code={e.code}")
+        r.ok("Missing file -> 404", e.code == 404, f"code={e.code}")
 
     # Path traversal
     traversals = [
@@ -453,16 +453,16 @@ def test_failure_cases(r):
     for t in traversals:
         try:
             urlopen(_url(port, f"/api/download/{t}", token), timeout=30)
-            r.ok(f"Path traversal bloque ({t[:20]}...)", False, "pas d'erreur")
+            r.ok(f"Path traversal blocked ({t[:20]}...)", False, "no error")
         except urllib.error.HTTPError as e:
-            r.ok(f"Path traversal bloque ({t[:20]}...)", e.code in (400, 403, 404), f"code={e.code}")
+            r.ok(f"Path traversal blocked ({t[:20]}...)", e.code in (400, 403, 404), f"code={e.code}")
 
-    # Fichier trop gros (simulé: Content-Length > MAX)
-    # On ne peut pas vraiment envoyer 11 Go, mais on teste le check côté serveur
-    # Le serveur vérifie Content-Length avant de lire
-    r.ok("Limite taille configurée (10 GB)", True, "vérifié dans le code")
+    # File too large (simulated: Content-Length > MAX)
+    # We cannot really send 11 GB, but we test the server-side check
+    # The server checks Content-Length before reading
+    r.ok("Configured size limit (10 GB)", True, "checked in code")
 
-    # Requete POST sans Content-Type multipart
+    # POST request without multipart Content-Type
     try:
         req = urllib.request.Request(
             _url(port, "/api/upload", token),
@@ -471,11 +471,11 @@ def test_failure_cases(r):
             method="POST",
         )
         urlopen(req)
-        r.ok("POST sans multipart -> 400", False, "pas d'erreur")
+        r.ok("POST without multipart -> 400", False, "no error")
     except urllib.error.HTTPError as e:
-        r.ok("POST sans multipart -> 400", e.code in (400, 429), f"code={e.code}")
+        r.ok("POST without multipart -> 400", e.code in (400, 429), f"code={e.code}")
 
-    # Upload sans token
+    # Upload without token
     try:
         boundary = "----NT"
         body = (b"--" + boundary.encode() + b"\r\n"
@@ -490,25 +490,25 @@ def test_failure_cases(r):
             method="POST",
         )
         urlopen(req)
-        r.ok("Upload sans token -> 403", False, "pas d'erreur")
+        r.ok("Upload without token -> 403", False, "no error")
     except urllib.error.HTTPError as e:
-        r.ok("Upload sans token -> 403", e.code in (403, 429), f"code={e.code}")
+        r.ok("Upload without token -> 403", e.code in (403, 429), f"code={e.code}")
 
-    # Route inexistante
+    # Nonexistent route
     try:
         urlopen(_url(port, "/api/inexistant", token), timeout=30)
-        r.ok("Route inexistante -> 404", False, "pas d'erreur")
+        r.ok("Nonexistent route -> 404", False, "no error")
     except urllib.error.HTTPError as e:
-        r.ok("Route inexistante -> 404", e.code == 404, f"code={e.code}")
+        r.ok("Nonexistent route -> 404", e.code == 404, f"code={e.code}")
 
     server.shutdown()
 
 
 # ============================================================
-# 7. TRANSFERTS MULTIPLES CONSÉCUTIFS
+# 7. CONSECUTIVE MULTIPLE TRANSFERS
 # ============================================================
 def test_consecutive_transfers(r):
-    print("\n--- 7. Transferts multiples consecutifs ---\n")
+    print("\n--- 7. Consecutive multiple transfers ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
@@ -532,32 +532,32 @@ def test_consecutive_transfers(r):
             data,
         )
 
-    # Verifier que tous les fichiers existent sur disque
+    # Check that all files exist on disk
     found = [f for f in os.listdir(dd) if f.startswith("multi_") and f.endswith(".txt")]
-    r.ok("5 fichiers sur disque", len(found) == 5, f"trouve: {len(found)}")
+    r.ok("5 files on disk", len(found) == 5, f"found: {len(found)}")
 
     server.shutdown()
 
 
 # ============================================================
-# 8. ANNULATION / INTERRUPTION
+# 8. CANCELLATION / INTERRUPTION
 # ============================================================
 def test_cancellation(r):
-    print("\n--- 8. Annulation / interruption ---\n")
+    print("\n--- 8. Cancellation / interruption ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
     server, port, token = _start("cancel")
 
-    # Simuler un upload interrompu (connexion coupée après envoi partiel)
-    # On envoie un Content-Length incorrect
+    # Simulate an interrupted upload (connection cut after a partial send)
+    # We send an incorrect Content-Length
     try:
         boundary = "----CANCEL"
         body = (b"--" + boundary.encode() + b"\r\n"
                 b'Content-Disposition: form-data; name="file"; filename="cancel.txt"\r\n'
                 b"Content-Type: text/plain\r\n\r\n"
                 b"partiel")
-        # On déclare 1000 octets mais n'en envoie que ~60
+        # We declare 1000 bytes but only send ~60
         req = urllib.request.Request(
             _url(port, "/api/upload", token),
             data=body,
@@ -569,32 +569,32 @@ def test_cancellation(r):
         )
         try:
             urlopen(req)
-            r.ok("Upload interrompu détecté", False, "devrait échouer")
+            r.ok("Interrupted upload detected", False, "should fail")
         except (urllib.error.HTTPError, urllib.error.URLError, Exception) as e:
-            r.ok("Upload interrompu détecté", True, f"erreur attendue: {type(e).__name__}")
+            r.ok("Interrupted upload detected", True, f"expected error: {type(e).__name__}")
     except Exception as e:
-        r.ok("Upload interrompu détecté", True, f"exception: {e}")
+        r.ok("Interrupted upload detected", True, f"exception: {e}")
 
-    # Vérifier qu'aucun fichier corrompu n'est resté
+    # Check that no corrupted file was left behind
     corrupt_files = [f for f in os.listdir(dd) if "cancel" in f and f != "cancel.txt"]
-    r.ok("Pas de fichier corrompu", len(corrupt_files) == 0, f"fichiers: {corrupt_files}")
+    r.ok("No corrupted file left", len(corrupt_files) == 0, f"files: {corrupt_files}")
 
-    # Upload normal pour vérifier que le serveur fonctionne toujours après interruption
+    # Normal upload to check the server still works after interruption
     try:
         resp = _upload(port, token, "after_cancel.txt", b"still works")
         data = _json(resp)
-        r.ok("Serveur fonctionne après interruption", data.get("success"), data)
+        r.ok("Server works after interruption", data.get("success"), data)
     except Exception as e:
-        r.ok("Serveur fonctionne après interruption", False, str(e))
+        r.ok("Server works after interruption", False, str(e))
 
     server.shutdown()
 
 
 # ============================================================
-# 9. SÉCURITÉ NOMS DE FICHIERS
+# 9. FILENAME SECURITY
 # ============================================================
 def test_filename_security(r):
-    print("\n--- 9. Securite noms de fichiers ---\n")
+    print("\n--- 9. Filename security ---\n")
     limiter_upload.reset()
     limiter_general.reset()
 
@@ -622,25 +622,25 @@ def test_filename_security(r):
     for name in dangerous_names:
         resp, err = _safe_upload(port, token, name, b"safe content")
         if err == "rate_limited":
-            r.ok(f"Nom géré: {name[:20]}", True, "skip: rate limited")
+            r.ok(f"Name handled: {name[:20]}", True, "skip: rate limited")
             continue
         if err:
-            r.ok(f"Nom géré: {name[:20]}", True, f"exception: {err}")
+            r.ok(f"Name handled: {name[:20]}", True, f"exception: {err}")
             continue
         data = _json(resp)
         if data.get("success"):
             saved_name = data.get("filename", "")
             if saved_name:
                 created.append(saved_name)
-            r.ok(f"Nom assaini: {name[:20]}", saved_name != name or len(name) < 100,
-                 f"nom sauvegardé: {saved_name}")
+            r.ok(f"Name sanitized: {name[:20]}", saved_name != name or len(name) < 100,
+                 f"saved name: {saved_name}")
         else:
-            r.ok(f"Nom refusé: {name[:20]}", True, f"erreur: {data.get('error')}")
+            r.ok(f"Name rejected: {name[:20]}", True, f"error: {data.get('error')}")
 
     server.shutdown()
 
-    # Cleanup : uniquement les fichiers crees par ce test (ne jamais vider
-    # le dossier de reception, il peut contenir des fichiers de l'utilisateur)
+    # Cleanup: only the files created by this test (never empty the
+    # receive folder, it may contain the user's files)
     for f in created:
         try:
             os.remove(os.path.join(dd, f))
@@ -649,10 +649,10 @@ def test_filename_security(r):
 
 
 # ============================================================
-# 10. HEADERS DE SÉCURITÉ
+# 10. SECURITY HEADERS
 # ============================================================
 def test_security_headers(r):
-    print("\n--- 10. Headers de securite ---\n")
+    print("\n--- 10. Security headers ---\n")
     limiter_general.reset()
 
     server, port, token = _start("headers")
@@ -666,12 +666,12 @@ def test_security_headers(r):
     except Exception as e:
         r.ok("Security headers", False, str(e))
 
-    # Vérifier headers sur une page statique
+    # Check headers on a static page
     try:
         resp = urlopen(f"https://{ip}:{port}/style.css")
-        r.ok("Headers sur CSS", resp.headers.get("X-Content-Type-Options") == "nosniff")
+        r.ok("Headers on CSS", resp.headers.get("X-Content-Type-Options") == "nosniff")
     except Exception as e:
-        r.ok("Headers sur CSS", False, str(e))
+        r.ok("Headers on CSS", False, str(e))
 
     server.shutdown()
 
@@ -682,14 +682,14 @@ def test_security_headers(r):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="OpenDrop Beta Tests")
-    parser.add_argument("--large", action="store_true", help="Inclure les tests gros fichiers")
-    parser.add_argument("--all", action="store_true", help="Tous les tests")
+    parser.add_argument("--large", action="store_true", help="Include large file tests")
+    parser.add_argument("--all", action="store_true", help="All tests")
     args = parser.parse_args()
 
     r = R()
 
     print(f"{'='*50}")
-    print("  OpenDrop v0.1.0 - Tests Bêta")
+    print("  OpenDrop v0.1.0 - Beta Tests")
     print(f"{'='*50}")
 
     # Tests always run
@@ -707,7 +707,7 @@ def main():
     if args.large or args.all:
         test_large_files(r)
     else:
-        print("\n--- 1. Gros fichiers (ignoré, utiliser --large) ---\n")
+        print("\n--- 1. Large files (skipped, use --large) ---\n")
 
     success = r.summary()
     sys.exit(0 if success else 1)

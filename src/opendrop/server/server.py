@@ -16,6 +16,7 @@ from urllib.parse import urlparse, parse_qs, unquote, quote
 from opendrop.security.validation import is_safe_path
 from opendrop.network.interfaces import _port_is_free
 from opendrop.security.tls_cert import ensure_certificate
+from opendrop.i18n import t, normalize_lang
 from opendrop.qr.generator import generate_qr_png
 from opendrop.server.multipart import parse_multipart_upload, CHUNK_SIZE
 from opendrop.server.quota import QuotaTracker
@@ -32,34 +33,35 @@ from opendrop.server.errors import (
 
 WEB_DIR = Path(__file__).resolve().parent.parent.parent.parent / "web"
 
-# HTTPS force : pas de repli HTTP (getUserMedia + chiffrement du LAN).
+# HTTPS only: no HTTP fallback (getUserMedia requires it, and the LAN
+# traffic must stay encrypted).
 SCHEME = "https"
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
 
-# Un envoi rejete avant lecture (taille, quota) laisse le client en train
-# d'ecrire : on absorbe un morceau du corps avant de repondre, sinon la
-# connexion tombe pendant l'ecriture et le client perd le message d'erreur.
+# An upload rejected before reading (size, quota) leaves the client still
+# writing: we absorb a chunk of the body before answering, otherwise the
+# connection drops mid-write and the client loses the error message.
 MAX_DRAIN_BYTES = 64 * 1024 * 1024
 MAX_DRAIN_SECONDS = 2.0
 
-# Erreurs de socket "normales" : telephone qui sonde le port, client qui
-# ferme pendant le handshake TLS, etc. Pas la peine d'une trace Python.
+# "Normal" socket noise: a phone probing the port, a client closing during
+# the TLS handshake, etc. Not worth a Python traceback.
 _TLS_NOISE = (ssl.SSLError, ConnectionResetError, ConnectionAbortedError,
               BrokenPipeError, TimeoutError)
 
 
 class PortInUseError(RuntimeError):
-    """Le port est deja pris (souvent par un ancien serveur OpenDrop)."""
+    """The port is already taken (often by an older OpenDrop server)."""
 
 
 def _probe_listener(port: int) -> str | None:
-    """'opendrop', 'autre' ou None (port libre).
+    """'opendrop', 'other' or None (port free).
 
-    Chemin rapide : si aucun processus ne tient le port, un simple bind
-    local le dit sans aucune connexion (une connexion sur un port libre
-    peut ici attendre tout le timeout avant d'echouer). Le handshake TLS
-    n'est lance que quand le port est effectivement pris.
+    Fast path: when no process holds the port, a plain local bind says so
+    without any connection (connecting to a free port can wait for the
+    whole timeout before failing). The TLS handshake is only attempted
+    when the port is actually taken.
     """
     if _port_is_free(port):
         return None
@@ -70,9 +72,9 @@ def _probe_listener(port: int) -> str | None:
                 with context.wrap_socket(raw, server_hostname="127.0.0.1") as tls:
                     tls.sendall(b"GET /api/info HTTP/1.1\r\nHost: 127.0.0.1\r\n"
                                 b"Connection: close\r\n\r\n")
-                    # La reponse arrive par morceaux : les en-tetes peuvent
-                    # arriver sans le corps, on lit jusqu'au marqueur ou a
-                    # l'arret de la connexion (borné par le timeout).
+                    # The reply arrives in pieces: headers can show up
+                    # without the body, so read until the marker or until
+                    # the connection stops (bounded by the timeout).
                     data = b""
                     deadline = time.monotonic() + 1.0
                     while time.monotonic() < deadline:
@@ -83,20 +85,19 @@ def _probe_listener(port: int) -> str | None:
                         if b'"port"' in data:
                             return "opendrop"
             except (ssl.SSLError, OSError, socket.timeout):
-                return "autre"
-            return "opendrop" if b'"port"' in data else "autre"
+                return "other"
+            return "opendrop" if b'"port"' in data else "other"
     except OSError:
-        return "autre"
+        return "other"
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
     def server_bind(self):
-        # HTTPServer.server_bind calcule le FQDN (resolution DNS inverse)
-        # : sur certaines machines cette attente depasse une seconde a
-        # chaque demarrage du serveur. Le nom d'hote local suffit, il n'est
-        # utilise que dans les pages d'erreur.
+        # HTTPServer.server_bind resolves the FQDN (reverse DNS): on some
+        # machines that wait exceeds a second on every server start. The
+        # local host name is enough; it is only used in error pages.
         TCPServer.server_bind(self)
         self.server_name = socket.gethostname()
         self.server_port = self.server_address[1]
@@ -120,11 +121,11 @@ transfer_lock = threading.Lock()
 
 
 def _content_disposition(filename: str) -> str:
-    """En-tete Content-Disposition sur pour un nom arbitraire.
+    """Content-Disposition header for an arbitrary name.
 
-    Le nom brut serait encode en latin-1 (exception sur les noms
-    non-ASCII) et accepterait un CRLF (injection d'en-tetes) : un fallback
-    ASCII propre pour les vieux clients, RFC 5987 pour l'UTF-8.
+    The raw name would be latin-1 encoded (exception on non-ASCII names)
+    and would accept a CRLF (header injection): a clean ASCII fallback for
+    old clients, RFC 5987 for UTF-8.
     """
     ascii_fallback = "".join(
         c if 32 <= ord(c) < 127 and c not in '"' else "_" for c in filename)
@@ -134,9 +135,9 @@ def _content_disposition(filename: str) -> str:
             f"filename*=UTF-8''{quote(filename)}")
 
 
-# Le jeton et le code de secours voyagent dans la query string et la ligne
-# de requete est imprimee par BaseHTTPRequestHandler : sans ce filtre, un
-# simple redirection des journaux mettrait les secrets sur le disque.
+# The token and the backup code travel in the query string, and the request
+# line is printed by BaseHTTPRequestHandler: without this filter, a simple
+# log redirection would put the secrets on disk.
 _SENSITIVE_QUERY = re.compile(r"(?i)\b(token|code)=[^&\s\"']+")
 
 
@@ -146,8 +147,8 @@ def _redact_secrets(message: str) -> str:
 
 class OpenDropHandler(BaseHTTPRequestHandler):
     server_version = "OpenDrop"
-    # Ne pas publier la version de Python : l'identifiant du serveur ne
-    # doit pas aider a cibler une CVE connue de l'interpreteur.
+    # Do not expose the Python version: the server identifier must not
+    # help target a known CVE in the interpreter.
     sys_version = ""
 
     def __init__(self, *args, token: str = "", download_dir: str = "", share_dir: str = "",
@@ -159,14 +160,14 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def send_error(self, code, message=None, explain=None):
-        # BaseHTTPRequestHandler repond en HTML sans les en-tetes de
-        # securite et avec des details internes : page courte, echappee,
-        # memes en-tetes que le reste, aucun explique technique.
+        # BaseHTTPRequestHandler answers in HTML without security headers
+        # and with internal details: short page, escaped, same headers as
+        # the rest, no technical explanation.
         try:
             try:
                 reason = message or HTTPStatus(code).phrase
             except ValueError:
-                reason = message or "Erreur"
+                reason = message or "Error"
             body = (
                 "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
                 f"<title>{html.escape(f'{code} {reason}')}</title></head>"
@@ -201,9 +202,9 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         self.handle_one_request()
 
     def _get_client_ip(self) -> str:
-        # X-Forwarded-For n'est pris en compte que derriere un proxy de
-        # confiance (trust_proxy). Sans cela, n'importe quel client du LAN
-        # pourrait inventer des IP et contourner le rate limiting.
+        # X-Forwarded-For is only honored behind a trusted proxy
+        # (trust_proxy). Otherwise any LAN client could invent IPs and
+        # bypass the rate limiting.
         if getattr(self.server, "trust_proxy", False):
             forwarded = self.headers.get("X-Forwarded-For")
             if forwarded:
@@ -225,7 +226,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
     def _check_token(self, query: dict) -> None:
         t = query.get("token", [None])[0]
         if not t:
-            raise TokenInvalidError("Token manquant")
+            raise TokenInvalidError("Missing session token")
         if self._sessions:
             valid, reason = self._sessions.validate(t)
             if not valid:
@@ -253,7 +254,8 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
 
     def _send_error_json(self, exc: OpenDropError) -> None:
-        self._send_json(format_error_response(exc), exc.status)
+        lang = getattr(self.server, "language", "en")
+        self._send_json(format_error_response(exc, lang), exc.status)
 
     def _send_file(self, path: Path, content_type: str) -> None:
         if not path.exists():
@@ -281,6 +283,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         ip = self._get_client_ip()
+        lang = getattr(self.server, "language", "en")
 
         try:
             self._check_origin()
@@ -310,7 +313,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 elif path.startswith("/api/download/"):
                     self._route_download(query, path, ip)
                 else:
-                    self._send_json({"error": "Route inconnue", "code": 404}, 404)
+                    self._send_json({"error": t("Unknown route", lang), "code": 404}, 404)
             else:
                 self.send_error(404)
         except OpenDropError as e:
@@ -327,6 +330,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         ip = self._get_client_ip()
+        lang = getattr(self.server, "language", "en")
 
         try:
             self._check_origin()
@@ -342,7 +346,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             elif path == "/api/session/unlock":
                 self._route_session_unlock(query, ip)
             else:
-                self._send_json({"error": "Route inconnue", "code": 404}, 404)
+                self._send_json({"error": t("Unknown route", lang), "code": 404}, 404)
         except OpenDropError as e:
             self._send_error_json(e)
         except ConnectionResetError:
@@ -359,15 +363,17 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 pass
 
     def _route_qr(self, query: dict, ip: str) -> None:
-        # Hors /api/ : sans cette ligne la route genererait des PNG sans
-        # borne, et elle livre le token contenu dans l'image.
+        # Outside /api/: without this line the route would generate PNGs
+        # unbounded, and it hands out the token embedded in the image.
         if not limiter_general.allow(ip):
             raise RateLimitError()
         self._check_token(query)
         url = f"{getattr(self.server, 'scheme', SCHEME)}://{self.server.local_ip}:{self.server.port}/?token={self._token}"
         img = generate_qr_png(url)
         if img is None:
-            self._send_json({"error": "QR code non disponible"}, 500)
+            self._send_json(
+                {"error": t("QR code unavailable",
+                            getattr(self.server, "language", "en"))}, 500)
             return
         self.send_response(200)
         self.send_header("Content-Type", "image/png")
@@ -392,13 +398,14 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         self._send_json(state)
 
     def _route_info(self, query: dict) -> None:
-        # Route de decouverte : le desktop (poll d'etat) et le probe qui
-        # identifie un serveur OpenDrop l'appellent avant toute
-        # authentification. Elle ne doit donc rien contenir de sensible :
-        # l'etat des sessions ne sort que pour un porteur de token valide.
+        # Discovery route: the desktop (status poll) and the probe that
+        # identifies an OpenDrop server call it before any authentication.
+        # So it must not leak anything sensitive: session state is only
+        # returned to a valid token bearer.
         data = {
             "ip": self.server.local_ip,
             "port": self.server.port,
+            "lang": getattr(self.server, "language", "en"),
         }
         if "token" in query:
             self._check_token(query)
@@ -422,11 +429,11 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             raise RateLimitError()
         code = query.get("code", [None])[0]
         if not self._sessions or not self._sessions.validate_code(code):
-            print(f"[OpenDrop] Code de session invalide ({ip})", flush=True)
-            raise TokenInvalidError("Code de session invalide")
-        # Le code ouvre une nouvelle session : on ne touche pas aux appareils
-        # deja connectes, et le deblocage reste possible meme si la session
-        # principale a expire.
+            print(f"[OpenDrop] Invalid session code ({ip})", flush=True)
+            raise TokenInvalidError("Invalid session code")
+        # The code opens a new session: already-connected devices are left
+        # alone, and unlocking stays possible even after the main session
+        # has expired.
         self._send_json({"success": True, "token": self._sessions.create()})
 
     def _route_files(self, query: dict, ip: str) -> None:
@@ -445,17 +452,16 @@ class OpenDropHandler(BaseHTTPRequestHandler):
     def _route_upload(self, query: dict, ip: str) -> None:
         self._check_token(query)
         if not limiter_upload.allow(ip):
-            raise RateLimitError("Trop d'envois, reessayez dans un moment")
+            raise RateLimitError("Too many uploads, try again in a moment")
         self._handle_upload()
 
     def _drain_body(self, content_length: int) -> None:
-        """Absorbe (sans ecrire sur disque) une partie d'un corps rejete.
+        """Absorb (without writing to disk) part of a rejected body.
 
-        Quand on rejette avant lecture, le client est souvent encore en
-        train d'ecrire : sans cette lecture, la connexion tombe en plein
-        envoi et le navigateur perd le message d'erreur (il affiche alors
-        une coupure de connexion a la place du 507). Borne en taille et en
-        temps pour ne pas attendre un client lent.
+        When we reject before reading, the client is often still writing:
+        without this read the connection drops mid-upload and the browser
+        loses the error message (it shows a connection cut instead of the
+        507). Bounded in size and time so a slow client cannot stall us.
         """
         remaining = max(0, min(content_length, MAX_DRAIN_BYTES))
         if remaining == 0:
@@ -486,14 +492,14 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
 
         if "multipart/form-data" not in content_type:
-            raise MultipartParseError("Format de requete invalide")
+            raise MultipartParseError("Invalid request format")
 
         if content_length > MAX_UPLOAD_SIZE:
             self._drain_body(content_length)
-            raise FileTooLargeError("Fichier trop volumineux (max 10 Go)")
+            raise FileTooLargeError("File too large (max 10 GB)")
 
-        # Quota global : scan du dossier + reservation de la place annoncee
-        # (leve 507 si l'envoi ferait depasser le quota).
+        # Global quota: scan the folder + reserve the announced space
+        # (raises 507 if the upload would exceed the quota).
         quota = getattr(self.server, "quota", None)
         if quota is not None:
             try:
@@ -524,12 +530,12 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             raise
         except Exception as e:
             with transfer_lock:
-                transfer_state.update({"active": False, "error": "Erreur de lecture du fichier"})
+                transfer_state.update({"active": False, "error": "File read error"})
             log_error(e, "upload parse")
-            raise MultipartParseError("Impossible de lire le fichier envoye")
+            raise MultipartParseError("Cannot read the uploaded file")
         finally:
-            # La reservation couvre la duree de l'ecriture uniquement : un
-            # envoi echoue ne bloque pas les suivants.
+            # The reservation only covers the write itself: a failed
+            # upload does not block the next ones.
             if quota is not None:
                 quota.release(content_length)
 
@@ -553,13 +559,13 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             })
 
         try:
-            print(f"[OpenDrop] Fichier recu: {safe_name} ({file_size} octets) -> {dest}", flush=True)
+            print(f"[OpenDrop] File received: {safe_name} ({file_size} bytes) -> {dest}", flush=True)
         except UnicodeEncodeError:
             safe_name_ascii = safe_name.encode("ascii", errors="replace").decode("ascii")
             dest_ascii = str(dest).encode("ascii", errors="replace").decode("ascii")
-            print(f"[OpenDrop] Fichier recu: {safe_name_ascii} ({file_size} octets) -> {dest_ascii}", flush=True)
-        # Jamais le chemin reel du serveur : le client n'a besoin que du
-        # nom, de la taille et du hash (voir SECURITY.md, "Routes et chemins").
+            print(f"[OpenDrop] File received: {safe_name_ascii} ({file_size} bytes) -> {dest_ascii}", flush=True)
+        # Never the server's real path: the client only needs the name,
+        # size and hash (see SECURITY.md, "Routes and paths").
         resp = {"success": True, "filename": safe_name, "size": file_size}
         if file_hash:
             resp["sha256"] = file_hash
@@ -577,24 +583,24 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                     files.append({"name": f.name, "size": f.stat().st_size})
         except OSError as e:
             log_error(e, "list_files")
-            raise OpenDropError("Impossible de lire le dossier de partage")
+            raise OpenDropError("Cannot read the share folder")
         self._send_json({"files": files})
 
     def _handle_download_file(self, filename: str):
         share_dir = Path(self._share_dir)
         if not is_safe_path(str(share_dir), filename):
-            raise FilenameUnsafeError("Chemin non autorise")
+            raise FilenameUnsafeError("Path not allowed")
         filepath = share_dir / filename
         if not filepath.exists():
-            raise FileDeletedError("Fichier introuvable")
+            raise FileDeletedError("File not found")
         if not filepath.is_file():
-            raise DownloadError("Le chemin ne correspond pas a un fichier")
+            raise DownloadError("The path does not match a file")
 
         try:
             file_size = filepath.stat().st_size
         except OSError as e:
             log_error(e, "download stat")
-            raise OpenDropError("Impossible d'acceder au fichier")
+            raise OpenDropError("Cannot access the file")
 
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
@@ -614,14 +620,16 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             pass
         except OSError as e:
             log_error(e, "download stream")
-            raise OpenDropError("Erreur de lecture du fichier")
+            raise OpenDropError("File read error")
 
 
 def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: str,
                   session_expires_in: int = 3600, trust_proxy: bool = False,
                   session_code: str | None = None,
                   tls_cert_dir: str | Path | None = None,
-                  global_quota_bytes: int = 0) -> ThreadedHTTPServer:
+                  global_quota_bytes: int = 0,
+                  language: str = "en") -> ThreadedHTTPServer:
+    language = normalize_lang(language)
     sessions = SessionManager(expires_in=session_expires_in, code=session_code)
     sessions.register(token)
     sessions.start_cleanup()
@@ -633,15 +641,18 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
 
     handler = type("Handler", (OpenDropHandler,), {"__init__": patched_init})
 
-    # Sur Windows, SO_REUSEADDR autorise un double bind : deux serveurs
-    # OpenDrop pourraient coexister sur le meme port, avec token et code
-    # differents (le telephone tomberait alors sur le mauvais). On refuse.
+    # On Windows, SO_REUSEADDR allows a double bind: two OpenDrop servers
+    # could coexist on the same port with different tokens and codes (the
+    # phone would then land on the wrong one). Refuse.
     listener = _probe_listener(port)
     if listener == "opendrop":
-        raise PortInUseError(
-            f"Un autre serveur OpenDrop tourne deja sur le port {port}.")
-    if listener == "autre":
-        raise PortInUseError(f"Le port {port} est deja utilise par un autre programme.")
+        raise PortInUseError(t(
+            "Another OpenDrop server is already running on port {port}.",
+            language, port=port))
+    if listener == "other":
+        raise PortInUseError(t(
+            "Port {port} is already in use by another program.",
+            language, port=port))
 
     server = ThreadedHTTPServer(("0.0.0.0", port), handler)
     server.local_ip = ip
@@ -649,13 +660,14 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     server.sessions = sessions
     server.trust_proxy = trust_proxy
     server.scheme = SCHEME
-    # Quota global du dossier de reception (0 = illimite). Le scan du
-    # dossier se fait a chaque envoi, la reservation est thread-safe.
-    server.quota = QuotaTracker(download_dir, global_quota_bytes)
+    server.language = language
+    # Global receive-folder quota (0 = unlimited). The folder is scanned on
+    # every upload; the reservation is thread-safe.
+    server.quota = QuotaTracker(download_dir, global_quota_bytes, lang=language)
 
-    # TLS : certificat auto-signe local (regenere si l'IP change). Les
-    # clients qui sondent le port en clair echouent au handshake, ce que
-    # handle_error avale silencieusement.
+    # TLS: local self-signed certificate (regenerated when the IP changes).
+    # Clients probing the port in plain text fail the handshake, which
+    # handle_error swallows silently.
     cert_path, key_path = ensure_certificate(ip, directory=tls_cert_dir)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2

@@ -1,140 +1,142 @@
 # OpenDrop
 
-> Transfert de fichiers direct sur le reseau local : on lance OpenDrop, on
-> scanne le QR code, on envoie. Pas de compte, pas de cloud, pas d'install
-> sur le telephone.
+> Direct file transfers on your local network: launch OpenDrop, scan the
+> QR code, send. No account, no cloud, no install on your phone.
 
 [![Tests](https://github.com/lucas31Zz/opendrop/actions/workflows/tests.yml/badge.svg)](https://github.com/lucas31Zz/opendrop/actions/workflows/tests.yml)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![MIT License](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Windows](https://img.shields.io/badge/bureau-Windows%20%2B%20Linux-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
 [![Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](.github/workflows/tests.yml)
 
 
 ```text
-PC (OpenDrop)  --->  QR CODE  --->  telephone / tablette / autre PC
+PC (OpenDrop)  --->  QR CODE  --->  phone / tablet / another PC
                      |                    |
-                  code a 6 caracteres     v
-                                    interface web (HTTPS)
+                  6-character code        v
+                                    web interface (HTTPS)
                                              |
-                              Envoyer / Telecharger
+                                    Send / Download
                                              |
-                                    transfert direct
-                                        sur le LAN
+                                    direct transfer
+                                        over the LAN
 ```
 
-Le fichier ne quitte jamais le reseau local : OpenDrop est un serveur HTTP(S)
-pair-a-pair sur votre machine, rien ne transite par internet.
+The file never leaves your local network: OpenDrop is a peer-to-peer HTTP(S)
+server running on your machine, nothing goes over the internet.
 
 ---
 
-## Ce que ca fait
+## What it does
 
-- **HTTPS obligatoire** : certificat auto-signe genere au premier demarrage
-- **Session par token** : 32 caracteres aleatoires, expiration configurable,
-  rotation manuelle (bouton Reset) ou automatique (minuterie), code de secours
-  a 6 caracteres pour debloquer un appareil
-- **Interface web** dans le navigateur, sans installation : onglets
-  *Envoyer* et *Telecharger*, barre de quota en haut, verrou de session
-- **Dossier Partage** : les fichiers places dedans sont proposes aux autres
-  appareils, telechargeables en un clic
-- **Quota global de reception** (optionnel) : refus en 507 avant d'ecrire,
-  indicateur en direct (vert sous la limite, rouge une fois atteint)
-- **Garde-fous** : 10 Go par fichier, limites de debit par IP, noms de
-  fichiers assainis, chemins verifies, aucune fuite de chemin serveur
-- **Bureau Windows et Linux** (Avalonia, .NET 8) : QR code, adresse, code de
-  session, quota, dossiers, parametres, demarrage/Arret du serveur en un clic
-
----
-
-## Captures d'ecran
-
-A venir (`docs/screenshots/`) : l'application bureau (QR code, quota,
-parametres) et l'interface web (onglets *Envoyer* / *Telecharger*).
+- **HTTPS required**: self-signed certificate generated on first launch
+- **Token-based sessions**: 32 random characters, configurable expiration,
+  manual rotation (Reset button) or automatic (timer), plus a 6-character
+  backup code to unlock a device
+- **Web interface** in the browser, no install needed: *Send* and
+  *Download* tabs, quota bar up top, session lock
+- **Share folder**: files dropped in there are offered to other devices,
+  downloadable in one click
+- **Global receive quota** (optional): rejected with a 507 before anything
+  is written, live indicator (green under the limit, red once reached)
+- **Safety limits**: 10 GB per file, per-IP rate limits, sanitized file
+  names, validated paths, no server path leaks
+- **Desktop app for Windows and Linux** (Avalonia, .NET 8): QR code,
+  address, session code, quota, folders, settings, one-click server
+  start/stop
+- **English and French**: English is the default everywhere (installer,
+  desktop app, web interface, server messages); switch the app to French
+  in *Settings* (or pick it in the Windows installer)
 
 ---
 
-## Prerequis
+## Screenshots
 
-- Python **3.10+** (developpe et teste en 3.12) — Windows **ou Linux**
-  (les tests passent en CI sur les deux)
-- Uniquement pour builder l'application bureau depuis les sources :
-  **.NET 8 SDK** (disponible sous Windows, Linux et macOS)
+Coming soon (`docs/screenshots/`): the desktop app (QR code, quota,
+settings) and the web interface (*Send* / *Download* tabs).
 
-Dependances Python :
+---
+
+## Requirements
+
+- Python **3.10+** (developed and tested on 3.12) — Windows **or Linux**
+  (tests run in CI on both)
+- Only needed to build the desktop app from source: **.NET 8 SDK**
+  (available on Windows, Linux, and macOS)
+
+Python dependencies:
 
 ```powershell
-pip install -e .            # qrcode[pil] + cryptography, installe la commande "opendrop"
+pip install -e .            # qrcode[pil] + cryptography, installs the "opendrop" command
 ```
 
 ---
 
-## Telechargements
+## Downloads
 
-Chaque release GitHub (onglet *Releases*) contient, generees automatiquement
-a chaque tag :
+Every GitHub release (the *Releases* tab) includes, generated automatically
+on each tag:
 
-| Fichier | Plateforme | Contenu |
+| File | Platform | Contents |
 |---|---|---|
-| `OpenDrop-vX.Y.Z-win-x64-setup.exe` | Windows 10/11 x64 | installeur complet (droits admin), dependances installees en local, hors-ligne |
-| `OpenDrop-vX.Y.Z-win-x64.zip` | Windows 10/11 x64 | version portable (a decompacter) |
-| `OpenDrop-vX.Y.Z-linux-x64.tar.gz` | Linux x64 (Debian, Kali, Ubuntu...) | binaire + serveur + wheels + scripts d'installation |
+| `OpenDrop-vX.Y.Z-win-x64-setup.exe` | Windows 10/11 x64 | full installer (admin rights), dependencies installed locally, offline |
+| `OpenDrop-vX.Y.Z-win-x64.zip` | Windows 10/11 x64 | portable version (just unzip) |
+| `OpenDrop-vX.Y.Z-linux-x64.tar.gz` | Linux x64 (Debian, Kali, Ubuntu...) | binary + server + wheels + install scripts |
 
-### Windows : installeur
+### Windows: installer
 
-1. Telecharger le `*-win-x64-setup.exe` et le lancer (administration requise).
-2. Choisir la langue (francais ou anglais) puis valider l'installation dans
+1. Download the `*-win-x64-setup.exe` and run it (admin rights required).
+2. Choose the installer language, the application language (English or
+   French, English by default), then confirm the install into
    `C:\Program Files (x86)\OpenDrop`.
-3. Python **3.10+** doit etre present (cocher *Add python.exe to PATH*) : le
-   setup installe les dependances dans un `venv` local a partir des wheels
-   fournis, sans acces reseau.
+3. Python **3.10+** must already be present (check *Add python.exe to
+   PATH*): the installer sets up the dependencies in a local `venv` from
+   the bundled wheels, with no network access.
 
-Desinstallation : *Parametres Windows > Applications > OpenDrop* (ou
-`uninstall.exe` dans le dossier d'installation). Le desinstalleur supprime
-l'application, son `venv` et les donnees applicatives (`config.json`,
-`session.json`, `server.pid`, `certs\` dans `%LOCALAPPDATA%\OpenDrop`) mais
-**ne touche jamais aux dossiers de reception ni de partage** (fichiers recus
-et partages conserves tels quels).
+Uninstall: *Windows Settings > Apps > OpenDrop* (or `uninstall.exe` in the
+install folder). The uninstaller removes the app, its `venv`, and the app
+data (`config.json`, `session.json`, `server.pid`, `certs\` in
+`%LOCALAPPDATA%\OpenDrop`) but **never touches your receive or share
+folders** (received and shared files are left exactly as they are).
 
-### Linux : tarball
+### Linux: tarball
 
-Prerequis : `sudo apt install python3 python3-venv` (Python 3.10+).
+Requirements: `sudo apt install python3 python3-venv` (Python 3.10+).
 
 ```bash
 tar -xzf OpenDrop-vX.Y.Z-linux-x64.tar.gz
 cd OpenDrop
-sudo ./install.sh          # /opt/opendrop + venv local + menu d'applications
-opendrop-desktop           # ou depuis le menu
+sudo ./install.sh          # /opt/opendrop + local venv + app menu
+opendrop-desktop           # or from the menu
 ```
 
-Desinstallation (conserve les dossiers *Recus* et *Partage*) :
+Uninstall (keeps your *Received* and *Shared* folders):
 
 ```bash
 sudo ./uninstall.sh
 ```
 
-`install.sh` ecrit dans `/opt/opendrop` (application) et `~/.opendrop/`
-(donnees) ; les fichiers recus et partages, eux, restent dans
-`~/Downloads/OpenDrop`.
+`install.sh` writes to `/opt/opendrop` (app) and `~/.opendrop/` (data);
+received and shared files themselves stay in `~/Downloads/OpenDrop`.
 
-### Version portable
+### Portable version
 
-Decompresser l'archive et lancer `OpenDrop.exe` (Windows) ou `./OpenDrop`
-(Linux). L'application a besoin de Python 3.10+ et des dependances :
+Unzip the archive and run `OpenDrop.exe` (Windows) or `./OpenDrop` (Linux).
+The app needs Python 3.10+ and the dependencies:
 
 ```powershell
-pip install -r requirements.txt     # ou reutiliser le venv d'une installation
+pip install -r requirements.txt     # or reuse the venv from an install
 ```
 
 ---
 
-## Demarrage
+## Getting started
 
-### 1. Application bureau (Windows et Linux)
+### 1. Desktop app (Windows and Linux)
 
-La meme application tourne sur les deux systemes (UI Avalonia).
+The same app runs on both systems (Avalonia UI).
 
-**Depuis les sources :**
+**From source:**
 
 ```powershell
 dotnet build desktop\OpenDrop\OpenDrop.csproj
@@ -146,38 +148,39 @@ dotnet build desktop/OpenDrop/OpenDrop.csproj
 ./desktop/OpenDrop/bin/Debug/net8.0/OpenDrop            # Linux
 ```
 
-**Depuis une release** : voir *Telechargements* plus haut (installeur
-Windows, tarball Linux ou archive portable).
+**From a release**: see *Downloads* above (Windows installer, Linux tarball,
+or portable archive).
 
-L'application demarre le serveur automatiquement : la carte d'etat passe a
-**Serveur actif**, l'adresse s'affiche, le QR code et le code de session sont
-generes. Boutons en bas :
+The app starts the server on its own: the status card flips to **Server
+running**, the address shows up, and the QR code and session code are
+generated. Buttons along the bottom:
 
-- **Demarrer le serveur / Arreter le serveur**
-- **Parametres** (dossiers, port, quota, nouveau token au demarrage) : apres
-  enregistrement, le serveur redemarre tout seul avec la nouvelle config
+- **Start server / Stop server**
+- **Settings** (folders, port, quota, new token on start, language
+  English/French): once saved, the server restarts itself with the new
+  config; the language switch applies immediately
 
-### 2. Serveur seul (sans interface bureau)
+### 2. Server only (no desktop UI)
 
-Fonctionne sur Windows, Linux et macOS :
+Works on Windows, Linux, and macOS:
 
 ```powershell
-opendrop                      # apres pip install -e .
-# ou
+opendrop                      # after pip install -e .
+# or
 $env:PYTHONPATH = "src"; python -m opendrop.main
 ```
 
-Options utiles :
+Useful options:
 
-| Option | Effet |
+| Option | Effect |
 |---|---|
-| `--headless` | pas de fenetre QR ni de navigateur (usage GUI/automatisation) |
-| `--port 9090` | force un port different de `preferred_port` |
-| `--rotate-token` | force un nouveau token et un nouveau code de session |
+| `--headless` | no QR window or browser (for GUI/automated use) |
+| `--port 9090` | forces a port other than `preferred_port` |
+| `--rotate-token` | forces a new token and a new session code |
 
-### 3. Linux (pas de bureau possible)
+### 3. Linux (no desktop available)
 
-Sur un poste ou une VM (Kali, Ubuntu, etc.) :
+On a machine or a VM (Kali, Ubuntu, etc.):
 
 ```bash
 git clone https://github.com/lucas31Zz/opendrop.git
@@ -186,161 +189,163 @@ pip install -e .
 opendrop
 ```
 
-Le terminal affiche l'adresse `https://<ip>:<port>`, le code de session et le
-chemin du QR code ; le PNG s'ouvre tout seul avec `xdg-open` si un bureau est
-present, sinon ouvrez l'URL a la main dans le navigateur.
+The terminal prints the `https://<ip>:<port>` address, the session code, and
+the path of the QR code; the PNG opens on its own with `xdg-open` if a
+desktop is present, otherwise open the URL by hand in your browser.
 
-- Sans affichage (SSH, serveur) : `opendrop --headless` imprime une ligne
-  JSON (`ip`, `port`, `token`, `session_code`, `url_upload`) pour les
-  scripts.
-- Si le telephone ne se connecte pas, verifier le pare-feu :
-  `sudo ufw allow 8080` (ou le port utilise).
-- L'application bureau fonctionne aussi sous Linux (meme binaire que le
-  serveur, voir *1. Application bureau*) : QR code, quota, parametres.
-
----
-
-## Utilisation sur un telephone
-
-1. Notez l'adresse `https://<ip>:<port>` affichee par l'application.
-2. Scannez le **QR code** (ou tapez l'URL avec `?token=...`).
-3. Au premier acces, le navigateur affiche un avertissement de certificat
-   auto-signe : acceptez celui de la machine OpenDrop uniquement
-   (marche pas a pas dans [SECURITY.md](SECURITY.md)).
-4. Si l'ecran indique **Session verrouillee**, tapez le **code a 6
-   caracteres** affiche dans l'application bureau.
-5. Onglet **Envoyer** pour envoyer un fichier, onglet **Telecharger** pour
-   recuperer ceux du dossier *Partage*.
-
-La ligne du haut affiche `usage / quota` et se met a jour toute seule
-(toutes les 5 s, et apres chaque envoi). Vert : sous la limite. Rouge :
-quota atteint.
+- No display (SSH, server): `opendrop --headless` prints a JSON line
+  (`ip`, `port`, `token`, `session_code`, `url_upload`) for scripts.
+- If your phone won't connect, check the firewall:
+  `sudo ufw allow 8080` (or whichever port you're using).
+- The desktop app runs on Linux too (same binary as the server, see
+  *1. Desktop app*): QR code, quota, settings.
 
 ---
 
-## Dossiers et quota
+## Using it from a phone
 
-| Dossier | Role |
+1. Note the `https://<ip>:<port>` address shown by the app.
+2. Scan the **QR code** (or type the URL with `?token=...`).
+3. On first visit the browser shows a self-signed certificate warning:
+   accept the one from the OpenDrop machine only (step-by-step in
+   [SECURITY.md](SECURITY.md)).
+4. If the screen says **Session locked**, type the **6-character code**
+   shown in the desktop app.
+5. Use the **Send** tab to send a file, the **Download** tab to grab the
+   ones in the *Share* folder.
+
+The top line shows `usage / quota` and updates on its own (every 5 s, and
+after each send). Green: under the limit. Red: quota reached.
+
+---
+
+## Folders and quota
+
+| Folder | Role |
 |---|---|
-| **Dossier de reception** | ou atterrissent les fichiers recus (cote PC) |
-| **Dossier de partage** | fichiers proposes aux autres appareils (cote PC) |
+| **Receive folder** | where received files land (PC side) |
+| **Share folder** | files offered to other devices (PC side) |
 
-Les deux se changent dans **Parametres** (parcours + Enregistrer).
+Both are changed in **Settings** (browse + Save).
 
-**Quota global du dossier de reception** (Parametres > Stockage) :
+**Global receive quota** (Settings > Storage):
 
-- `0` = illimite (valeur par defaut)
-- sans unite = Go : `500` vaut 500 Go ; avec unite : `500 mo`, `0,5 go`,
-  `10.75` (virgule ou point)
-- une valeur illisible est refusee avec un message, jamais ignoree ; une
-  valeur negative dans `config.json` est ramenee a 0 (illimite)
-- au-dela de 20 % de l'espace libre du disque, un avertissement demande
-  confirmation avant l'enregistrement
-- un envoi qui ferait depasser le quota est refuse en **507** avant ecriture ;
-  deux envois simultanes ne peuvent pas passer sous la limite ensemble
-- l'indicateur s'affiche aussi dans la fenetre principale, rafraichi toutes
-  les 3 s sans redemarrage
+- `0` = unlimited (the default)
+- no unit means GB: `500` counts as 500 GB; with a unit: `500 mb`,
+  `0.5 gb`, `10.75` (comma or period, French-style `500 mo` / `0,5 go`
+  also accepted)
+- an unreadable value is rejected with an error message, never silently
+  ignored; a negative value in `config.json` is reset to 0 (unlimited)
+- above 20% of the disk's free space, a warning asks you to confirm before
+  saving
+- a send that would push past the quota is rejected with **507** before
+  anything is written; two sends at the same time can't both slip under the
+  limit
+- the indicator also shows up in the main window, refreshed every 3 s
+  without a restart
 
 ---
 
-## Fichiers de configuration
+## Configuration files
 
-| Fichier | Contenu |
+| File | Contents |
 |---|---|
-| `%LOCALAPPDATA%\OpenDrop\config.json` | dossiers, port, quota, options |
-| `%LOCALAPPDATA%\OpenDrop\session.json` | token + code de session en cours |
-| `%LOCALAPPDATA%\OpenDrop\certs\server.crt` / `server.key` | certificat TLS auto-signe (EC P-256, 397 jours) |
+| `%LOCALAPPDATA%\OpenDrop\config.json` | folders, port, quota, options |
+| `%LOCALAPPDATA%\OpenDrop\session.json` | current token + session code |
+| `%LOCALAPPDATA%\OpenDrop\certs\server.crt` / `server.key` | self-signed TLS certificate (EC P-256, 397 days) |
 
-Sous Linux/macOS, le meme dossier est `~/.opendrop/` (les dossiers de
-reception et de partage, eux, restent dans `~/Downloads/OpenDrop`).
+On Linux/macOS the same folder is `~/.opendrop/` (the receive and share
+folders, though, stay in `~/Downloads/OpenDrop`).
 
-Cles de `config.json` :
+`config.json` keys:
 
-| Cle | Defaut | Signification |
+| Key | Default | Meaning |
 |---|---|---|
-| `download_directory` | `%USERPROFILE%\Downloads\OpenDrop` | dossier de reception |
-| `share_directory` | `%USERPROFILE%\Downloads\OpenDrop\Partage` | dossier de partage |
-| `preferred_port` | `8080` | port demande (repli sur un port libre si pris) |
-| `session_expires_in` | `3600` | duree de vie d'un token, en secondes |
-| `global_quota_bytes` | `0` | quota total du dossier de reception, en octets |
-| `generate_new_token` | `false` | nouveau token a chaque demarrage |
-| `trust_proxy` | `false` | faire confiance a `X-Forwarded-For` (proxy connu uniquement) |
+| `download_directory` | `%USERPROFILE%\Downloads\OpenDrop` | receive folder |
+| `share_directory` | `%USERPROFILE%\Downloads\OpenDrop\Partage` | share folder |
+| `preferred_port` | `8080` | requested port (falls back to a free one if it's taken) |
+| `session_expires_in` | `3600` | token lifetime, in seconds |
+| `global_quota_bytes` | `0` | total receive-folder quota, in bytes |
+| `generate_new_token` | `false` | new token on every launch |
+| `trust_proxy` | `false` | trust `X-Forwarded-For` (known proxies only) |
+| `language` | `en` | interface language: server messages, web UI and desktop app (`en` or `fr`) |
 
-Pour regenerer le certificat : fermer OpenDrop, supprimer le dossier
-`%LOCALAPPDATA%\OpenDrop\certs\`, relancer (voir SECURITY.md).
+To regenerate the certificate: quit OpenDrop, delete the
+`%LOCALAPPDATA%\OpenDrop\certs\` folder, relaunch (see SECURITY.md).
 
 ---
 
 ## Tests
 
-Suites maison (aucun framework externe), a lancer depuis la racine :
+Homegrown test suites (no external framework), run from the repo root:
 
 ```powershell
-python -m tests.test_security     # 36/36 - tokens, chemins, limites, origine, ecriture, journaux
-python -m tests.test_routes       # 44/44 - table de verite des routes
-python -m tests.test_paths        # 43/43 - aucun chemin absolu en reponse
-python -m tests.test_quota        # 40/40 - quota, reservations simultanees, 507
-python -m tests.test_sessions     # 34/34 - sessions, expiration, rotation du code
-python -m tests.test_tls          # 15/15 - certificat auto-signe, HTTPS force
-python -m tests.test_server       # 11/11 - routes generales, port occupe
-python -m tests.test_beta         # 64/64 - parc complet
-python -m tests.test_beta --large # 76/76 - lots de fichiers, traversales
+python -m tests.test_security     # 36/36 - tokens, paths, limits, origin, writes, logs
+python -m tests.test_routes       # 44/44 - route truth table
+python -m tests.test_paths        # 43/43 - no absolute paths in responses
+python -m tests.test_quota        # 40/40 - quota, simultaneous reservations, 507
+python -m tests.test_sessions     # 34/34 - sessions, expiration, code rotation
+python -m tests.test_tls          # 15/15 - self-signed certificate, forced HTTPS
+python -m tests.test_server       # 11/11 - general routes, port in use
+python -m tests.test_beta         # 64/64 - full run-through
+python -m tests.test_beta --large # 76/76 - file batches, traversal attempts
 ```
 
-Avant de builder, fermez l'application bureau : un binaire en cours
-d'execution bloque `dotnet build`.
+Before building, close the desktop app: a running binary blocks
+`dotnet build`.
 
-Les memes suites (sans `--large`) sont executes en integration continue
-sur Windows et Linux, Python 3.10 et 3.12.
-
----
-
-## Securite
-
-Le modele de menace complet (routes, jetons, quota, certificat, limites) est
-documente dans [SECURITY.md](SECURITY.md). En resume :
-
-- tout passe en HTTPS, certificat auto-signe a accepter manuellement ;
-- le jeton est dans l'URL : il peut rester dans l'historique du navigateur ;
-  les journaux du serveur, eux, affichent `token=***` et `code=***` ;
-- aucun chiffrement au repos : ce qui arrive sur le disque y est en clair ;
-  le SHA-256 renvoye a l'emetteur n'est pas compare automatiquement ;
-- quiconque possede le jeton ou le code de session peut envoyer/recevoir.
+The same suites (without `--large`) run in continuous integration on
+Windows and Linux, Python 3.10 and 3.12.
 
 ---
 
-## Structure du depot
+## Security
 
-| Dossier | Role |
+The full threat model (routes, tokens, quota, certificate, limits) is
+documented in [SECURITY.md](SECURITY.md). In short:
+
+- everything goes over HTTPS, with a self-signed certificate you have to
+  accept by hand;
+- the token lives in the URL: it can end up in your browser history; the
+  server logs, meanwhile, print `token=***` and `code=***`;
+- no encryption at rest: whatever lands on disk is stored in plain text;
+  the SHA-256 handed back to the sender isn't compared automatically;
+- anyone holding the token or the session code can send/receive.
+
+---
+
+## Repository layout
+
+| Folder | Role |
 |---|---|
-| `src/opendrop/` | serveur Python (HTTPS, routes, sessions, quota, TLS) |
-| `desktop/OpenDrop/` | application bureau Avalonia (.NET 8, Windows + Linux) qui pilote le serveur |
-| `web/` | interface web (`index.html`, `app.js`, `style.css`) |
-| `packaging/` | installeur Windows (Inno Setup) et scripts Linux (install/uninstall) |
-| `tools/` | utilitaires de developpement (generation de l'icone) |
-| `tests/` | suites de tests maison |
-| `docs/` | documents du projet (captures) |
-| `.github/` | integration continue, Dependabot, modeles d'issues |
-| `SECURITY.md` | model de menace |
-| `CONTRIBUTING.md` | comment contribuer |
-| `LICENSE` | licence MIT |
+| `src/opendrop/` | Python server (HTTPS, routes, sessions, quota, TLS) |
+| `desktop/OpenDrop/` | Avalonia desktop app (.NET 8, Windows + Linux) that drives the server |
+| `web/` | web interface (`index.html`, `app.js`, `style.css`) |
+| `packaging/` | Windows installer (Inno Setup) and Linux scripts (install/uninstall) |
+| `tools/` | dev utilities (icon generation) |
+| `tests/` | homegrown test suites |
+| `docs/` | project docs (screenshots) |
+| `.github/` | continuous integration, Dependabot, issue templates |
+| `SECURITY.md` | threat model |
+| `CONTRIBUTING.md` | how to contribute |
+| `LICENSE` | MIT license |
 
 ---
 
-## Contribuer
+## Contributing
 
-Corrections et fonctionnalites bienvenues : voir
-[CONTRIBUTING.md](CONTRIBUTING.md). Les suites de tests tournent aussi en
-integration continue (GitHub Actions) a chaque push et pull request.
+Fixes and features are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md). The test suites also run in continuous
+integration (GitHub Actions) on every push and pull request.
 
-Une faille a signaler ? Utilisez l'onglet *Security* du depot ou l'e-mail
-indique dans [SECURITY.md](SECURITY.md) - pas d'issue publique.
+Found a vulnerability? Use the repo's *Security* tab or the e-mail listed in
+[SECURITY.md](SECURITY.md) - no public issues.
 
-Comportement attendu dans la communaute : [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Expected behavior in the community: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ---
 
-## Licence
+## License
 
-Distribue sous licence [MIT](LICENSE). Utilisez-le sous votre propre
-responsabilite. Historique des versions : [CHANGELOG.md](CHANGELOG.md).
+Distributed under the [MIT](LICENSE) license. Use it at your own risk.
+Version history: [CHANGELOG.md](CHANGELOG.md).

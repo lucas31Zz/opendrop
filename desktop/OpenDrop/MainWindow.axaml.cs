@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -24,8 +24,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         var handler = new HttpClientHandler();
-        // Certificat auto-signe d'OpenDrop : accepte uniquement sur la boucle
-        // locale (poll /api/info), jamais pour le trafic du LAN.
+        // OpenDrop self-signed certificate: accepted only on the local
+        // loopback (info poll), never for LAN traffic.
         handler.ServerCertificateCustomValidationCallback = (message, _, _, _) =>
         {
             var host = message?.RequestUri?.Host;
@@ -71,7 +71,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                UpdateUI("error", "Impossible de demarrer le serveur.");
+                UpdateUI("error", Lang.T("Err.CannotStart"));
             }
         };
     }
@@ -95,12 +95,12 @@ public partial class MainWindow : Window
         {
             case "running":
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80));
-                StatusText.Text = "Serveur actif";
+                StatusText.Text = Lang.T("Status.Running");
                 StatusText.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
                 AddressText.Text = address ?? "---";
                 DownloadDirText.Text = downloadDir ?? "---";
                 ShareDirText.Text = shareDir ?? "---";
-                BtnToggleServer.Content = "Arreter le serveur";
+                BtnToggleServer.Content = Lang.T("Btn.StopServer");
                 BtnToggleServer.Classes.Remove("accent");
                 BtnToggleServer.Classes.Add("danger");
                 _isRunning = true;
@@ -109,16 +109,16 @@ public partial class MainWindow : Window
                 break;
             case "stopped":
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(136, 136, 136));
-                StatusText.Text = "Serveur arrete";
+                StatusText.Text = Lang.T("Status.Stopped");
                 StatusText.Foreground = new SolidColorBrush(Color.FromRgb(170, 170, 170));
                 AddressText.Text = "---";
                 SessionCodeText.Text = "---";
-                BtnToggleServer.Content = "Demarrer le serveur";
+                BtnToggleServer.Content = Lang.T("Btn.StartServer");
                 BtnToggleServer.Classes.Remove("danger");
                 BtnToggleServer.Classes.Add("accent");
                 QrBorder.IsVisible = false;
                 QrHint.IsVisible = true;
-                QrHint.Text = "Demarrez le serveur pour generer le QR code";
+                QrHint.Text = Lang.T("Qr.HintStart");
                 _isRunning = false;
                 _tokenTimer.Stop();
                 TokenCountdownText.Text = "";
@@ -127,7 +127,7 @@ public partial class MainWindow : Window
                 break;
             case "error":
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54));
-                StatusText.Text = message ?? "Erreur";
+                StatusText.Text = message ?? Lang.T("Status.Error");
                 StatusText.Foreground = new SolidColorBrush(Color.FromRgb(244, 67, 54));
                 _isRunning = false;
                 break;
@@ -140,7 +140,7 @@ public partial class MainWindow : Window
         {
             QrBorder.IsVisible = false;
             QrHint.IsVisible = true;
-            QrHint.Text = "QR code indisponible";
+            QrHint.Text = Lang.T("Qr.Unavailable");
             return;
         }
 
@@ -203,7 +203,7 @@ public partial class MainWindow : Window
 
             if (limit <= 0)
             {
-                QuotaStatusText.Text = QuotaUsage.Format(usage) + " recus (illimite)";
+                QuotaStatusText.Text = Lang.Format("Quota.Unlimited", QuotaUsage.Format(usage));
                 QuotaStatusText.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
             }
             else
@@ -254,9 +254,9 @@ public partial class MainWindow : Window
 
         var ts = TimeSpan.FromSeconds(_tokenSecondsLeft);
         if (ts.TotalHours >= 1)
-            TokenCountdownText.Text = $"Prochain refresh dans {ts.Hours}h{ts.Minutes:D2}min";
+            TokenCountdownText.Text = Lang.T("Token.NextRefresh") + $" {ts.Hours}h{ts.Minutes:D2}min";
         else
-            TokenCountdownText.Text = $"Prochain refresh dans {ts.Minutes}min{ts.Seconds:D2}s";
+            TokenCountdownText.Text = Lang.T("Token.NextRefresh") + $" {ts.Minutes}min{ts.Seconds:D2}s";
     }
 
     private async Task RefreshTokenAsync()
@@ -264,10 +264,10 @@ public partial class MainWindow : Window
         if (!_isRunning) return;
 
         QrHint.IsVisible = true;
-        QrHint.Text = "Generation d'un nouveau token...";
+        QrHint.Text = Lang.T("Qr.Generating");
 
-        // Reset explicite (bouton ou minuterie) : le seul cas qui change
-        // le token, le QR code et le code de session.
+        // Explicit reset (button or timer): the only case that changes
+        // the token, the QR code and the session code.
         var started = await _serverManager.RestartAsync(rotateToken: true);
         if (started)
         {
@@ -294,7 +294,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                UpdateUI("error", "Impossible de demarrer le serveur.");
+                UpdateUI("error", Lang.T("Err.CannotStart"));
             }
         }
     }
@@ -327,7 +327,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             await Msg.ShowAsync(this,
-                $"Erreur Parametres:\n{ex.Message}\n\n{ex.InnerException?.Message}",
+                $"{Lang.T("Err.Settings")}\n{ex.Message}\n\n{ex.InnerException?.Message}",
                 "OpenDrop");
         }
     }
@@ -337,7 +337,7 @@ public partial class MainWindow : Window
         _pollTimer.Stop();
         _tokenTimer.Stop();
         QrHint.IsVisible = true;
-        QrHint.Text = "Redemarrage du serveur...";
+        QrHint.Text = Lang.T("Qr.Restarting");
 
         var started = await _serverManager.RestartAsync();
         if (started)
@@ -347,7 +347,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            UpdateUI("error", "Impossible de redemarrer le serveur.");
+            UpdateUI("error", Lang.T("Err.CannotRestart"));
         }
     }
 }

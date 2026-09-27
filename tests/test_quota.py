@@ -1,8 +1,8 @@
-"""Tests du quota global du dossier de reception.
+"""Tests for the receive folder's global quota.
 
-Couvre : le scan du dossier, les reservations (y compris simultanees), le
-refus en 507, la liberation de la reservation apres un envoi echoue, et le
-quota desactive (illimite).
+Covers: folder scanning, reservations (including concurrent ones),
+507 rejection, reservation release after a failed upload, and the
+disabled (unlimited) quota.
 """
 import http.client
 import json
@@ -27,7 +27,7 @@ QUOTA_BASE = os.path.join(dd, "quota")
 
 
 def _start_quota(limit, name):
-    """Serveur isole avec son propre dossier de reception (scan exact)."""
+    """Isolated server with its own receive folder (exact scan)."""
     dl = os.path.join(QUOTA_BASE, name)
     shutil.rmtree(dl, ignore_errors=True)
     os.makedirs(dl, exist_ok=True)
@@ -43,10 +43,10 @@ def _start_quota(limit, name):
 
 
 def _garbage_upload(port, token, size):
-    """Corps de la longueur annoncee mais sans frontiere multipart valide.
+    """Body of the declared length but without a valid multipart boundary.
 
-    Le serveur lit tout le corps (la reservation est donc consommee),
-    echoue au decoupage puis doit rendre la reservation.
+    The server reads the whole body (so the reservation is consumed),
+    fails at splitting it and must then release the reservation.
     """
     garbage = b"\x00\xffOPENDROP" * (size // 10 + 1)
     garbage = garbage[:size]
@@ -61,7 +61,7 @@ def _garbage_upload(port, token, size):
 
 
 def _post_body(port, token, body):
-    """POST /api/upload avec un corps deja construit (longueur exacte)."""
+    """POST /api/upload with an already built body (exact length)."""
     conn = http.client.HTTPSConnection("127.0.0.1", port, context=SSL_CONTEXT, timeout=20)
     try:
         conn.request("POST", f"/api/upload?token={token}", body=body,
@@ -88,7 +88,7 @@ def _check_refused(port, token, declared, label):
     except ValueError:
         payload = {}
     r.check(label,
-            status == 507 and "Quota global" in payload.get("error", ""),
+            status == 507 and "Global quota" in payload.get("error", ""),
             f"{status} {payload}")
 
 
@@ -120,54 +120,54 @@ def _unit_tests():
     with open(os.path.join(unit_dir, "sub", "b.bin"), "wb") as fh:
         fh.write(b"y" * 2500)
 
-    r.check("directory_usage somme les fichiers (recursif)",
+    r.check("directory_usage sums files (recursive)",
             directory_usage(unit_dir) == 3500, directory_usage(unit_dir))
-    r.check("directory_usage dossier absent = 0",
+    r.check("directory_usage missing folder = 0",
             directory_usage(os.path.join(QUOTA_BASE, "inexistant")) == 0)
-    r.check("format_size en Ko", format_size(3500).endswith("Ko"), format_size(3500))
-    r.check("format_size en Go", format_size(2 ** 31).endswith("Go"), format_size(2 ** 31))
+    r.check("format_size in KB", format_size(3500).endswith("KB"), format_size(3500))
+    r.check("format_size in GB", format_size(2 ** 31).endswith("GB"), format_size(2 ** 31))
 
     tr = QuotaTracker(unit_dir, 4000)
-    r.check("Quota actif", tr.enabled)
-    r.check("Usage initial = taille du dossier", tr.usage() == 3500, tr.usage())
+    r.check("Quota active", tr.enabled)
+    r.check("Initial usage = folder size", tr.usage() == 3500, tr.usage())
 
     tr.reserve(400)
-    r.check("Reservation prise en compte", tr.usage() == 3900, tr.usage())
+    r.check("Reservation counted", tr.usage() == 3900, tr.usage())
     try:
         tr.reserve(200)
-        r.check("Reservation au dela du quota refusee", False, "aucune exception")
+        r.check("Reservation beyond quota rejected", False, "no exception")
     except QuotaExceededError as e:
-        r.check("Reservation au dela du quota refusee", "Quota global" in str(e), str(e))
+        r.check("Reservation beyond quota rejected", "Global quota" in str(e), str(e))
 
     tr.release(400)
-    r.check("Release rend la place", tr.usage() == 3500, tr.usage())
+    r.check("Release frees up space", tr.usage() == 3500, tr.usage())
     try:
         tr.reserve(500)
-        r.check("Quota exactement atteint accepte", True)
+        r.check("Exactly reaching quota accepted", True)
     except QuotaExceededError as e:
-        r.check("Quota exactement atteint accepte", False, str(e))
+        r.check("Exactly reaching quota accepted", False, str(e))
     tr.release(500)
 
     illimite = QuotaTracker(unit_dir, 0)
-    r.check("Quota 0 = desactive", not illimite.enabled)
+    r.check("Quota 0 = disabled", not illimite.enabled)
     try:
         illimite.reserve(10 ** 12)
-        r.check("Sans quota, aucune limite", True)
+        r.check("No quota, no limit", True)
     except QuotaExceededError as e:
-        r.check("Sans quota, aucune limite", False, str(e))
-    r.check("remaining sans quota = -1", illimite.remaining() == -1, illimite.remaining())
+        r.check("No quota, no limit", False, str(e))
+    r.check("remaining with no quota = -1", illimite.remaining() == -1, illimite.remaining())
 
-    # Quota negatif (config editee a la main) : traite comme desactive, pas
-    # comme une limite impossible a satisfaire.
+    # Negative quota (hand-edited config): treated as disabled, not as a
+    # limit that can never be satisfied.
     negatif = QuotaTracker(unit_dir, -5)
-    r.check("Quota negatif = desactive", not negatif.enabled, negatif.limit_bytes)
+    r.check("Negative quota = disabled", not negatif.enabled, negatif.limit_bytes)
     try:
         negatif.reserve(10 ** 9)
-        r.check("Quota negatif: aucun refus", True)
+        r.check("Negative quota: no rejection", True)
     except QuotaExceededError as e:
-        r.check("Quota negatif: aucun refus", False, str(e))
+        r.check("Negative quota: no rejection", False, str(e))
 
-    # Deux envois simultanes ne peuvent pas passer la main sous la limite
+    # Two simultaneous uploads cannot slip under the limit
     vide = os.path.join(QUOTA_BASE, "vide")
     os.makedirs(vide, exist_ok=True)
     conc = QuotaTracker(vide, 30000)
@@ -185,9 +185,9 @@ def _unit_tests():
     pris.wait(5)
     try:
         conc.reserve(20000)
-        r.check("Reservation simultanee refusee", False, "les deux reservations sont passees")
+        r.check("Concurrent reservation rejected", False, "both reservations went through")
     except QuotaExceededError:
-        r.check("Reservation simultanee refusee", True)
+        r.check("Concurrent reservation rejected", True)
     finally:
         libere.set()
         t.join(timeout=5)
@@ -196,72 +196,72 @@ def _unit_tests():
 def _server_tests():
     print("\n--- Quota server tests ---\n")
 
-    # Quota a 50 000 octets
+    # Quota at 50,000 bytes
     server, port, token, dl = _start_quota(50000, "srv1")
     try:
-        _check_upload(port, token, "dedans.bin", 10000, "Upload dans le quota accepte")
+        _check_upload(port, token, "dedans.bin", 10000, "Upload within quota accepted")
 
-        _check_refused(port, token, 60000, "Upload au dela du quota refuse (507)")
-        r.check("Aucun fichier cree par l'envoi refuse",
+        _check_refused(port, token, 60000, "Upload beyond quota rejected (507)")
+        r.check("No file created by the rejected upload",
                 sorted(os.listdir(dl)) == ["dedans.bin"], os.listdir(dl))
 
-        # 10 000 deja presents + 35 000 = 45 000 <= 50 000 : le scan compte
-        _check_upload(port, token, "encore.bin", 35000, "Upload calculant l'usage du dossier")
+        # 10,000 already present + 35,000 = 45,000 <= 50,000: the scan counts
+        _check_upload(port, token, "encore.bin", 35000, "Upload computing the folder usage")
 
-        # 45 000 + 10 000 > 50 000 : refuse sur l'usage scanne
-        _check_refused(port, token, 10000, "Refus base sur l'usage du dossier")
+        # 45,000 + 10,000 > 50,000: rejected on the scanned usage
+        _check_refused(port, token, 10000, "Rejection based on folder usage")
 
-        # Emission complete au dela du quota : le client doit pouvoir lire le
-        # 507 (la connexion n'est pas coupee pendant qu'il ecrit encore).
+        # Full upload beyond the quota: the client must be able to read the
+        # 507 (the connection is not cut while it is still writing).
         try:
             _upload(port, token, "reel_trop.bin", b"x" * 20000)
-            r.check("Envoi reel au dela du quota : 507 lisible", False, "accepte")
+            r.check("Real upload beyond quota: readable 507", False, "accepted")
         except urllib.error.HTTPError as e:
             payload = json.loads(e.read())
-            r.check("Envoi reel au dela du quota : 507 lisible",
-                    e.code == 507 and "Quota global" in payload.get("error", ""),
+            r.check("Real upload beyond quota: readable 507",
+                    e.code == 507 and "Global quota" in payload.get("error", ""),
                     f"{e.code} {payload}")
         except Exception as e:
-            r.check("Envoi reel au dela du quota : 507 lisible", False, repr(e))
+            r.check("Real upload beyond quota: readable 507", False, repr(e))
 
         for name in os.listdir(dl):
             os.remove(os.path.join(dl, name))
         _check_upload(port, token, "apres_liberation.bin", 40000,
-                      "Upload apres liberation d'espace")
+                      "Upload after freeing space")
     finally:
         server.shutdown()
         server.server_close()
 
-    # Reservation liberee meme si l'envoi echoue
+    # Reservation released even if the upload fails
     server, port, token, dl = _start_quota(20000, "srv2")
     try:
         status, body = _garbage_upload(port, token, 15000)
-        r.check("Corps invalide rejete", status == 400, f"{status} {body[:120]}")
-        r.check("Aucun fichier cree par l'envoi invalide",
+        r.check("Invalid body rejected", status == 400, f"{status} {body[:120]}")
+        r.check("No file created by the invalid upload",
                 os.listdir(dl) == [], os.listdir(dl))
-        # Sans liberation, les 15 000 annonces resteraient reserves et ce
-        # dernier envoi (15 000 <= 20 000) serait refuse.
+        # Without the release, the 15,000 declared would stay reserved and
+        # this last upload (15,000 <= 20,000) would be rejected.
         _check_upload(port, token, "apres_echec.bin", 15000,
-                      "Reservation liberee apres un envoi echoue")
+                      "Reservation released after a failed upload")
     finally:
         server.shutdown()
         server.server_close()
 
-    # Quota desactive (0) : malgre 60 000 deja presents, tout passe
+    # Quota disabled (0): despite 60,000 already present, everything goes through
     server, port, token, dl = _start_quota(0, "srv3")
     try:
         with open(os.path.join(dl, "existant.bin"), "wb") as fh:
             fh.write(b"w" * 60000)
-        r.check("Quota 0 = desactive cote serveur", not server.quota.enabled)
+        r.check("Quota 0 = disabled on server side", not server.quota.enabled)
         _check_upload(port, token, "sans_quota.bin", 60000,
-                      "Upload au dela de tout quota precedemment refuse")
+                      "Upload beyond quota accepted now that quota is disabled")
     finally:
         server.shutdown()
         server.server_close()
 
-    # Remplissage exact : le quota est reserve sur le Content-Length, donc
-    # on envoie un corps de longueur pile egale au quota. Ce dernier octet
-    # doit passer, l'envoi suivant etre refuse.
+    # Exact fill: the quota is reserved on the Content-Length, so we send a
+    # body whose length is exactly equal to the quota. That last byte must
+    # go through, and the next upload must be rejected.
     server, port, token, dl = _start_quota(50000, "srv_exact")
     try:
         entete = (b"--" + b"----TEST" + b"\r\n"
@@ -270,34 +270,34 @@ def _server_tests():
         pied = b"\r\n--" + b"----TEST" + b"--\r\n"
         corps = entete + b"x" * (50000 - len(entete) - len(pied)) + pied
         statut, corps_reponse = _post_body(port, token, corps)
-        r.check("Remplissage exact du quota (50 000 octets)",
+        r.check("Exact quota fill (50,000 bytes)",
                 statut == 200 and len(corps) == 50000,
                 f"{statut} len={len(corps)} {corps_reponse[:120]}")
-        # Le dossier ne contient que le contenu du fichier (les entetes
-        # multipart ne sont pas ecrites) : il reste "framing" octets de quota.
-        r.check("Usage apres remplissage exact = taille du fichier",
+        # The folder only contains the file content (the multipart headers
+        # are not written): "framing" bytes of quota remain.
+        r.check("Usage after exact fill = file size",
                 server.quota.usage() == 50000 - len(entete) - len(pied),
                 server.quota.usage())
 
-        # Le quota restant ne couvre meme plus l'entete d'un envoi
+        # The remaining quota no longer even covers an upload's header
         try:
             _upload(port, token, "apres_plein.bin", b"y")
-            r.check("Octet apres remplissage exact refuse", False, "accepte")
+            r.check("Byte after exact fill rejected", False, "accepted")
         except urllib.error.HTTPError as e:
             payload = json.loads(e.read())
-            r.check("Octet apres remplissage exact refuse",
-                    e.code == 507 and "Quota global" in payload.get("error", ""),
+            r.check("Byte after exact fill rejected",
+                    e.code == 507 and "Global quota" in payload.get("error", ""),
                     f"{e.code} {payload}")
         except Exception as e:
-            r.check("Octet apres remplissage exact refuse", False, repr(e))
-        r.check("Aucun fichier cree apres remplissage exact",
+            r.check("Byte after exact fill rejected", False, repr(e))
+        r.check("No file created after exact fill",
                 sorted(os.listdir(dl)) == ["plein.bin"], os.listdir(dl))
     finally:
         server.shutdown()
         server.server_close()
 
-    # Deux envois reels simultanes : la reservation atomique garantit que
-    # l'un des deux est refuse en 507 et que le total reste <= quota.
+    # Two real simultaneous uploads: the atomic reservation guarantees that
+    # one of the two is rejected with 507 and that the total stays <= quota.
     server, port, token, dl = _start_quota(30000, "srv_conc")
     try:
         resultats = [None, None]
@@ -318,11 +318,11 @@ def _server_tests():
             t.join(timeout=30)
 
         codes = sorted(x[1] for x in resultats)
-        r.check("Envois simultanes : un 200 et un 507", codes == [200, 507],
+        r.check("Simultaneous uploads: one 200 and one 507", codes == [200, 507],
                 resultats)
-        r.check("Envois simultanes : total <= quota",
+        r.check("Simultaneous uploads: total <= quota",
                 directory_usage(dl) <= 30000, directory_usage(dl))
-        r.check("Envois simultanes : aucun fichier partiel",
+        r.check("Simultaneous uploads: no partial file",
                 sorted(os.listdir(dl)) == ["sim_0.bin"] or
                 sorted(os.listdir(dl)) == ["sim_1.bin"], os.listdir(dl))
     finally:
@@ -331,24 +331,24 @@ def _server_tests():
 
 
 def _api_tests():
-    print("--- Quota API (interface web) ---\n")
+    print("--- Quota API (web UI) ---\n")
 
     server, port, token, dl = _start_quota(50000, "api")
     try:
         status, body = _get(port, "/api/quota")
-        r.check("GET /api/quota sans token refuse",
+        r.check("GET /api/quota without token rejected",
                 status == 403, f"{status} {body[:80]}")
 
         with open(os.path.join(dl, "existant.bin"), "wb") as fh:
             fh.write(b"q" * 12345)
         data = _get_json(port, f"/api/quota?token={token}")
-        r.check("GET /api/quota renvoie usage et quota",
+        r.check("GET /api/quota returns usage and quota",
                 data.get("usage_bytes") >= 12345 and data.get("limit_bytes") == 50000,
                 data)
 
-        _check_upload(port, token, "api.bin", 4000, "Envoi accepte avant la lecture du quota")
+        _check_upload(port, token, "api.bin", 4000, "Upload accepted before reading the quota")
         data = _get_json(port, f"/api/quota?token={token}")
-        r.check("Usage mis a jour apres un envoi",
+        r.check("Usage updated after an upload",
                 data.get("usage_bytes") >= 16345, data.get("usage_bytes"))
     finally:
         server.shutdown()
@@ -357,7 +357,7 @@ def _api_tests():
     server, port, token, dl = _start_quota(0, "api_off")
     try:
         data = _get_json(port, f"/api/quota?token={token}")
-        r.check("Quota desactive renvoie limit_bytes 0",
+        r.check("Disabled quota returns limit_bytes 0",
                 data.get("limit_bytes") == 0, data)
     finally:
         server.shutdown()

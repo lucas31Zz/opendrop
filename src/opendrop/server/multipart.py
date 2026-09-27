@@ -7,14 +7,14 @@ from opendrop.server.errors import DiskError
 
 CHUNK_SIZE = 64 * 1024
 
-# Limites de lecture des petites parties du corps (jamais le fichier lui-meme)
-MAX_PREAMBLE = 64 * 1024    # avant la premiere frontiere
-MAX_LINE = 8 * 1024         # fin de ligne de la frontiere
-MAX_HEADERS = 16 * 1024     # en-tetes de la partie
+# Read limits for the small pieces of the body (never the file itself)
+MAX_PREAMBLE = 64 * 1024    # before the first boundary
+MAX_LINE = 8 * 1024         # end of the boundary line
+MAX_HEADERS = 16 * 1024     # part headers
 
 
 class _BodyReader:
-    """Lecture flux du corps de requete, strictement bornee a content_length."""
+    """Streaming reader for the request body, strictly bounded by content_length."""
 
     def __init__(self, rfile, limit: int):
         self._rfile = rfile
@@ -48,7 +48,7 @@ class _BodyReader:
         return data
 
     def read_until(self, marker: bytes, max_size: int) -> bytes | None:
-        """Donnees avant marker (marker consomme). None si absent/trop grand/EOF."""
+        """Data before the marker (marker consumed). None if absent/too large/EOF."""
         while True:
             idx = self._buf.find(marker)
             if idx >= 0:
@@ -82,18 +82,18 @@ def _extract_filename(headers_raw: str) -> str | None:
 
 
 def _os_reason(e: OSError) -> str:
-    """Raison courte d'une OSError, sans le chemin de fichier.
+    """Short reason for an OSError, without the file path.
 
-    str(e) contient le nom complet ("[Errno 28] ...: 'C:\\...'") : ce
-    message part en reponse HTTP, il ne doit donc rien dire sur l'arborescence
-    du serveur (voir SECURITY.md, "Chemin absolus").
+    str(e) contains the full name ("[Errno 28] ...: 'C:\\...'"): this message
+    goes out in an HTTP response, so it must not reveal anything about the
+    server's directory tree (see SECURITY.md, "Absolute paths").
     """
     reason = e.strerror or e.__class__.__name__
     return f"[Errno {e.errno}] {reason}" if e.errno else reason
 
 
 def _open_dest(dest_dir: Path, safe_name: str):
-    """Cree le fichier de destination en excluant les concurrents (mode xb)."""
+    """Create the destination file, excluding competing writers (mode "xb")."""
     stem, ext = os.path.splitext(safe_name)
     counter = 0
     name = safe_name
@@ -105,14 +105,14 @@ def _open_dest(dest_dir: Path, safe_name: str):
             counter += 1
             name = f"{stem} ({counter}){ext}"
         except OSError as e:
-            raise DiskError(f"Impossible de creer le fichier: {_os_reason(e)}") from e
+            raise DiskError(f"Cannot create file: {_os_reason(e)}") from e
 
 
 def _copy_file(reader: _BodyReader, out, end_marker: bytes, on_progress=None):
-    """Ecrit le contenu du fichier par blocs jusqu'a end_marker.
+    """Write the file content in blocks up to end_marker.
 
-    Retourne le hash SHA-256, ou None si le corps s'est termine avant la
-    frontiere finale (upload tronque).
+    Returns the SHA-256 hash, or None if the body ended before the final
+    boundary (truncated upload).
     """
     pending = bytearray()
     sha256 = hashlib.sha256()
@@ -126,7 +126,7 @@ def _copy_file(reader: _BodyReader, out, end_marker: bytes, on_progress=None):
         try:
             out.write(data)
         except OSError as e:
-            raise DiskError(f"Erreur d'ecriture sur disque: {_os_reason(e)}") from e
+            raise DiskError(f"Disk write error: {_os_reason(e)}") from e
         sha256.update(data)
         written += len(data)
         if on_progress:
@@ -142,7 +142,7 @@ def _copy_file(reader: _BodyReader, out, end_marker: bytes, on_progress=None):
             if not follow or reader.eof or follow[:2] == b"--" or follow[:1] in (b"\r", b"\n"):
                 write(bytes(pending[:idx]))
                 return sha256.hexdigest()
-            # faux positif : la sequence trouvee fait partie du fichier
+            # false positive: the sequence found is part of the file
             write(bytes(pending[:after]))
             del pending[:after]
             continue
@@ -167,18 +167,18 @@ def parse_multipart_upload(rfile, content_type, content_length, download_dir, on
     end_marker = b"\r\n" + sep
     reader = _BodyReader(rfile, content_length)
 
-    # 1) premiere frontiere (le preambule eventuel est ignore)
+    # 1) first boundary (any preamble is ignored)
     if reader.read_until(sep, MAX_PREAMBLE) is None:
         return None, "no start boundary", None
 
-    # 2) fin de ligne de la frontiere (ou frontiere finale sans partie)
+    # 2) end of the boundary line (or final boundary with no part)
     line = reader.read_until(b"\n", MAX_LINE)
     if line is None:
         return None, "no header separator", None
     if line.rstrip(b"\r") == b"--":
         return None, "no filename", None
 
-    # 3) en-tetes de la partie
+    # 3) part headers
     headers_raw = reader.read_until(b"\r\n\r\n", MAX_HEADERS)
     if headers_raw is None:
         headers_raw = reader.read_until(b"\n\n", MAX_HEADERS)
@@ -195,7 +195,7 @@ def parse_multipart_upload(rfile, content_type, content_length, download_dir, on
         dest_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         raise DiskError(
-            f"Impossible de creer le dossier de reception: {_os_reason(e)}") from e
+            f"Cannot create receive folder: {_os_reason(e)}") from e
 
     if not is_safe_path(str(dest_dir), safe_name):
         return None, "unsafe filename", None
@@ -210,20 +210,20 @@ def parse_multipart_upload(rfile, content_type, content_length, download_dir, on
         _remove_quiet(dest)
         raise
 
-    # Le flush final echoue parfois au dernier bloc (disque plein) : le
-    # fichier serait alors tronque sur disque alors que le hash couvre tout
-    # le corps lu. On traite l'erreur, on supprime le fichier, et aucun
-    # hash n'est rendu.
+    # The final flush sometimes fails on the last block (disk full): the file
+    # would then be truncated on disk even though the hash covers the whole
+    # body that was read. Handle the error, delete the file, and return no
+    # hash.
     try:
         out.close()
     except OSError as e:
         _close_quiet(out)
         _remove_quiet(dest)
-        raise DiskError(f"Erreur d'ecriture sur disque: {_os_reason(e)}") from e
+        raise DiskError(f"Disk write error: {_os_reason(e)}") from e
 
     if digest is None:
         _remove_quiet(dest)
-        return None, "Transfert interrompu ou incomplet", None
+        return None, "Transfer interrupted or incomplete", None
 
     return safe_name, None, digest
 

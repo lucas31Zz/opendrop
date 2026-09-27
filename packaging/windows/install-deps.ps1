@@ -1,11 +1,11 @@
-# Installe les dependances Python d'OpenDrop dans un venv local, HORS-LINE
-# a partir des wheels fournis par l'installateur.
-# Appele par OpenDrop.iss (ssPostInstall).
+# Installs OpenDrop's Python dependencies into a local venv, OFFLINE,
+# from the wheels provided by the installer.
+# Called by OpenDrop.iss (ssPostInstall).
 #
-# Codes de retour :
-#   0 = succes
-#   1 = Python 3.10+ introuvable
-#   2 = echec de la creation du venv ou de pip
+# Exit codes:
+#   0 = success
+#   1 = Python 3.10+ not found
+#   2 = venv creation or pip failed
 
 param(
     [Parameter(Mandatory = $true)][string]$WheelDir,
@@ -16,9 +16,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Find-Python {
-    # py -3 (lanceur officiel Windows), puis python, puis python3.
-    # On ignore les raccourcis "WindowsApps" (stubs du Microsoft Store qui
-    # s'ouvrent au lieu d'executer Python).
+    # py -3 (the official Windows launcher), then python, then python3.
+    # We skip the "WindowsApps" shortcuts (Microsoft Store stubs that
+    # open instead of running Python).
     $cmd = Get-Command py -ErrorAction SilentlyContinue
     if ($cmd) { return @{ Exe = $cmd.Source; Args = @("-3") } }
 
@@ -37,7 +37,7 @@ if (-not $py) { exit 1 }
 $pyExe = $py.Exe
 $pyArgs = $py.Args
 
-# Version minimale : 3.10
+# Minimum version: 3.10
 try {
     $ver = (& $pyExe @pyArgs -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>$null |
             Select-Object -First 1)
@@ -51,14 +51,14 @@ $major = 0; $minor = 0
 [void][int]::TryParse($parts[1], [ref]$minor)
 if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) { exit 1 }
 
-# Venv local dans le dossier d'installation (ecriture = admin, on y est).
+# Local venv in the install folder (writing requires admin, which we are).
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
     & $pyExe @pyArgs -m venv $VenvDir
     if ($LASTEXITCODE -ne 0) { exit 2 }
 }
 
-# Dependance depuis les wheels fournis : aucun acces reseau requis.
+# Install from the provided wheels: no network access required.
 & $venvPython -m pip install --no-index --find-links $WheelDir --requirement $Requirements --disable-pip-version-check -q
 if ($LASTEXITCODE -ne 0) { exit 2 }
 

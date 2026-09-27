@@ -1,8 +1,8 @@
 <Window x:Class="OpenDrop.SettingsWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Parametres OpenDrop"
-        Width="420" Height="520"
+        Title="{DynamicResource Settings.Title}"
+        Width="420" Height="560"
         Background="#0f0f0f"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
@@ -73,7 +73,7 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
             <TextBlock Text="?" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#4a9eff"/>
-            <TextBlock Text="Parametres" FontSize="16" FontWeight="SemiBold" Foreground="White"
+            <TextBlock Text="{DynamicResource Settings.Header}" FontSize="16" FontWeight="SemiBold" Foreground="White"
                        VerticalAlignment="Center"/>
         </StackPanel>
 
@@ -82,10 +82,21 @@
             <StackPanel>
 
                 <!-- General -->
-                <TextBlock Classes="section" Text="GENERAL"/>
+                <TextBlock Classes="section" Text="{DynamicResource Section.General}"/>
+
                 <Border Classes="card" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Classes="field" Text="Dossier de reception"/>
+                        <TextBlock Classes="field" Text="{DynamicResource Field.Language}"/>
+                        <ComboBox x:Name="LanguageCombo" SelectedIndex="0" FontSize="13">
+                            <ComboBoxItem Content="English"/>
+                            <ComboBoxItem Content="Français"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Classes="field" Text="{DynamicResource Field.ReceiveFolder}"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -104,7 +115,7 @@
 
                 <Border Classes="card" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Classes="field" Text="Dossier de partage"/>
+                        <TextBlock Classes="field" Text="{DynamicResource Field.ShareFolder}"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -123,18 +134,18 @@
 
                 <Border Classes="card" Margin="0,0,0,16">
                     <StackPanel>
-                        <TextBlock Classes="field" Text="Port"/>
+                        <TextBlock Classes="field" Text="{DynamicResource Field.Port}"/>
                         <Border Classes="input">
                             <TextBox x:Name="PortBox" Text="8080" VerticalContentAlignment="Center"/>
                         </Border>
                     </StackPanel>
                 </Border>
 
-                <!-- Stockage -->
-                <TextBlock Classes="section" Text="STOCKAGE"/>
+                <!-- Storage -->
+                <TextBlock Classes="section" Text="{DynamicResource Section.Storage}"/>
                 <Border Classes="card" Margin="0,0,0,16">
                     <StackPanel>
-                        <TextBlock Classes="field" Text="Quota global du dossier de reception"/>
+                        <TextBlock Classes="field" Text="{DynamicResource Field.GlobalQuota}"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -143,27 +154,27 @@
                             <Border Grid.Column="0" Classes="input">
                                 <TextBox x:Name="QuotaBox" Text="0" VerticalContentAlignment="Center"/>
                             </Border>
-                            <TextBlock Grid.Column="1" Text="Go ou Mo" Margin="8,0,0,0"
+                            <TextBlock Grid.Column="1" Text="{DynamicResource Quota.UnitHint}" Margin="8,0,0,0"
                                        FontSize="12" Foreground="#666" VerticalAlignment="Center"/>
                         </Grid>
-                        <TextBlock Text="Sans unite = Go : 500 vaut 500 Go, 500 mo vaut 500 Mo. 0 = illimite."
+                        <TextBlock Text="{DynamicResource Quota.NoUnitHint}"
                                    FontSize="11" Foreground="#555" Margin="0,6,0,0" TextWrapping="Wrap"/>
                         <TextBlock x:Name="QuotaUsageText" Text="" FontSize="11" Foreground="#666"
                                    Margin="0,6,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="Taille cumulee des fichiers recus : un envoi qui ferait depasser le quota est refuse."
+                        <TextBlock Text="{DynamicResource Quota.CumulativeHint}"
                                    FontSize="11" Foreground="#555" Margin="0,4,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Security -->
-                <TextBlock Classes="section" Text="SECURITE"/>
+                <TextBlock Classes="section" Text="{DynamicResource Section.Security}"/>
                 <Border Classes="card" Margin="0,0,0,16">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Nouveau token au demarrage"
+                        <TextBlock Grid.Column="0" Text="{DynamicResource Field.NewToken}"
                                    FontSize="13" Foreground="#ccc" VerticalAlignment="Center"/>
                         <CheckBox Grid.Column="1" x:Name="ToggleNewToken" IsChecked="False"
                                   Foreground="#4a9eff" VerticalAlignment="Center"/>
@@ -171,11 +182,11 @@
                 </Border>
 
                 <!-- Network -->
-                <TextBlock Classes="section" Text="RESEAU"/>
+                <TextBlock Classes="section" Text="{DynamicResource Section.Network}"/>
                 <Border Classes="card" Margin="0,0,0,20">
                     <StackPanel>
-                        <TextBlock Classes="field" Text="Interface reseau"/>
-                        <TextBlock x:Name="InterfaceText" Text="Detection automatique"
+                        <TextBlock Classes="field" Text="{DynamicResource Field.NetworkInterface}"/>
+                        <TextBlock x:Name="InterfaceText" Text="{DynamicResource Interface.Auto}"
                                    FontSize="12" Foreground="#888"/>
                     </StackPanel>
                 </Border>
@@ -184,7 +195,7 @@
         </ScrollViewer>
 
         <!-- Save button -->
-        <Button Grid.Row="2" x:Name="BtnSave" Content="Enregistrer"
+        <Button Grid.Row="2" x:Name="BtnSave" Content="{DynamicResource Btn.Save}"
                 HorizontalAlignment="Stretch" Classes="save"
                 Click="BtnSave_Click"/>
     </Grid>

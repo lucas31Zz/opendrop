@@ -1,20 +1,20 @@
-"""Certificat TLS auto-signe pour le serveur OpenDrop.
+"""Self-signed TLS certificate for the OpenDrop server.
 
-Le serveur parle uniquement HTTPS : le scanner de QR code (getUserMedia) et
-la confidentialite du trafic dans le LAN exigent un contexte securise, ce
-que "http://<ip privese>" ne peut jamais donner.
+The server speaks HTTPS only: QR-code scanning (getUserMedia) and keeping
+traffic confidential on the LAN require a secure context, which
+"http://<private ip>" can never provide.
 
-Le certificat est genere localement (cle EC P-256, auto-signe, SHA-256) avec
-l'IP courante en SAN. Il est regenere automatiquement si :
-  - le fichier est absent ou illisible,
-  - il expire dans moins de 30 jours,
-  - l'IP actuelle n'est plus dans les SAN (changement DHCP).
+The certificate is generated locally (EC P-256 key, self-signed, SHA-256)
+with the current IP in the SAN. It is regenerated automatically when:
+  - the file is missing or unreadable,
+  - it expires in less than 30 days,
+  - the current IP is no longer in the SAN (DHCP change).
 
-Pour forcer une regeneration : supprimer le dossier certs\\.
+To force a regeneration: delete the certs\\ folder.
 
-Le certificat auto-signe declenche un avertissement de confiance au premier
-acces depuis un telephone ("Continuer" / "Afficher ce site web") : c'est
-attendu et cela n'empeche pas la camera.
+The self-signed certificate triggers a trust warning on the first visit from
+a phone ("Continue" / "Show this website"): this is expected, and it does not
+block the camera.
 """
 import datetime
 import ipaddress
@@ -40,7 +40,7 @@ def get_cert_dir(directory: str | Path | None = None) -> Path:
 
 
 def ensure_certificate(ip: str, directory: str | Path | None = None) -> tuple[Path, Path]:
-    """Retourne (cert, cle) valides pour cette IP, en les generant si besoin."""
+    """Return a valid (cert, key) pair for this IP, generating it if needed."""
     base = get_cert_dir(directory)
     cert_path = base / CERT_FILE
     key_path = base / KEY_FILE
@@ -83,7 +83,7 @@ def _is_valid(cert_path: Path, key_path: Path, ip: str) -> bool:
     except (ValueError, AttributeError):
         return False
 
-    # iOS/Safari refuse un certificat sans EKU serverAuth : on le regenere.
+    # iOS/Safari rejects a certificate without the serverAuth EKU: regenerate.
     try:
         eku = cert.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
         if x509.ExtendedKeyUsageOID.SERVER_AUTH not in eku:

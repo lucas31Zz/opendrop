@@ -33,7 +33,7 @@ def test_security():
         r.check("Invalid token rejected", False, "should be 403")
     except urllib.error.HTTPError as e:
         body = json.loads(e.read())
-        r.check("Invalid token rejected", e.code == 403 and body.get("error") == "Token de session invalide", f"{e.code} {body}")
+        r.check("Invalid token rejected", e.code == 403 and body.get("error") == "Invalid session token", f"{e.code} {body}")
 
     # Missing token
     try:
@@ -122,7 +122,7 @@ def test_security():
     except urllib.error.HTTPError as e:
         body = json.loads(e.read())
         r.check("Missing token JSON body",
-                e.code == 403 and body == {"error": "Token manquant", "code": 403},
+                e.code == 403 and body == {"error": "Missing session token", "code": 403},
                 f"{e.code} {body}")
 
     # Cross-origin POST rejected with 403 JSON (previously: TypeError, no response)
@@ -142,7 +142,7 @@ def test_security():
     except urllib.error.HTTPError as e:
         body = json.loads(e.read())
         r.check("Foreign origin rejected",
-                e.code == 403 and body.get("error") == "Origine non autorisee",
+                e.code == 403 and body.get("error") == "Origin not allowed",
                 f"{e.code} {body}")
     except Exception as e:
         r.check("Foreign origin rejected", False, str(e))
@@ -183,37 +183,37 @@ def test_security():
     except urllib.error.HTTPError as e:
         body = json.loads(e.read())
         r.check("HTTP origin rejected",
-                e.code == 403 and body.get("error") == "Origine non autorisee",
+                e.code == 403 and body.get("error") == "Origin not allowed",
                 f"{e.code} {body}")
     except Exception as e:
         r.check("HTTP origin rejected", False, str(e))
 
-    # --- Taille des uploads : limite par fichier, pas de quota global -----
+    # --- Upload size: per-file limit, no global quota -----
     limiter_upload.reset()
 
     limit = server_module.MAX_UPLOAD_SIZE
     try:
         status, body = _raw_upload(port, token, limit + 1)
         data = json.loads(body)
-        r.check("Upload > 10 Go rejected on header",
-                status == 400 and "trop volumineux" in data.get("error", ""),
+        r.check("Upload > 10 GB rejected on header",
+                status == 400 and "too large" in data.get("error", ""),
                 f"{status} {data}")
     except Exception as e:
-        r.check("Upload > 10 Go rejected on header", False, str(e))
+        r.check("Upload > 10 GB rejected on header", False, str(e))
 
-    # La limite reelle est bien celle du serveur (controle avec une valeur
-    # reduite : 5000 > 4096 doit etre refuse).
+    # The real limit is indeed the server's (checked with a reduced
+    # value: 5000 > 4096 must be rejected).
     old_limit = server_module.MAX_UPLOAD_SIZE
     server_module.MAX_UPLOAD_SIZE = 4096
     try:
         status, body = _raw_upload(port, token, 5000)
         data = json.loads(body)
         r.check("Configured size limit enforced",
-                status == 400 and "trop volumineux" in data.get("error", ""),
+                status == 400 and "too large" in data.get("error", ""),
                 f"{status} {data}")
 
-        # Deux fichiers de 3000 octets passent alors que 6000 > 4096 : la
-        # limite est bien par fichier et aucun quota global n'est applique.
+        # Two 3000-byte files pass while 6000 > 4096: the limit is
+        # indeed per file and no global quota is applied.
         try:
             a = json.loads(_upload(port, token, "quota_a.bin", b"A" * 3000).read())
             b = json.loads(_upload(port, token, "quota_b.bin", b"B" * 3000).read())
@@ -224,11 +224,11 @@ def test_security():
     finally:
         server_module.MAX_UPLOAD_SIZE = old_limit
 
-    # --- Corps incomplet : rejet, aucun fichier, aucun hash ----------------
-    # Cas HTTP : le corps s'arrete avant la frontiere finale.
-    # Cas unite : le lecteur rend l'EOF au milieu (connexion coupee pendant
-    # le transfert). Dans les deux cas le serveur ne doit rendre aucun
-    # SHA-256 : un hash sur un fichier incomplet mentirait.
+    # --- Incomplete body: rejected, no file, no hash ----------------------
+    # HTTP case: the body stops before the final boundary.
+    # Unit case: the reader hits EOF midway (connection cut during the
+    # transfer). In both cases the server must return no SHA-256: a hash
+    # over an incomplete file would lie.
     limiter_upload.reset()
     boundary = "----TRUNC"
     head = (f"--{boundary}\r\n"
@@ -243,16 +243,16 @@ def test_security():
         resp = conn.getresponse()
         texte = resp.read().decode("utf-8", "replace")
         conn.close()
-        r.check("Corps sans frontiere finale rejete (400)", resp.status == 400,
+        r.check("Body without final boundary rejected (400)", resp.status == 400,
                 f"{resp.status} {texte}")
-        r.check("Corps incomplet: aucun SHA-256 retourne", "sha256" not in texte,
+        r.check("Incomplete body: no SHA-256 returned", "sha256" not in texte,
                 texte[:200])
         restants = [f for f in os.listdir(dd) if f.startswith("tronque")]
-        r.check("Corps incomplet: aucun fichier partielle", not restants, restants)
+        r.check("Incomplete body: no partial file", not restants, restants)
     except Exception as e:
-        r.check("Corps sans frontiere finale rejete (400)", False, str(e))
+        r.check("Body without final boundary rejected (400)", False, str(e))
 
-    # Cas unitaire : coupure au milieu du corps (EOF du lecteur)
+    # Unit case: cut in the middle of the body (reader EOF)
     coupure_dir = os.path.join(dd, "coupure")
     shutil.rmtree(coupure_dir, ignore_errors=True)
     os.makedirs(coupure_dir, exist_ok=True)
@@ -262,19 +262,19 @@ def test_security():
         nom, erreur, digest = multipart_mod.parse_multipart_upload(
             lecteur, f"multipart/form-data; boundary={boundary}",
             len(corps_complet), coupure_dir)
-        r.check("Lecteur coupe en cours de route: erreur rendue",
+        r.check("Reader cut mid-stream: error returned",
                 nom is None and bool(erreur), (nom, erreur))
-        r.check("Lecteur coupe en cours de route: aucun hash rendu",
+        r.check("Reader cut mid-stream: no hash returned",
                 digest is None, digest)
-        r.check("Lecteur coupe en cours de route: aucun fichier",
+        r.check("Reader cut mid-stream: no file",
                 os.listdir(coupure_dir) == [], os.listdir(coupure_dir))
     except Exception as e:
-        r.check("Lecteur coupe en cours de route", False, repr(e))
+        r.check("Reader cut mid-stream", False, repr(e))
 
-    # --- Flush final en echec : 507, fichier nettoye, pas de hash ---------
-    # Simule le disque plein au tout dernier bloc : la fermeture echoue alors
-    # que tout le corps a ete lu. Sans traitement, le serveur repondrait 200
-    # avec un hash couvrant un fichier tronque sur disque.
+    # --- Final flush failure: 507, file cleaned up, no hash ---------------
+    # Simulates a full disk on the very last block: closing fails even
+    # though the whole body was read. Without handling, the server would
+    # answer 200 with a hash covering a file truncated on disk.
     real_open = open
 
     class _FlakyFile:
@@ -303,21 +303,21 @@ def test_security():
     try:
         try:
             _upload(port, token, "flush_fail.bin", b"Z" * 2048)
-            r.check("Echec de flush final -> 507", False, "upload accepte")
+            r.check("Final flush failure -> 507", False, "upload accepted")
         except urllib.error.HTTPError as e:
             texte = e.read().decode("utf-8", "replace")
-            r.check("Echec de flush final -> 507", e.code == 507, f"{e.code} {texte}")
-            r.check("Echec de flush final: aucun chemin serveur dans la reponse",
+            r.check("Final flush failure -> 507", e.code == 507, f"{e.code} {texte}")
+            r.check("Final flush failure: no server path in the response",
                     "flush_fail" not in texte and ".bin" not in texte, texte)
             restants = [f for f in os.listdir(dd) if f.startswith("flush_fail")]
-            r.check("Echec de flush final: fichier partielle supprime",
+            r.check("Final flush failure: partial file deleted",
                     not restants, restants)
         except Exception as e:
-            r.check("Echec de flush final -> 507", False, str(e))
+            r.check("Final flush failure -> 507", False, str(e))
     finally:
         del multipart_mod.open
 
-    # --- Les journaux du serveur ne contiennent ni jeton ni code ----------
+    # --- Server logs contain neither token nor code ----------
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         try:
@@ -333,15 +333,14 @@ def test_security():
             pass
         time.sleep(0.3)
     journaux = buf.getvalue()
-    r.check("Journaux sans jeton", token not in journaux, journaux[:300])
-    r.check("Journaux sans code de session", "ZZZZZZ" not in journaux,
+    r.check("Logs without token", token not in journaux, journaux[:300])
+    r.check("Logs without session code", "ZZZZZZ" not in journaux,
             journaux[:300])
-    r.check("Journaux: token et code masques",
+    r.check("Logs: token and code masked",
             "token=***" in journaux and "code=***" in journaux, journaux[:300])
 
-    # Ecriture impossible (dossier de reception invalide) : reponse 507 et
-    # aucun fichier partielle laisse derriere. C'est ce qui se produit quand
-    # le disque est plein.
+    # Write impossible (invalid receive folder): 507 response and no
+    # partial file left behind. This is what happens when the disk is full.
     blocker = os.path.join(os.path.dirname(dd), "dossier_bloque.txt")
     with open(blocker, "w", encoding="utf-8") as fh:
         fh.write("ce fichier occupe la place d'un dossier")
@@ -382,8 +381,8 @@ def test_security():
 
     server.shutdown()
 
-    # Cleanup : noms exacts ecrits par ce test (ne jamais vider le dossier,
-    # il peut contenir les fichiers de l'utilisateur)
+    # Cleanup: exact names written by this test (never empty the folder,
+    # it may contain the user's files)
     try:
         os.remove(os.path.join(dd, "sec.txt"))
     except OSError:

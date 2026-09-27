@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,16 +19,16 @@
             </div>
 
             <div class="tabs">
-                <button class="tab active" data-tab="send">Envoyer</button>
-                <button class="tab" data-tab="receive">Telecharger</button>
+                <button class="tab active" data-tab="send" data-i18n="tab.send">Send</button>
+                <button class="tab" data-tab="receive" data-i18n="tab.receive">Download</button>
             </div>
 
             <div class="tab-content" id="tab-send">
                 <div class="drop-zone" id="drop-zone">
                     <div class="drop-zone-content">
                         <span class="drop-icon">&#128194;</span>
-                        <p>Choisir un fichier</p>
-                        <p class="drop-hint">ou glisser ici</p>
+                        <p data-i18n="drop.choose">Choose a file</p>
+                        <p class="drop-hint" data-i18n="drop.hint">or drop it here</p>
                     </div>
                     <input type="file" id="file-input">
                 </div>
@@ -40,59 +40,60 @@
                         <div class="progress-bar" id="progress-bar"></div>
                     </div>
                     <p class="progress-text" id="progress-text">0%</p>
-                    <button class="btn-cancel" id="btn-cancel">Annuler</button>
+                    <button class="btn-cancel" id="btn-cancel" data-i18n="transfer.cancel">Cancel</button>
                 </div>
 
                 <div class="success-msg" id="success-msg" style="display:none;">
                     <span class="success-icon">&#9989;</span>
-                    <p class="success-title">Transfert termin&#233;</p>
+                    <p class="success-title" data-i18n="success.title">Transfer complete</p>
                     <p class="success-filename" id="success-filename"></p>
                     <p class="success-size" id="success-size"></p>
                     <p class="success-hash" id="success-hash"></p>
-                    <button class="btn-new" id="btn-new">Envoyer un autre fichier</button>
+                    <button class="btn-new" id="btn-new" data-i18n="success.new">Send another file</button>
                 </div>
 
                 <div class="error-msg" id="error-msg" style="display:none;">
                     <span class="error-icon">&#10060;</span>
-                    <p class="error-title">Erreur</p>
+                    <p class="error-title" data-i18n="error.title">Error</p>
                     <p class="error-detail" id="error-detail"></p>
-                    <button class="btn-new" id="btn-retry">R&#233;essayer</button>
+                    <button class="btn-new" id="btn-retry" data-i18n="error.retry">Try again</button>
                 </div>
             </div>
 
             <div class="tab-content" id="tab-receive" style="display:none;">
                 <div class="file-list" id="file-list">
-                    <p class="loading">Chargement...</p>
+                    <p class="loading" data-i18n="files.loading">Loading...</p>
                 </div>
                 <div class="empty-msg" id="empty-msg" style="display:none;">
-                    <p>Aucun fichier disponible.</p>
-                    <p class="empty-hint"> Mets des fichiers dans le dossier Partage sur le PC.</p>
+                    <p data-i18n="files.empty">No files available.</p>
+                    <p class="empty-hint" data-i18n="files.emptyHint">Put files in the Share folder on the PC.</p>
                 </div>
-                <button class="btn-refresh" id="btn-refresh">Rafraichir</button>
+                <button class="btn-refresh" id="btn-refresh" data-i18n="files.refresh">Refresh</button>
             </div>
         </div>
 
         <div class="session-screen" id="session-screen" style="display:none;">
             <span class="session-icon">&#128274;</span>
-            <p class="session-title">Session verrouill&#233;e</p>
+            <p class="session-title" data-i18n="session.locked">Session locked</p>
             <p class="session-detail" id="session-detail"></p>
-            <p class="empty-hint">Scannez le QR code affich&#233; sur le PC, ou saisissez le code de session.</p>
+            <p class="empty-hint" data-i18n="session.scanHint">Scan the QR code shown on the PC, or enter the session code.</p>
 
             <div class="unlock-form">
                 <input type="text" class="code-input" id="code-input" placeholder="ABC123"
                        maxlength="12" autocomplete="off" autocapitalize="characters"
-                       autocorrect="off" spellcheck="false" aria-label="Code de session">
-                <button class="btn-unlock" id="btn-unlock">D&#233;verrouiller</button>
+                       autocorrect="off" spellcheck="false" data-i18n-attr="aria-label:session.codeAria"
+                       aria-label="Session code">
+                <button class="btn-unlock" id="btn-unlock" data-i18n="session.unlock">Unlock</button>
             </div>
             <p class="unlock-error" id="unlock-error" style="display:none;"></p>
 
-            <button class="btn-scan" id="btn-scan" style="display:none;">&#128247; Scanner le QR code</button>
+            <button class="btn-scan" id="btn-scan" style="display:none;" data-i18n="session.scan">&#128247; Scan QR code</button>
             <div class="scanner" id="scanner" style="display:none;">
                 <video id="scanner-video" playsinline autoplay muted></video>
-                <button class="btn-refresh" id="btn-scan-close">Fermer le scanner</button>
+                <button class="btn-refresh" id="btn-scan-close" data-i18n="session.closeScanner">Close scanner</button>
             </div>
 
-            <button class="btn-refresh" id="btn-session-retry">R&#233;essayer</button>
+            <button class="btn-refresh" id="btn-session-retry" data-i18n="session.retry">Try again</button>
         </div>
     </div>
 

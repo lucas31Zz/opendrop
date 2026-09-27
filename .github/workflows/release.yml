@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   windows:
-    name: setup Windows (win-x64)
+    name: Windows setup (win-x64)
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -23,10 +23,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Publier l'application (single-file, self-contained)
+      - name: Publish the application (single-file, self-contained)
         run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win
 
-      - name: Completer le bundle (serveur Python + web + docs)
+      - name: Complete the bundle (Python server + web + docs)
         shell: bash
         run: |
           set -e
@@ -36,25 +36,25 @@ jobs:
           test -f publish/win/web/index.html
           test -f publish/win/src/opendrop/main.py
 
-      - name: Wheels hors-ligne (dependances du setup)
+      - name: Offline wheels (installer dependencies)
         shell: pwsh
         run: |
-          # Wheels par version mineure : pillow/cffi dependent de l'ABI, le
-          # setup doit fonctionner avec n'importe quel Python 3.10+ installe.
+          # Wheels per minor version: pillow/cffi depend on the ABI, so the
+          # installer must work with any installed Python 3.10+.
           foreach ($v in "3.10", "3.11", "3.12", "3.13", "3.14") {
             python -m pip download --requirement requirements.txt `
               --dest publish/win/wheels --only-binary=:all: --python-version $v
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
-      - name: Installer Inno Setup (si absent)
+      - name: Install Inno Setup (if missing)
         shell: pwsh
         run: |
           if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
             choco install innosetup -y --no-progress
           }
 
-      - name: Compiler le setup.exe
+      - name: Compile setup.exe
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
@@ -62,13 +62,13 @@ jobs:
             "packaging\windows\OpenDrop.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Archiver la version portable
+      - name: Archive the portable version
         shell: pwsh
         run: |
           Compress-Archive -Path publish/win `
             -DestinationPath "dist/OpenDrop-${{ github.ref_name }}-win-x64.zip"
 
-      - name: Attacher les fichiers a la release
+      - name: Attach the files to the release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,7 +82,7 @@ jobs:
           files=$(find dist -maxdepth 1 -type f); gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber $files
 
   linux:
-    name: install Linux (linux-x64)
+    name: Linux install (linux-x64)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -96,13 +96,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Publier l'application (single-file, self-contained)
+      - name: Publish the application (single-file, self-contained)
         run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux
 
-      - name: Assembler le tarball (binaire + src + wheels + install.sh)
+      - name: Assemble the tarball (binary + src + wheels + install.sh)
         run: bash packaging/linux/build-tarball.sh "${{ github.ref_name }}"
 
-      - name: Attacher les fichiers a la release
+      - name: Attach the files to the release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

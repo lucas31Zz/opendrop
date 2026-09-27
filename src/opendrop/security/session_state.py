@@ -1,11 +1,11 @@
-"""Etat de session persistant : token + code de session.
+"""Persistent session state: token + session code.
 
-Ces secrets survivent aux redemarrages du serveur pour que le QR code et le
-code de session restent valides. Ils ne changent que sur demande explicite
-(bouton Reset de l'app, ou option "nouveau token au demarrage").
+These secrets survive server restarts so that the QR code and the session
+code stay valid. They only change on explicit request (the app's Reset
+button, or the "new token on startup" option).
 
-Fichier separe de config.json : les parametres sont reecrits par l'app
-desktop, les secrets ne doivent jamais partir avec eux.
+Separate file from config.json: the parameters are rewritten by the desktop
+app, while the secrets must never be rewritten along with them.
 """
 import json
 from pathlib import Path
@@ -21,7 +21,7 @@ def _state_path(directory: str | Path | None = None) -> Path:
 
 
 def load_session_state(directory: str | Path | None = None) -> dict | None:
-    """Retourne {"token", "code"} ou None si absent/inutilisable."""
+    """Return {"token", "code"} or None if missing/unusable."""
     path = _state_path(directory)
     if not path.exists():
         return None

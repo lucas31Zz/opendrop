@@ -9,6 +9,7 @@ from opendrop.network.interfaces import get_local_ip, find_available_port
 from opendrop.security.tokens import generate_token
 from opendrop.security.session_state import load_session_state, save_session_state
 from opendrop.config.config import load_config
+from opendrop.i18n import t, normalize_lang
 from opendrop.server.server import create_server, PortInUseError
 
 
@@ -19,10 +20,11 @@ def main():
     parser.add_argument("--port", type=int, default=None,
                         help="Force a specific port")
     parser.add_argument("--rotate-token", action="store_true",
-                        help="Generer un nouveau token et un nouveau code de session")
+                        help="Generate a new token and session code")
     args = parser.parse_args()
 
     config = load_config()
+    lang = normalize_lang(config.get("language", "en"))
     ip = get_local_ip()
     if args.port:
         port = args.port
@@ -34,19 +36,19 @@ def main():
     os.makedirs(download_dir, exist_ok=True)
     os.makedirs(share_dir, exist_ok=True)
     session_expires_in = config.get("session_expires_in", 3600)
-    # Quota global du dossier de reception, en octets (0 ou absent = illimite).
-    # Une valeur negative (config editee a la main) n'a pas de sens : on la
-    # ramene a 0 (illimite) plutot que de laisser le serveur interpreter un
-    # quota impossible a satisfaire.
+    # Global receive-folder quota in bytes (0 or missing = unlimited).
+    # A negative value (config edited by hand) makes no sense: clamp it
+    # to 0 (unlimited) rather than let the server interpret a quota that
+    # can never be satisfied.
     try:
         global_quota_bytes = max(0, int(config.get("global_quota_bytes", 0) or 0))
     except (TypeError, ValueError):
         global_quota_bytes = 0
 
-    # Token et code de session :
-    #  - reset manuel (--rotate-token, bouton Reset du desktop)  -> on change
-    #  - "nouveau token au demarrage" coche dans la config       -> on change
-    #  - sinon on reprend l'etat precedent -> QR et code stables
+    # Token and session code:
+    #  - manual reset (--rotate-token, desktop Reset button) -> change
+    #  - "new token on start" checked in the config           -> change
+    #  - otherwise reuse the previous state -> stable QR and code
     must_rotate = args.rotate_token or bool(config.get("generate_new_token", False))
     previous = None if must_rotate else load_session_state()
     if previous:
@@ -64,28 +66,29 @@ def main():
                                session_expires_in,
                                trust_proxy=bool(config.get("trust_proxy", False)),
                                session_code=previous_code,
-                               global_quota_bytes=global_quota_bytes)
+                               global_quota_bytes=global_quota_bytes,
+                               language=lang)
     except PortInUseError as e:
-        print(f"\n  Erreur : {e}", flush=True)
-        print("  Un ancien serveur tourne probablement encore : arretez-le,",
+        print(f"\n  {t('Error:', lang)} {e}", flush=True)
+        print(f"  {t('An older server is probably still running: stop it,', lang)}",
               flush=True)
-        print("  puis relancez OpenDrop.", flush=True)
+        print(f"  {t('then start OpenDrop again.', lang)}", flush=True)
         sys.exit(1)
     session_code = server.sessions.code
     save_session_state(token, session_code)
     print(flush=True)
-    print("  OpenDrop v0.1.0", flush=True)
+    print("  OpenDrop v0.1.1", flush=True)
     print(flush=True)
-    print(f"  Serveur:         {ip}:{port}", flush=True)
-    print(f"  Interface web:   {url_upload}", flush=True)
-    print(f"  Code session:    {session_code}", flush=True)
-    print(f"  Recus dans:      {download_dir}", flush=True)
-    print(f"  Partage depuis:  {share_dir}", flush=True)
+    print(f"  {t('Server:', lang):<18}{ip}:{port}", flush=True)
+    print(f"  {t('Web interface:', lang):<18}{url_upload}", flush=True)
+    print(f"  {t('Session code:', lang):<18}{session_code}", flush=True)
+    print(f"  {t('Received in:', lang):<18}{download_dir}", flush=True)
+    print(f"  {t('Shared from:', lang):<18}{share_dir}", flush=True)
     print(flush=True)
-    print("  Mets des fichiers dans le dossier Partage pour les partager.", flush=True)
-    print("  Scanner le QR code avec votre appareil.", flush=True)
-    print("  HTTPS : certificat auto-signe, acceptez l'avertissement au 1er acces.", flush=True)
-    print("  Ctrl+C pour arreter.", flush=True)
+    print(f"  {t('Drop files into the Share folder to share them.', lang)}", flush=True)
+    print(f"  {t('Scan the QR code with your device.', lang)}", flush=True)
+    print(f"  {t('HTTPS: self-signed certificate; accept the browser warning on first access.', lang)}", flush=True)
+    print(f"  {t('Press Ctrl+C to stop.', lang)}", flush=True)
     print(flush=True)
 
     if args.headless:
@@ -100,6 +103,7 @@ def main():
             "url_download": url_download,
             "download_dir": download_dir,
             "share_dir": share_dir,
+            "lang": lang,
         }
         print(_json.dumps(info), flush=True)
     else:
@@ -115,10 +119,10 @@ def main():
                     tmp.close()
                     print(f"  QR code: {tmp.name}", flush=True)
                     print(flush=True)
-                    # Ouverture du PNG : os.startfile existe uniquement sous
-                    # Windows. Sur Linux on passe par xdg-open, sur macOS par
-                    # open ; sans bureau (VM/headless) la commande echoue ou
-                    # n'existe pas, le serveur demarre quand meme.
+                    # Opening the PNG: os.startfile only exists on Windows.
+                    # On Linux we go through xdg-open, on macOS through
+                    # open; without a desktop (VM/headless) the command
+                    # fails or does not exist, the server starts anyway.
                     try:
                         if os.name == "nt":
                             os.startfile(tmp.name)
@@ -137,7 +141,7 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n  Serveur arrete.", flush=True)
+        print(f"\n  {t('Server stopped.', lang)}", flush=True)
         server.sessions.stop_cleanup()
         server.server_close()
         sys.exit(0)

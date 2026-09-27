@@ -34,11 +34,13 @@ def load_config() -> dict:
         "preferred_port": 8080,
         "session_expires_in": 3600,
         "trust_proxy": False,
+        # UI language: "en" (default) or "fr".
+        "language": "en",
     }
     if config_path.exists():
         try:
-            # utf-8-sig : tolerate un BOM, sinon tout le fichier serait
-            # ignore silencieusement et les dossiers de l'utilisateur perdraient
+            # utf-8-sig: tolerate a BOM, otherwise the whole file would be
+            # skipped silently and the user's folders would be lost.
             with open(config_path, "r", encoding="utf-8-sig") as f:
                 saved = json.load(f)
             defaults.update(saved)

@@ -16,11 +16,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from opendrop.network.interfaces import get_local_ip, find_available_port
 from opendrop.server.server import create_server
 
-# --- Isolation des tests -------------------------------------------------
-# Les tests travaillent TOUJOURS dans un dossier temporaire cree ici.
-# Le fichier de config de l'utilisateur n'est meme pas ouvert : ni le
-# dossier de reception, ni le dossier de partage reels ne sont lus,
-# ecrits ou supprimes par les tests.
+# --- Test isolation ------------------------------------------------------
+# Tests ALWAYS work in a temporary folder created here.
+# The user's config file is not even opened: neither the real receive
+# folder nor the real share folder is read, written to, or deleted by tests.
 _WORKSPACE = tempfile.mkdtemp(prefix="opendrop_tests_")
 
 ip = "127.0.0.1"
@@ -30,9 +29,9 @@ cert_dir = os.path.join(_WORKSPACE, "certs")
 os.makedirs(dd, exist_ok=True)
 os.makedirs(sd, exist_ok=True)
 
-# Le serveur parle HTTPS avec un certificat auto-signe : les tests ne
-# verifient pas la chaine de confiance (elle est generee a la volee dans
-# le workspace temporaire).
+# The server speaks HTTPS with a self-signed certificate: the tests do
+# not verify the trust chain (it is generated on the fly inside the
+# temporary workspace).
 SSL_CONTEXT = ssl._create_unverified_context()
 
 
@@ -47,7 +46,7 @@ with open(_share_file, "wb") as _f:
 
 
 def _cleanup_workspace():
-    """Supprime tout le dossier temporaire des tests a la fin du processus."""
+    """Delete the whole temporary test folder when the process ends."""
     shutil.rmtree(_WORKSPACE, ignore_errors=True)
 
 
@@ -94,11 +93,11 @@ def _upload(port, token, filename="upload.txt", content=b"upload data"):
 
 
 def _raw_upload(port, token, content_length):
-    """POST /api/upload avec un Content-Length annonce, sans envoyer de corps.
+    """POST /api/upload with a declared Content-Length, sending no body.
 
-    Le serveur doit trancher sur l'en-tete seul (taille, quota) avant de
-    lire quoi que ce soit : aucun octet n'est alors ecrit, et le client ne
-    peut pas se faire couper en pleine ecriture.
+    The server must decide from the header alone (size, quota) before
+    reading anything: no byte is written then, and the client cannot be
+    cut off in the middle of writing.
     """
     conn = http.client.HTTPSConnection("127.0.0.1", port, context=SSL_CONTEXT, timeout=20)
     try:

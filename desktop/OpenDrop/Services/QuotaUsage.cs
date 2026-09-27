@@ -5,13 +5,14 @@ using System.Text.Json;
 
 namespace OpenDrop;
 
-// Utilise par la fenetre principale (affichage "x / y") et par les Reglages
-// (compteur d'usage) : une seule source pour le calcul et le formatage.
+// Used by the main window ("x / y" display) and by Settings (usage
+// counter): a single source for the computation and the formatting.
 internal static class QuotaUsage
 {
-    // Meme logique que le cote Python (src/opendrop/config/config.py) :
-    // LOCALAPPDATA/APPDATA s'il existe, sinon ~/.opendrop sous Linux/macOS.
-    // Sans cela, le desktop et le serveur liraient deux config.json differents.
+    // Same logic as the Python side (src/opendrop/config/config.py):
+    // LOCALAPPDATA/APPDATA when present, otherwise ~/.opendrop on
+    // Linux/macOS. Without this, desktop and server would read two
+    // different config.json files.
     public static string ConfigDir
     {
         get
@@ -74,28 +75,32 @@ internal static class QuotaUsage
 
     public static string Format(long bytes)
     {
+        var fr = Lang.Current == "fr";
         string number;
         string unit;
         if (bytes >= 1024L * 1024 * 1024)
         {
             number = (bytes / (1024d * 1024 * 1024)).ToString("0.###", CultureInfo.InvariantCulture);
-            unit = "Go";
+            unit = fr ? "Go" : "GB";
         }
         else if (bytes >= 1024L * 1024)
         {
             number = (bytes / (1024d * 1024)).ToString("0.#", CultureInfo.InvariantCulture);
-            unit = "Mo";
+            unit = fr ? "Mo" : "MB";
         }
         else if (bytes >= 1024L)
         {
             number = (bytes / 1024d).ToString("0.#", CultureInfo.InvariantCulture);
-            unit = "Ko";
+            unit = fr ? "Ko" : "KB";
         }
         else
         {
             number = bytes.ToString(CultureInfo.InvariantCulture);
-            unit = "o";
+            unit = fr ? "o" : "B";
         }
-        return number.Replace('.', ',') + " " + unit;
+        // French displays use a decimal comma, English a decimal point.
+        if (fr)
+            number = number.Replace('.', ',');
+        return number + " " + unit;
     }
 }

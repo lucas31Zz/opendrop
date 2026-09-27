@@ -1,7 +1,7 @@
-"""Genere les icones du projet : app.ico (Windows) et app.png (Linux .desktop).
+"""Generate the project icons: app.ico (Windows) and app.png (Linux .desktop).
 
-Le logo est un QR code pointant vers le depot (avec bordure blanche arrondie).
-A lancer depuis la racine : python tools/make_icon.py
+The logo is a QR code pointing to the repository (with a rounded white border).
+Run it from the repo root: python tools/make_icon.py
 """
 import io
 from pathlib import Path
@@ -14,8 +14,8 @@ DESKTOP = ROOT / "desktop" / "OpenDrop"
 LINUX = ROOT / "packaging" / "linux"
 
 URL = "https://github.com/lucas31Zz/opendrop"
-SIZE = 512          # image finale
-PADDING = 64        # marge blanche
+SIZE = 512          # final image
+PADDING = 64        # white margin
 
 
 def make_image() -> Image.Image:
@@ -28,10 +28,10 @@ def make_image() -> Image.Image:
     img = Image.new("RGB", (SIZE, SIZE), "white")
     draw = ImageDraw.Draw(img)
 
-    # Fond : carre blanc avec coins legerement colores (teinte du projet).
+    # Background: white square with slightly tinted corners (the project hue).
     draw.rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=72, fill="white")
 
-    # QR centre, noir, sans blanchir les bords.
+    # Centered black QR, without whitening the edges.
     inner = SIZE - 2 * PADDING
     cell = inner / modules
     for r in range(modules):
@@ -51,10 +51,10 @@ def main() -> None:
 
     img.save(DESKTOP / "app.png")
 
-    # .png 256 pour le .desktop Linux
+    # 256px .png for the Linux .desktop
     img.resize((256, 256), Image.LANCZOS).save(LINUX / "opendrop.png")
 
-    # .ico pour l'installeur Windows
+    # .ico for the Windows installer
     img.save(DESKTOP / "app.ico",
              sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 

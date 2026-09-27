@@ -1,10 +1,12 @@
 import traceback
 import sys
 
+from opendrop.i18n import translate_error
+
 
 class OpenDropError(Exception):
     status = 500
-    message = "Erreur interne du serveur"
+    message = "Internal server error"
 
     def __init__(self, message: str | None = None):
         if message:
@@ -14,68 +16,70 @@ class OpenDropError(Exception):
 
 class TokenInvalidError(OpenDropError):
     status = 403
-    message = "Token de session invalide"
+    message = "Invalid session token"
 
 
 class TokenExpiredError(OpenDropError):
     status = 403
-    message = "Token de session expire"
+    message = "Session token expired"
 
 
 class OriginForbiddenError(OpenDropError):
     status = 403
-    message = "Origine non autorisee"
+    message = "Origin not allowed"
 
 
 class RateLimitError(OpenDropError):
     status = 429
-    message = "Trop de requetes, reessayez dans un moment"
+    message = "Too many requests, try again in a moment"
 
 
 class UploadError(OpenDropError):
     status = 400
-    message = "Erreur lors de l'envoi du fichier"
+    message = "Upload failed"
 
 
 class MultipartParseError(UploadError):
-    message = "Format de fichier invalide"
+    message = "Invalid file format"
 
 
 class FilenameInvalidError(UploadError):
-    message = "Nom de fichier invalide"
+    message = "Invalid file name"
 
 
 class FilenameUnsafeError(UploadError):
-    message = "Nom de fichier non autorise"
+    message = "File name not allowed"
 
 
 class FileTooLargeError(UploadError):
-    message = "Fichier trop volumineux"
+    message = "File too large"
 
 
 class DownloadError(OpenDropError):
     status = 404
-    message = "Fichier introuvable"
+    message = "File not found"
 
 
 class FileDeletedError(DownloadError):
-    message = "Le fichier a ete supprime"
+    message = "The file has been deleted"
 
 
 class DiskError(OpenDropError):
     status = 507
-    message = "Espace disque insuffisant ou erreur d'ecriture"
+    message = "Not enough disk space or write error"
 
 
 class QuotaExceededError(OpenDropError):
     status = 507
-    message = "Quota global du dossier de reception atteint"
+    message = "Global receive quota reached"
 
 
-def format_error_response(exc: Exception) -> dict:
+# The message on the exception is always canonical English; translate at
+# the edge so logs and tracebacks stay in one language.
+def format_error_response(exc: Exception, lang: str = "en") -> dict:
     if isinstance(exc, OpenDropError):
-        return {"error": exc.message, "code": exc.status}
-    return {"error": "Erreur interne du serveur", "code": 500}
+        return {"error": translate_error(exc.message, lang), "code": exc.status}
+    return {"error": translate_error("Internal server error", lang), "code": 500}
 
 
 def log_error(exc: Exception, context: str = "") -> None:

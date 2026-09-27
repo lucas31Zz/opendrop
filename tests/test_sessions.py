@@ -24,15 +24,15 @@ _SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 
 
 def _spawn_main(args, config_dir, timeout=30):
-    """Lance `python -m opendrop.main` isole dans un LOCALAPPDATA temporaire.
+    """Run `python -m opendrop.main` isolated in a temporary LOCALAPPDATA.
 
-    Retourne (processus, info JSON, file des lignes de sortie).
+    Returns (process, JSON info, queue of output lines).
     """
     env = dict(os.environ)
     env["LOCALAPPDATA"] = config_dir
-    # load_config() construit ses valeurs par defaut en appelant Path.home() :
-    # sans ce repli, le sous-processus creerait ~/Downloads/OpenDrop dans le
-    # profil reel. Tout doit rester dans le dossier temporaire du test.
+    # load_config() builds its default values by calling Path.home():
+    # without this fallback, the subprocess would create ~/Downloads/OpenDrop
+    # in the real profile. Everything must stay in the test's temporary folder.
     env["USERPROFILE"] = config_dir
     env["PYTHONUNBUFFERED"] = "1"
     chemins = [p for p in sys.path if p]
@@ -95,7 +95,7 @@ def test_sessions():
     except urllib.error.HTTPError as e:
         r.check("Invalid token rejected", e.code == 403)
 
-    # Session info (le bloc session ne sort que pour un porteur de token)
+    # Session info (the session block only goes out for a token holder)
     try:
         resp = urlopen(_url(port, "/api/info", token))
         data = json.loads(resp.read())
@@ -175,7 +175,7 @@ def test_sessions():
 
     server3.shutdown()
 
-    # --- Code de session (deverrouillage sans QR) ---
+    # --- Session code (unlock without QR) ---
     print("\n  Session code tests...")
     server4, port4, token4 = _start_server()
     code = server4.sessions.code
@@ -201,7 +201,7 @@ def test_sessions():
     except urllib.error.HTTPError as e:
         body = json.loads(e.read())
         r.check("Wrong code rejected",
-                e.code == 403 and body.get("error") == "Code de session invalide",
+                e.code == 403 and body.get("error") == "Invalid session code",
                 f"{e.code} {body}")
 
     try:
@@ -220,7 +220,7 @@ def test_sessions():
         except Exception as e:
             r.check("Unlocked token works", False, str(e))
 
-    # Le code est insensible a la casse et aux separateurs
+    # The code is case- and separator-insensitive
     messy = code[:3].lower() + "-" + code[3:].lower()
     try:
         resp = _unlock(port4, messy)
@@ -228,7 +228,7 @@ def test_sessions():
     except Exception as e:
         r.check("Code case/separator insensitive", False, str(e))
 
-    # --- Persistance : ni le token ni le code ne changent sans reset ---
+    # --- Persistence: neither the token nor the code changes without a reset ---
     print("\n  Session persistence tests...")
     state_dir = os.path.join(dd, "state")
     save_session_state("TOKENPERSISTANT", "ABC234", directory=state_dir)
@@ -255,34 +255,34 @@ def test_sessions():
         r.check("Persisted code unlocks", False, str(e))
     server5.shutdown()
 
-    # --- Le code reste utilisable une fois le jeton expire ----------------
-    # C'est la fonction de secours : l'utilisateur retrouve l'acces en
-    # tapant le code meme apres l'expiration de la session.
-    print("\n  Code apres expiration du jeton...")
+    # --- The code stays usable once the token has expired ----------------
+    # This is the fallback: the user regains access by typing the code
+    # even after the session has expired.
+    print("\n  Code after token expiration...")
     limiter_session.reset()
     server6, port6, token6 = _start_server(session_expires_in=1)
     code6 = server6.sessions.code
     time.sleep(2)
     try:
         urlopen(_url(port6, "/api/files", token6))
-        r.check("Jeton expire avant le deverrouillage", False, "toujours actif")
+        r.check("Token expired before unlock", False, "still active")
     except urllib.error.HTTPError as e:
-        r.check("Jeton expire avant le deverrouillage", e.code == 403, e.code)
+        r.check("Token expired before unlock", e.code == 403, e.code)
     try:
         data = json.loads(_unlock(port6, code6).read())
         token_secours = data.get("token")
-        r.check("Code valide apres expiration du jeton",
+        r.check("Code valid after token expiration",
                 data.get("success") and bool(token_secours), data)
         resp = urlopen(_url(port6, "/api/files", token_secours))
-        r.check("Jeton obtenu par le code fonctionne", resp.status == 200)
+        r.check("Token obtained via code works", resp.status == 200)
     except Exception as e:
-        r.check("Code valide apres expiration du jeton", False, str(e))
+        r.check("Code valid after token expiration", False, str(e))
     server6.shutdown()
 
-    # --- Rotation du code via `python -m opendrop.main` -------------------
-    # Deux demarrages sans reset doivent conserver le token ET le code ;
-    # --rotate-token doit changer les deux et invalider l'ancien code.
-    print("\n  Rotation du code (sous-processus opendrop.main)...")
+    # --- Code rotation via `python -m opendrop.main` ---------------------
+    # Two starts without a reset must keep the token AND the code;
+    # --rotate-token must change both and invalidate the old code.
+    print("\n  Code rotation (opendrop.main subprocess)...")
     limiter_session.reset()
     work = tempfile.mkdtemp(prefix="opendrop_rotation_")
     proc1 = proc2 = proc3 = None
@@ -303,7 +303,7 @@ def test_sessions():
             return proc, info, port
 
         proc1, info1, _ = _lance()
-        r.check("opendrop.main headless publie token et code",
+        r.check("opendrop.main headless publishes token and code",
                 info1 is not None and bool(info1.get("token"))
                 and bool(info1.get("session_code")),
                 info1 and {k: info1.get(k) for k in ("token", "session_code")})
@@ -311,7 +311,7 @@ def test_sessions():
 
         if info1:
             proc2, info2, _ = _lance()
-            r.check("Sans rotation, token et code conserves",
+            r.check("Without rotation, token and code preserved",
                     info2 is not None
                     and info2.get("token") == info1.get("token")
                     and info2.get("session_code") == info1.get("session_code"),
@@ -321,46 +321,46 @@ def test_sessions():
 
             proc3, info3, port3 = _lance("--rotate-token")
             if info3:
-                r.check("--rotate-token change le token",
+                r.check("--rotate-token changes the token",
                         info3.get("token") != info1.get("token"))
-                r.check("--rotate-token change le code de session",
+                r.check("--rotate-token changes the session code",
                         info3.get("session_code") != info1.get("session_code"),
                         f"{info1.get('session_code')} -> {info3.get('session_code')}")
 
                 try:
                     _unlock(port3, info1["session_code"])
-                    r.check("Ancien code rejete apres rotation", False, "accepte")
+                    r.check("Old code rejected after rotation", False, "accepted")
                 except urllib.error.HTTPError as e:
-                    r.check("Ancien code rejete apres rotation", e.code == 403, e.code)
+                    r.check("Old code rejected after rotation", e.code == 403, e.code)
 
                 try:
                     data = json.loads(_unlock(port3, info3["session_code"]).read())
-                    r.check("Nouveau code accepte apres rotation",
+                    r.check("New code accepted after rotation",
                             data.get("success"), data)
                 except Exception as e:
-                    r.check("Nouveau code accepte apres rotation", False, str(e))
+                    r.check("New code accepted after rotation", False, str(e))
 
                 etat = load_session_state(directory=cfg)
-                r.check("session.json mis a jour par la rotation",
+                r.check("session.json updated by the rotation",
                         etat == {"token": info3.get("token"),
                                  "code": info3.get("session_code")}, etat)
             else:
-                r.check("--rotate-token change le token", False,
-                        "pas d'info du sous-processus")
-                r.check("--rotate-token change le code de session", False, "")
+                r.check("--rotate-token changes the token", False,
+                        "no info from the subprocess")
+                r.check("--rotate-token changes the session code", False, "")
             _stop(proc3)
         else:
-            r.check("Sans rotation, token et code conserves", False, "pas de demarrage")
-            r.check("--rotate-token change le token", False, "pas de demarrage")
+            r.check("Without rotation, token and code preserved", False, "no startup")
+            r.check("--rotate-token changes the token", False, "no startup")
     except Exception as e:
-        r.check("Rotation du code (sous-processus)", False, repr(e))
+        r.check("Code rotation (subprocess)", False, repr(e))
     finally:
         for proc in (proc1, proc2, proc3):
             if proc is not None:
                 _stop(proc)
         shutil.rmtree(work, ignore_errors=True)
 
-    # Force brute : 5 tentatives/min/IP (doit passer en dernier)
+    # Brute force: 5 attempts/min/IP (must run last)
     limiter_session.reset()
     blocked = False
     for _ in range(6):

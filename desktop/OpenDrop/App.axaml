@@ -7,4 +7,11 @@
         <FluentTheme />
     </Application.Styles>
 
+    <!-- String tables are injected at runtime by Lang (see Lang.cs): the
+         active language is loaded into Resources before any window is
+         built, so every DynamicResource resolves in that language. -->
+    <Application.Resources>
+        <ResourceDictionary />
+    </Application.Resources>
+
 </Application>

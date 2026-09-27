@@ -31,5 +31,5 @@ class RateLimiter:
 limiter_general = RateLimiter(max_requests=120, window=60)
 limiter_upload = RateLimiter(max_requests=10, window=60)
 limiter_download = RateLimiter(max_requests=30, window=60)
-# Anti force brute sur le code de session (6 caracteres).
+# Brute-force protection for the session code (6 characters).
 limiter_session = RateLimiter(max_requests=5, window=60)

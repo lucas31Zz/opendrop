@@ -30,21 +30,21 @@ def _load_cert_key(directory=None):
 
 
 def _pub_bytes(key):
-    """SPKI DER : accepte une cle privee ou deja publique."""
+    """SPKI DER: accepts a private or already-public key."""
     pub = key.public_key() if hasattr(key, "public_key") else key
     return pub.public_bytes(serialization.Encoding.DER,
                             serialization.PublicFormat.SubjectPublicKeyInfo)
 
 
 def _dates(cert):
-    """(debut, fin) : les attributs UTC evitent les avertissements cryptography."""
+    """(start, end): the UTC attributes avoid cryptography warnings."""
     if hasattr(cert, "not_valid_after_utc"):
         return cert.not_valid_before_utc, cert.not_valid_after_utc
     return cert.not_valid_before, cert.not_valid_after
 
 
 def _write_short_cert(cert_path, key_path, target_ip, days):
-    """Certificat valide mais qui expire bientot (test du renouvellement)."""
+    """Valid certificate that expires soon (renewal test)."""
     key = ec.generate_private_key(ec.SECP256R1())
     now = datetime.datetime.now(datetime.timezone.utc)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "OpenDrop")])
@@ -110,8 +110,8 @@ def test_tls():
     except Exception as e:
         r.check("Certificate SAN has 127.0.0.1", False, str(e))
 
-    # Authenticite : certificat auto-signe, signe par sa propre cle, cle
-    # d'accord avec le certificat, EKU serveur et duree de vie attendue.
+    # Authenticity: self-signed certificate, signed by its own key, key
+    # matching the certificate, server EKU and expected lifetime.
     try:
         cert, key = _load_cert_key()
         r.check("Certificate is self-signed (issuer == subject)",
@@ -123,15 +123,15 @@ def test_tls():
         eku = cert.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
         r.check("Certificate has serverAuth EKU",
                 x509.ExtendedKeyUsageOID.SERVER_AUTH in eku, list(eku))
-        # not_valid_before = maintenant - 1 jour (marge d'horloge) et
-        # not_valid_after = maintenant + 397 jours.
+        # not_valid_before = now - 1 day (clock margin) and
+        # not_valid_after = now + 397 days.
         jours = (_dates(cert)[1] - _dates(cert)[0]).days
         r.check("Certificate lifetime is ~397 days", 397 <= jours <= 398, jours)
     except Exception as e:
         r.check("Certificate authenticity checks", False, str(e))
 
-    # Un certificat auto-signe n'est PAS dans le magasin de confiance du
-    # systeme : le navigateur doit afficher son avertissement (TOFU).
+    # A self-signed certificate is NOT in the system trust store: the
+    # browser must show its warning (TOFU).
     try:
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(socket.create_connection((ip, port), timeout=5),
@@ -139,7 +139,7 @@ def test_tls():
             sock.sendall(b"GET /api/info HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
             sock.recv(64)
         r.check("Self-signed certificate not trusted by default",
-                False, "le handshake de confiance a reussi")
+                False, "the trusted handshake succeeded")
     except ssl.SSLCertVerificationError as e:
         r.check("Self-signed certificate not trusted by default", True,
                 str(e)[:120])
@@ -181,8 +181,8 @@ def test_tls():
         cert = x509.load_pem_x509_certificate(c1.read_bytes())
         r.check("Corrupted certificate regenerated", cert is not None)
 
-        # Corrupted private key -> regeneration (le serveur ne doit pas
-        # demarrer avec une cle illisible)
+        # Corrupted private key -> regeneration (the server must not
+        # start with an unreadable key)
         k1.write_bytes(b"not a key")
         tls_cert.ensure_certificate("10.0.0.8", directory=work)
         cert2, key2 = _load_cert_key(work)
@@ -198,7 +198,7 @@ def test_tls():
         tls_cert.ensure_certificate("10.0.0.9", directory=work)
         renouvele = x509.load_pem_x509_certificate(c1.read_bytes())
         gain = ((_dates(renouvele)[1] - _dates(court)[1]).days)
-        r.check("Certificate renewed before expiry", gain > 300, f"+{gain} jours")
+        r.check("Certificate renewed before expiry", gain > 300, f"+{gain} days")
     except Exception as e:
         r.check("Certificate lifecycle", False, str(e))
     finally:

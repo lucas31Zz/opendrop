@@ -35,8 +35,9 @@ class SessionManager:
         self._cleanup_interval = cleanup_interval
         self._cleanup_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
-        # Code court a taper sur un autre appareil. Repris de l'etat sauvegarde
-        # si fourni, sinon regenere : il ne change que sur reset explicite.
+        # Short code to type on another device. Reused from the saved state
+        # when provided, otherwise regenerated: it only changes on an
+        # explicit reset.
         self._code = self._resolve_code(code)
 
     @staticmethod
@@ -52,7 +53,7 @@ class SessionManager:
             return self._code
 
     def validate_code(self, code: str | None) -> bool:
-        """Compare en temps constant, insensible a la casse et aux separateurs."""
+        """Constant-time comparison, insensitive to case and separators."""
         normalized = normalize_session_code(code)
         expected = self.code
         if len(normalized) != len(expected):
@@ -75,7 +76,7 @@ class SessionManager:
         while not self._stop_event.is_set():
             removed = self.cleanup()
             if removed > 0:
-                print(f"[OpenDrop] Sessions expirees nettoyees: {removed}", flush=True)
+                print(f"[OpenDrop] Expired sessions cleaned: {removed}", flush=True)
             self._stop_event.wait(self._cleanup_interval)
 
     def register(self, token: str) -> None:
@@ -132,7 +133,7 @@ class SessionManager:
             }
 
 
-# Sans O/0, I/1, L : le code reste lisible a l'oeil nu et se tape sans erreur.
+# Without O/0, I/1, L: the code stays readable by eye and types without errors.
 SESSION_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 SESSION_CODE_LENGTH = 6
 

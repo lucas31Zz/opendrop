@@ -1,0 +1,80 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Main window -->
+    <x:String x:Key="Status.Starting">Starting...</x:String>
+    <x:String x:Key="Status.Running">Server running</x:String>
+    <x:String x:Key="Status.Stopped">Server stopped</x:String>
+    <x:String x:Key="Status.Error">Error</x:String>
+    <x:String x:Key="Btn.StartServer">Start server</x:String>
+    <x:String x:Key="Btn.StopServer">Stop server</x:String>
+    <x:String x:Key="Btn.Settings">Settings</x:String>
+    <x:String x:Key="Btn.Save">Save</x:String>
+    <x:String x:Key="Btn.Saved">Saved!</x:String>
+    <x:String x:Key="Btn.Reset">Reset</x:String>
+    <x:String x:Key="Label.ServerAddress">SERVER ADDRESS</x:String>
+    <x:String x:Key="Label.QrCode">QR CODE</x:String>
+    <x:String x:Key="Qr.HintStart">Start the server to generate the QR code</x:String>
+    <x:String x:Key="Qr.Unavailable">QR code unavailable</x:String>
+    <x:String x:Key="Qr.Generating">Generating a new token...</x:String>
+    <x:String x:Key="Qr.Restarting">Restarting the server...</x:String>
+    <x:String x:Key="Label.SessionCode">SESSION CODE</x:String>
+    <x:String x:Key="Session.Hint">Type it on the other device when the session is locked.</x:String>
+    <x:String x:Key="Label.TokenRefresh">TOKEN REFRESH</x:String>
+    <x:String x:Key="Token.Never">Never</x:String>
+    <x:String x:Key="Token.5m">5 minutes</x:String>
+    <x:String x:Key="Token.15m">15 minutes</x:String>
+    <x:String x:Key="Token.30m">30 minutes</x:String>
+    <x:String x:Key="Token.1h">1 hour</x:String>
+    <x:String x:Key="Token.NextRefresh">Next refresh in</x:String>
+    <x:String x:Key="Label.Folders">FOLDERS</x:String>
+    <x:String x:Key="Folders.Received">Received:</x:String>
+    <x:String x:Key="Folders.Shared">Shared:</x:String>
+    <x:String x:Key="Label.ReceiveQuota">RECEIVE QUOTA</x:String>
+    <x:String x:Key="Quota.Analyzing">Analyzing...</x:String>
+    <x:String x:Key="Quota.Description">Current receive folder, updated automatically.</x:String>
+    <x:String x:Key="Quota.Usage">Received so far: {0} in this folder</x:String>
+    <x:String x:Key="Quota.NoFiles">No files received in this folder yet</x:String>
+    <x:String x:Key="Quota.Scanning">Analyzing folder...</x:String>
+    <x:String x:Key="Quota.Unlimited">{0} received (unlimited)</x:String>
+    <x:String x:Key="Quota.UsageInFolder">{0} received in this folder</x:String>
+    <x:String x:Key="Err.CannotStart">Could not start the server.</x:String>
+    <x:String x:Key="Err.CannotRestart">Could not restart the server.</x:String>
+    <x:String x:Key="Err.Settings">Settings error:</x:String>
+    <x:String x:Key="Err.Prefix">Error:</x:String>
+
+    <!-- Settings window -->
+    <x:String x:Key="Settings.Title">OpenDrop Settings</x:String>
+    <x:String x:Key="Settings.Header">Settings</x:String>
+    <x:String x:Key="Section.General">GENERAL</x:String>
+    <x:String x:Key="Section.Storage">STORAGE</x:String>
+    <x:String x:Key="Section.Security">SECURITY</x:String>
+    <x:String x:Key="Section.Network">NETWORK</x:String>
+    <x:String x:Key="Field.Language">Language</x:String>
+    <x:String x:Key="Field.ReceiveFolder">Receive folder</x:String>
+    <x:String x:Key="Field.ShareFolder">Share folder</x:String>
+    <x:String x:Key="Field.Port">Port</x:String>
+    <x:String x:Key="Field.GlobalQuota">Global receive-folder quota</x:String>
+    <x:String x:Key="Quota.UnitHint">GB or MB</x:String>
+    <x:String x:Key="Quota.NoUnitHint">No unit = GB: 500 means 500 GB, 500 mb means 500 MB. 0 = unlimited.</x:String>
+    <x:String x:Key="Quota.CumulativeHint">Total size of received files: an upload that would exceed the quota is rejected.</x:String>
+    <x:String x:Key="Field.NewToken">New token on start</x:String>
+    <x:String x:Key="Field.NetworkInterface">Network interface</x:String>
+    <x:String x:Key="Interface.Auto">Automatic detection</x:String>
+    <x:String x:Key="Browse.ReceiveTitle">Choose the receive folder</x:String>
+    <x:String x:Key="Browse.ShareTitle">Choose the share folder</x:String>
+    <x:String x:Key="Quota.Invalid">Invalid quota: "{0}"&#10;&#10;Accepted examples: 0.5 gb (512 mb), 500 mb, 10.75.&#10;A number without a unit is read as GB. 0 = unlimited.</x:String>
+    <x:String x:Key="Quota.BigTitle">Large global quota</x:String>
+    <x:String x:Key="Quota.BigBody">Global quota of {0}&#10;&#10;This quota exceeds 20% of the free space on this disk ({1} free).&#10;&#10;Successive transfers would eventually fill this disk: the machine may slow down and may even be unable to write (system, updates, temporary files).&#10;&#10;Proceed at your own risk: save anyway?</x:String>
+
+    <!-- Message boxes -->
+    <x:String x:Key="Msg.Yes">Yes</x:String>
+    <x:String x:Key="Msg.No">No</x:String>
+
+    <!-- Server manager -->
+    <x:String x:Key="Sm.ProjectNotFound">Could not find the OpenDrop project.</x:String>
+    <x:String x:Key="Sm.NoPython">Python not found. Install Python 3.10+ then run pip install qrcode cryptography.</x:String>
+    <x:String x:Key="Sm.Timeout">Timeout: the server did not respond.</x:String>
+    <x:String x:Key="Sm.Exited">The Python server exited immediately.</x:String>
+
+</ResourceDictionary>

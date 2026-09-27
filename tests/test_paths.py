@@ -1,9 +1,8 @@
-"""Audit 3/3 : aucun chemin absolu du serveur ne doit sortir en reponse HTTP.
+"""Audit 3/3: no absolute server path may leak in an HTTP response.
 
-Le serveur connait le dossier de reception, le dossier de partage et la
-racine du depot. Rien de tout cela ne doit figurer dans une reponse metier,
-une erreur ou un asset de l'interface web : ni nom de fichier absolu, ni
-chemin Windows/Unix, ni dossier utilisateur.
+The server knows the receive folder, the share folder and the storage
+root. None of this may appear in a business response, an error or a web
+UI asset: no absolute file name, no Windows/Unix path, no user folder.
 """
 import json
 import os
@@ -19,11 +18,11 @@ from tests.conftest import (TestResult, urlopen, _start_server, _upload,
                             _raw_upload, ip)
 
 LEAK_PATTERNS = [
-    (re.compile(r"[A-Za-z]:[\\/]"), "chemin Windows avec lettre de lecteur"),
-    (re.compile(r"\\\\\S+\\\\"), "chemin UNC"),
-    (re.compile(r"/(?:Users|home|tmp|var|etc|opt|proc|mnt)/"), "chemin racine Unix"),
+    (re.compile(r"[A-Za-z]:[\\/]"), "Windows path with drive letter"),
+    (re.compile(r"\\\\\S+\\\\"), "UNC path"),
+    (re.compile(r"/(?:Users|home|tmp|var|etc|opt|proc|mnt)/"), "Unix root path"),
     (re.compile(r"(?:AppData|OneDrive|site-packages|opendrop_tests)", re.I),
-     "dossier local"),
+     "local folder"),
 ]
 
 
@@ -36,7 +35,7 @@ def _find_leak(text):
 
 
 def _collect(status, headers, body):
-    """Assemble tout ce qui part vers le client : corps + valeurs d'en-tetes."""
+    """Assemble everything sent to the client: body + header values."""
     if isinstance(body, (bytes, bytearray)):
         body = body.decode("utf-8", "replace")
     blob = body or ""
@@ -64,14 +63,14 @@ def _request(port, path, token=None, method="GET", data=None, headers=None):
 def _check_clean(r, label, status, headers, body, expect_status=None):
     blob = _collect(status, headers, body)
     leak = _find_leak(blob)
-    r.check(f"{label}: aucun chemin absolu", leak is None, leak)
+    r.check(f"{label}: no absolute path", leak is None, leak)
     if expect_status is not None:
         r.check(f"{label}: status {expect_status}", status == expect_status,
                 f"status={status} body={body[:120]!r}")
 
 
 def _upload_response_tests(r, port, token):
-    print("\n  Reponse d'upload...")
+    print("\n  Upload response...")
     resp = _upload(port, token, filename="chemins.txt", content=b"path leak test")
     body = resp.read().decode("utf-8", "replace")
     headers = dict(resp.headers)
@@ -80,17 +79,17 @@ def _upload_response_tests(r, port, token):
         data = json.loads(body)
     except ValueError:
         pass
-    r.check("Upload: reponse JSON", data.get("success") is True, body[:200])
-    r.check("Upload: pas de cle 'path' (chemin serveur)",
-            "path" not in data, f"cles={sorted(data)}")
+    r.check("Upload: JSON response", data.get("success") is True, body[:200])
+    r.check("Upload: no 'path' key (server path)",
+            "path" not in data, f"keys={sorted(data)}")
     _check_clean(r, "Upload", resp.status, headers, body)
 
 
 def _json_route_tests(r, port, token):
-    print("\n  Routes metier...")
+    print("\n  API routes...")
     for label, path, tok, expect in [
-        ("Info (sans token)", "/api/info", None, 200),
-        ("Info (avec token)", "/api/info", token, 200),
+        ("Info (no token)", "/api/info", None, 200),
+        ("Info (with token)", "/api/info", token, 200),
         ("Files", "/api/files", token, 200),
         ("Progress", "/api/progress", token, 200),
         ("Quota", "/api/quota", token, 200),
@@ -98,7 +97,7 @@ def _json_route_tests(r, port, token):
         status, headers, body = _request(port, path, tok)
         _check_clean(r, label, status, headers, body, expect)
 
-    # Le QR est une image : on ne scanne que le status (binaire bruité).
+    # The QR is an image: we only check the status (noisy binary).
     status, headers, body = _request(port, "/qr", token)
     r.check("QR: 200", status == 200, f"status={status}")
 
@@ -109,105 +108,105 @@ def _json_route_tests(r, port, token):
         files = []
     if files:
         cles = sorted(files[0].keys())
-        r.check("Files: uniquement nom + taille",
+        r.check("Files: only name + size",
                 cles == ["name", "size"], cles)
     else:
-        r.check("Files: fichier de test present", False, body)
+        r.check("Files: test file present", False, body)
 
 
 def _asset_tests(r, port):
-    print("\n  Assets de l'interface web...")
+    print("\n  Web UI assets...")
     for path in ("/", "/style.css", "/app.js"):
         status, headers, body = _request(port, path)
         _check_clean(r, f"Asset {path}", status, headers, body, 200)
 
 
 def _error_tests(r, port, token):
-    print("\n  Reponses d'erreur...")
+    print("\n  Error responses...")
 
     status, headers, body = _request(port, "/api/files", "mauvais_token")
-    _check_clean(r, "403 token invalide", status, headers, body, 403)
+    _check_clean(r, "403 invalid token", status, headers, body, 403)
 
     status, headers, body = _request(port, "/api/inconnue", token)
-    _check_clean(r, "404 route API", status, headers, body, 404)
+    _check_clean(r, "404 API route", status, headers, body, 404)
 
     status, headers, body = _request(port, "/page-inconnue")
-    _check_clean(r, "404 page HTML", status, headers, body, 404)
+    _check_clean(r, "404 HTML page", status, headers, body, 404)
 
     status, headers, body = _request(
         port, "/api/download/INEXISTANT.txt", token)
     _check_clean(r, "404 download", status, headers, body, 404)
 
-    # Corps multipart corrompu -> erreur 400 de parsing
+    # Corrupted multipart body -> 400 parsing error
     junk = b"pas-un-multipart"
     status, headers, body = _request(
         port, "/api/upload", token, method="POST", data=junk,
         headers={"Content-Type": "multipart/form-data; boundary=zz",
                  "Content-Length": str(len(junk))})
-    _check_clean(r, "400 multipart invalide", status, headers, body, 400)
+    _check_clean(r, "400 invalid multipart", status, headers, body, 400)
 
-    # Nom de fichier traversant : assaini (pas de 400) et surtout aucun
-    # chemin serveur ne doit partir dans la reponse
+    # Traversing file name: sanitized (no 400) and above all no server
+    # path may go out in the response
     evil = (b"--zz\r\nContent-Disposition: form-data; name=\"file\"; "
             b"filename=\"../etc/passwd\"\r\n\r\nx\r\n--zz--\r\n")
     status, headers, body = _request(
         port, "/api/upload", token, method="POST", data=evil,
         headers={"Content-Type": "multipart/form-data; boundary=zz",
                  "Content-Length": str(len(evil))})
-    _check_clean(r, "Upload traversant", status, headers, body, 200)
+    _check_clean(r, "Traversing upload", status, headers, body, 200)
     try:
         nom = json.loads(body).get("filename")
     except ValueError:
         nom = None
-    r.check("Upload traversant: nom reduit au fichier seul",
+    r.check("Traversing upload: name reduced to the file alone",
             nom == "passwd", f"filename={nom!r}")
 
-    # Upload sans token -> 403
+    # Upload without token -> 403
     status, headers, body = _request(
         port, "/api/upload", None, method="POST", data=b"x",
         headers={"Content-Length": "1"})
-    _check_clean(r, "403 upload sans token", status, headers, body, 403)
+    _check_clean(r, "403 upload without token", status, headers, body, 403)
 
-    # Fichier au-dela de la limite -> 400, corps borne a l'en-tete
+    # File beyond the limit -> 400, body bounded by the header
     status, body = _raw_upload(port, token, 11 * 1024 ** 3)
-    _check_clean(r, "400 fichier trop volumineux", status, {}, body, 400)
+    _check_clean(r, "400 file too large", status, {}, body, 400)
 
 
 def _download_header_tests(r, port, token):
-    print("\n  En-tete de telechargement...")
+    print("\n  Download header...")
     status, headers, body = _request(port, "/api/download/test.txt", token)
     if status != 200:
         r.check("Download: 200", False, f"status={status} {body[:120]!r}")
         return
     disposition = headers.get("Content-Disposition", "")
-    r.check("Download: Content-Disposition sans chemin",
+    r.check("Download: Content-Disposition without path",
             _find_leak(disposition) is None, disposition)
     r.check("Download: disposition = attachment",
             disposition.startswith("attachment"), disposition)
 
 
 def _progress_after_error_tests(r, port, token):
-    print("\n  Progress apres erreur...")
-    # Un upload qui echoue ne doit pas laisser de chemin reel dans l'etat
+    print("\n  Progress after error...")
+    # A failed upload must not leave a real path in the state
     payload = (b"--zz\r\nContent-Disposition: form-data; name=\"file\"; "
                b"filename=\"x.txt\"\r\n\r\nx\r\n--zz--\r\n")
     _request(port, "/api/upload", token, method="POST", data=payload,
              headers={"Content-Type": "multipart/form-data; boundary=zz",
                       "Content-Length": str(len(payload))})
     status, headers, body = _request(port, "/api/progress", token)
-    _check_clean(r, "Progress (apres erreur)", status, headers, body, 200)
+    _check_clean(r, "Progress (after error)", status, headers, body, 200)
     try:
         state = json.loads(body)
     except ValueError:
         state = {}
-    r.check("Progress: pas de cle 'path'/'dir'",
+    r.check("Progress: no 'path'/'dir' key",
             "path" not in state and "dir" not in state, sorted(state))
 
 
 def test_paths():
     r = TestResult()
-    print("\n=== Audit 3/3 : chemins absolus ===")
-    print("\n  Demarrage du serveur...")
+    print("\n=== Audit 3/3: absolute paths ===")
+    print("\n  Starting the server...")
     server, port, token = _start_server()
     try:
         _upload_response_tests(r, port, token)

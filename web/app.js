@@ -1,11 +1,136 @@
 (function () {
     var TOKEN_KEY = "opendrop_token";
 
+    // --- Internationalization ---------------------------------------
+    // English is the default (static HTML); French is applied at startup
+    // when the server reports "language": "fr" in /api/info.
+    var LANG = "en";
+
+    var T = {
+        en: {
+            "tab.send": "Send",
+            "tab.receive": "Download",
+            "drop.choose": "Choose a file",
+            "drop.hint": "or drop it here",
+            "transfer.cancel": "Cancel",
+            "success.title": "Transfer complete",
+            "success.new": "Send another file",
+            "error.title": "Error",
+            "error.retry": "Try again",
+            "files.loading": "Loading...",
+            "files.empty": "No files available.",
+            "files.emptyHint": "Put files in the Share folder on the PC.",
+            "files.refresh": "Refresh",
+            "files.download": "Download",
+            "files.rateLimited": "Too many requests. Wait.",
+            "files.serverError": "Server error. Try again.",
+            "files.loadError": "Load failed.",
+            "session.locked": "Session locked",
+            "session.scanHint": "Scan the QR code shown on the PC, or enter the session code.",
+            "session.codeAria": "Session code",
+            "session.unlock": "Unlock",
+            "session.scan": "\ud83d\udcf7 Scan QR code",
+            "session.closeScanner": "Close scanner",
+            "session.retry": "Try again",
+            "session.expired": "Session expired or invalid. Rescan the QR code.",
+            "unlock.6chars": "The code has 6 characters.",
+            "unlock.tooMany": "Too many attempts. Wait a minute.",
+            "unlock.invalid": "Invalid code.",
+            "unlock.offline": "Server unreachable.",
+            "qr.notOpendrop": "Unrecognized QR code: not an OpenDrop link.",
+            "camera.blocked": "Camera unavailable: this browser blocks access (insecure " +
+                "context). Open the phone's camera app and scan the QR code: the " +
+                "link opens by itself.",
+            "camera.unsupported": "QR reading is not supported by this browser. Open the " +
+                "phone's camera app and scan the QR code: the link opens by itself.",
+            "camera.denied": "Camera access denied. Open the camera app and scan the QR " +
+                "code directly.",
+            "quota.unlimited": "{0} received (unlimited)",
+            "upload.serverError": "Server error ({0})",
+            "upload.unreachable": "Could not reach the server."
+        },
+        fr: {
+            "tab.send": "Envoyer",
+            "tab.receive": "T\u00e9l\u00e9charger",
+            "drop.choose": "Choisir un fichier",
+            "drop.hint": "ou glisser ici",
+            "transfer.cancel": "Annuler",
+            "success.title": "Transfert termin\u00e9",
+            "success.new": "Envoyer un autre fichier",
+            "error.title": "Erreur",
+            "error.retry": "R\u00e9essayer",
+            "files.loading": "Chargement...",
+            "files.empty": "Aucun fichier disponible.",
+            "files.emptyHint": "Mets des fichiers dans le dossier Partage sur le PC.",
+            "files.refresh": "Rafra\u00eechir",
+            "files.download": "T\u00e9l\u00e9charger",
+            "files.rateLimited": "Trop de requ\u00eates. Attendez.",
+            "files.serverError": "Erreur serveur. R\u00e9essayez.",
+            "files.loadError": "\u00c9chec du chargement.",
+            "session.locked": "Session verrouill\u00e9e",
+            "session.scanHint": "Scannez le QR code affich\u00e9 sur le PC, ou saisissez le code de session.",
+            "session.codeAria": "Code de session",
+            "session.unlock": "D\u00e9verrouiller",
+            "session.scan": "\ud83d\udcf7 Scanner le QR code",
+            "session.closeScanner": "Fermer le scanner",
+            "session.retry": "R\u00e9essayer",
+            "session.expired": "Session expir\u00e9e ou invalide. Rescannez le QR code.",
+            "unlock.6chars": "Le code comporte 6 caract\u00e8res.",
+            "unlock.tooMany": "Trop de tentatives. Attendez une minute.",
+            "unlock.invalid": "Code invalide.",
+            "unlock.offline": "Serveur injoignable.",
+            "qr.notOpendrop": "QR code non reconnu : ce n'est pas un lien OpenDrop.",
+            "camera.blocked": "Cam\u00e9ra indisponible : ce navigateur bloque l'acc\u00e8s (contexte " +
+                "non s\u00e9curis\u00e9). Ouvrez l'appareil photo du t\u00e9l\u00e9phone et scannez " +
+                "le QR : le lien s'ouvre tout seul.",
+            "camera.unsupported": "Lecture de QR non prise en charge par ce navigateur. Ouvrez " +
+                "l'appareil photo du t\u00e9l\u00e9phone et scannez le QR : le lien " +
+                "s'ouvre tout seul.",
+            "camera.denied": "Acc\u00e8s cam\u00e9ra refus\u00e9. Ouvrez l'appareil photo et scannez le QR directement.",
+            "quota.unlimited": "{0} re\u00e7us (illimit\u00e9)",
+            "upload.serverError": "Erreur serveur ({0})",
+            "upload.unreachable": "Impossible de contacter le serveur."
+        }
+    };
+
+    function t(key, arg) {
+        var dict = T[LANG] || T.en;
+        var text = dict[key];
+        if (text === undefined) text = T.en[key];
+        if (text === undefined) text = key;
+        if (arg !== undefined) text = text.replace("{0}", arg);
+        return text;
+    }
+
+    function applyLang() {
+        document.documentElement.lang = LANG;
+        var nodes = document.querySelectorAll("[data-i18n]");
+        for (var i = 0; i < nodes.length; i++) {
+            nodes[i].textContent = t(nodes[i].getAttribute("data-i18n"));
+        }
+        var attrs = document.querySelectorAll("[data-i18n-attr]");
+        for (var j = 0; j < attrs.length; j++) {
+            var spec = attrs[j].getAttribute("data-i18n-attr").split(":");
+            if (spec.length === 2) attrs[j].setAttribute(spec[0], t(spec[1]));
+        }
+    }
+
+    // Ask the server which language it was configured with, then apply it.
+    fetch("/api/info")
+        .then(function (r) { return r.json(); })
+        .then(function (info) {
+            if (info && info.lang === "fr" && LANG !== "fr") {
+                LANG = "fr";
+                applyLang();
+            }
+        })
+        .catch(function () { /* server unreachable: keep the default */ });
+
     function storeToken(value) {
         try {
             localStorage.setItem(TOKEN_KEY, value);
         } catch (e) {
-            // stockage indisponible (mode prive) : on se contente de l'URL
+            // storage unavailable (private mode): nothing we can do
         }
     }
 
@@ -13,7 +138,7 @@
         try {
             localStorage.removeItem(TOKEN_KEY);
         } catch (e) {
-            // stockage indisponible
+            // storage unavailable
         }
     }
 
@@ -21,8 +146,8 @@
         var fromUrl = new URLSearchParams(window.location.search).get("token");
         if (fromUrl) {
             storeToken(fromUrl);
-            // Retire le secret de la barre d'adresse : il ne doit pas rester
-            // dans l'historique, les captures d'ecran ni les en-tetes Referer.
+            // Remove the secret from the address bar: it must not stay in
+            // the history, screenshots or Referer headers.
             try {
                 history.replaceState(null, "", location.pathname);
             } catch (e) {
@@ -51,13 +176,13 @@
     }
 
     function endSession(detail) {
-        // N'efface le token stocke que s'il est identique a celui de cette
-        // page : un QR rescanne dans un autre onglet a pu le remplacer.
+        // Only clear the stored token if it is the same as this page's:
+        // a QR rescanned in another tab may have replaced it.
         var stored = "";
         try {
             stored = localStorage.getItem(TOKEN_KEY) || "";
         } catch (e) {
-            // stockage indisponible
+            // storage unavailable
         }
         if (!stored || stored === token) {
             clearToken();
@@ -72,7 +197,7 @@
         });
     }
 
-    // --- Deverrouillage par code ---
+    // --- Unlock by code ---
     var codeInput = document.getElementById("code-input");
     var btnUnlock = document.getElementById("btn-unlock");
     var unlockError = document.getElementById("unlock-error");
@@ -89,7 +214,7 @@
     function unlockWithCode() {
         var code = normalizeCode(codeInput.value);
         if (code.length !== 6) {
-            showUnlockError("Le code comporte 6 caracteres.");
+            showUnlockError(t("unlock.6chars"));
             return;
         }
         showUnlockError("");
@@ -106,14 +231,14 @@
                     return;
                 }
                 if (res.status === 429) {
-                    showUnlockError("Trop de tentatives. Attendez une minute.");
+                    showUnlockError(t("unlock.tooMany"));
                     return;
                 }
-                showUnlockError(res.data.error || "Code invalide.");
+                showUnlockError(res.data.error || t("unlock.invalid"));
             })
             .catch(function () {
                 btnUnlock.disabled = false;
-                showUnlockError("Serveur injoignable.");
+                showUnlockError(t("unlock.offline"));
             });
     }
 
@@ -125,7 +250,7 @@
     });
     btnUnlock.addEventListener("click", unlockWithCode);
 
-    // --- Scanner QR (mobile uniquement) ---
+    // --- QR scanner (mobile only) ---
     var btnScan = document.getElementById("btn-scan");
     var scanner = document.getElementById("scanner");
     var scannerVideo = document.getElementById("scanner-video");
@@ -148,7 +273,7 @@
     function handleScanned(rawValue) {
         var match = /[?&]token=([A-Za-z0-9]+)/.exec(rawValue);
         if (!match) {
-            showUnlockError("QR code non reconnu : ce n'est pas un lien OpenDrop.");
+            showUnlockError(t("qr.notOpendrop"));
             return;
         }
         storeToken(match[1]);
@@ -158,15 +283,11 @@
 
     function startScanner() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            showUnlockError("Camera indisponible : ce navigateur bloque l'acces (contexte " +
-                            "non securise). Ouvrez l'appareil photo du telephone et scannez " +
-                            "le QR : le lien s'ouvre tout seul.");
+            showUnlockError(t("camera.blocked"));
             return;
         }
         if (typeof window.BarcodeDetector === "undefined") {
-            showUnlockError("Lecture de QR non prise en charge par ce navigateur. Ouvrez " +
-                            "l'appareil photo du telephone et scannez le QR : le lien " +
-                            "s'ouvre tout seul.");
+            showUnlockError(t("camera.unsupported"));
             return;
         }
         navigator.mediaDevices.getUserMedia({
@@ -180,17 +301,17 @@
             scanTimer = setInterval(function () {
                 detector.detect(scannerVideo).then(function (codes) {
                     if (codes && codes.length) handleScanned(codes[0].rawValue);
-                }).catch(function () { /* pas de QR visible */ });
+                }).catch(function () { /* no QR in view */ });
             }, 400);
         }).catch(function () {
-            showUnlockError("Acces camera refuse. Ouvrez l'appareil photo et scannez le QR directement.");
+            showUnlockError(t("camera.denied"));
         });
     }
 
     btnScan.addEventListener("click", startScanner);
     btnScanClose.addEventListener("click", stopScanner);
 
-    // Bouton scanner : telephones et tablettes seulement.
+    // Scanner button: phones and tablets only.
     if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
         btnScan.style.display = "";
     }
@@ -201,10 +322,11 @@
     }
 
     function formatSize(bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+        var units = LANG === "fr" ? ["o", "Ko", "Mo", "Go"] : ["B", "KB", "MB", "GB"];
+        if (bytes < 1024) return bytes + " " + units[0];
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " " + units[1];
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " " + units[2];
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " " + units[3];
     }
 
     function formatSpeed(bytesPerSec) {
@@ -227,7 +349,7 @@
 
     tabs.forEach(function (tab) {
         tab.addEventListener("click", function () {
-            tabs.forEach(function (t) { t.classList.remove("active"); });
+            tabs.forEach(function (t2) { t2.classList.remove("active"); });
             tab.classList.add("active");
             if (tab.dataset.tab === "send") {
                 tabSend.style.display = "";
@@ -246,20 +368,21 @@
     var quotaText = document.getElementById("quota-text");
 
     function formatQuota(bytes) {
+        var fr = LANG === "fr";
         var value, unit;
         if (bytes >= 1024 * 1024 * 1024) {
             value = (bytes / (1024 * 1024 * 1024)).toFixed(3);
-            unit = " Go";
+            unit = fr ? " Go" : " GB";
         } else if (bytes >= 1024 * 1024) {
             value = (bytes / (1024 * 1024)).toFixed(1);
-            unit = " Mo";
+            unit = fr ? " Mo" : " MB";
         } else if (bytes >= 1024) {
             value = (bytes / 1024).toFixed(1);
-            unit = " Ko";
+            unit = fr ? " Ko" : " KB";
         } else {
-            return bytes + " o";
+            return bytes + (fr ? " o" : " B");
         }
-        return parseFloat(value).toString().replace(".", ",") + unit;
+        return parseFloat(value).toString().replace(".", fr ? "," : ".") + unit;
     }
 
     function renderQuota(usage, limit) {
@@ -269,7 +392,7 @@
             quotaText.textContent = formatQuota(usage) + " / " + formatQuota(limit);
             quotaText.classList.add(usage >= limit ? "full" : "ok");
         } else {
-            quotaText.textContent = formatQuota(usage) + " recus (illimite)";
+            quotaText.textContent = t("quota.unlimited", formatQuota(usage));
         }
     }
 
@@ -281,7 +404,7 @@
                 if (typeof data.usage_bytes !== "number") return;
                 renderQuota(data.usage_bytes, data.limit_bytes || 0);
             })
-            .catch(function () { /* session expiree ou serveur hors ligne */ });
+            .catch(function () { /* session expired or server offline */ });
     }
 
     refreshQuota();
@@ -358,7 +481,7 @@
             currentXhr = null;
             refreshQuota();
             if (xhr.status === 401 || xhr.status === 403) {
-                endSession("Session expir\u00e9e ou invalide. Rescannez le QR code.");
+                endSession(t("session.expired"));
                 return;
             }
             try {
@@ -375,9 +498,9 @@
                     showSendView("success");
                     return;
                 }
-                errorDetail.textContent = resp.error || "Erreur serveur (" + xhr.status + ")";
+                errorDetail.textContent = resp.error || t("upload.serverError", xhr.status);
             } catch (err) {
-                errorDetail.textContent = "Erreur serveur (" + xhr.status + ")";
+                errorDetail.textContent = t("upload.serverError", xhr.status);
             }
             showSendView("error");
         });
@@ -385,7 +508,7 @@
         xhr.addEventListener("error", function () {
             currentXhr = null;
             refreshQuota();
-            errorDetail.textContent = "Impossible de contacter le serveur.";
+            errorDetail.textContent = t("upload.unreachable");
             showSendView("error");
         });
 
@@ -445,7 +568,11 @@
     var btnRefresh = document.getElementById("btn-refresh");
 
     function loadFiles() {
-        fileList.innerHTML = '<p class="loading">Chargement...</p>';
+        fileList.innerHTML = "";
+        var loading = document.createElement("p");
+        loading.className = "loading";
+        loading.textContent = t("files.loading");
+        fileList.appendChild(loading);
         emptyMsg.style.display = "none";
         fileList.style.display = "";
 
@@ -494,7 +621,7 @@
 
                     var btn = document.createElement("a");
                     btn.className = "btn-download";
-                    btn.textContent = "Telecharger";
+                    btn.textContent = t("files.download");
                     btn.href = "/api/download/" + encodeURIComponent(file.name) + "?token=" + encodeURIComponent(token);
 
                     card.appendChild(info);
@@ -503,15 +630,20 @@
                 });
             })
             .catch(function (err) {
+                fileList.innerHTML = "";
                 if (err.message === "session") {
-                    fileList.innerHTML = "";
-                    endSession("Session expir\u00e9e ou invalide. Rescannez le QR code.");
-                } else if (err.message === "rate limit") {
-                    fileList.innerHTML = '<p class="loading">Trop de requetes. Attendez.</p>';
-                } else if (err.message === "server") {
-                    fileList.innerHTML = '<p class="loading">Erreur serveur. Reessayez.</p>';
+                    endSession(t("session.expired"));
                 } else {
-                    fileList.innerHTML = '<p class="loading">Erreur de chargement.</p>';
+                    var msg = document.createElement("p");
+                    msg.className = "loading";
+                    if (err.message === "rate limit") {
+                        msg.textContent = t("files.rateLimited");
+                    } else if (err.message === "server") {
+                        msg.textContent = t("files.serverError");
+                    } else {
+                        msg.textContent = t("files.loadError");
+                    }
+                    fileList.appendChild(msg);
                 }
             });
     }

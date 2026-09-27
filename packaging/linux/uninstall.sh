@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# OpenDrop - desinstallation Linux (equivalent de l'uninstalleur Windows).
+# OpenDrop - Linux uninstaller (the Windows uninstaller equivalent).
 #
-# SUPPRIME : /opt/opendrop (binaire, venv, web, src), le raccourci de
-# commande, l'entree de menu, et les donnees applicatives de l'utilisateur
+# DELETES: /opt/opendrop (binary, venv, web, src), the command shortcut,
+# the menu entry, and the user's application data
 # (~/.opendrop/config.json, session.json, server.pid, certs/).
 #
-# NE SUPPRIME JAMAIS : les dossiers de reception et de partage (fichiers
-# recus et partages, generalement ~/Downloads/OpenDrop). Leur chemin est lu
-# dans config.json avant nettoyage, on ne les touche pas.
+# NEVER DELETES: the receive and share folders (received and shared files,
+# usually ~/Downloads/OpenDrop). Their paths are read from config.json
+# before cleanup, so they are left untouched.
 #
-# Variables redefinissables (tests) : PREFIX, BIN_LINK, DESKTOP_FILE, ICON_FILE
+# Overridable variables (for tests): PREFIX, BIN_LINK, DESKTOP_FILE, ICON_FILE
 set -euo pipefail
 
 PREFIX="${PREFIX:-/opt/opendrop}"
@@ -17,9 +17,9 @@ BIN_LINK="${BIN_LINK:-/usr/local/bin/opendrop-desktop}"
 DESKTOP_FILE="${DESKTOP_FILE:-/usr/share/applications/opendrop.desktop}"
 ICON_FILE="${ICON_FILE:-/usr/share/icons/hicolor/256x256/apps/opendrop.png}"
 
-echo "== OpenDrop : desinstallation =="
+echo "== OpenDrop: uninstalling =="
 
-# --- utilisateur reel (sudo) et sa donnee utilisateur
+# --- real user (sudo) and their user data
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
 if [ -z "${TARGET_HOME:-}" ]; then
@@ -27,7 +27,7 @@ if [ -z "${TARGET_HOME:-}" ]; then
 fi
 DATA_DIR="$TARGET_HOME/.opendrop"
 
-# --- arreter l'application et son serveur Python s'ils tournent
+# --- stop the application and its Python server if they are running
 pkill -x OpenDrop 2>/dev/null || true
 if [ -f "$DATA_DIR/server.pid" ]; then
     PID="$(cut -d'|' -f1 "$DATA_DIR/server.pid" 2>/dev/null || true)"
@@ -36,7 +36,7 @@ if [ -f "$DATA_DIR/server.pid" ]; then
     fi
 fi
 
-# --- rappele les dossiers conserves AVANT d'effacer la config
+# --- remind which folders are kept BEFORE wiping the config
 if [ -f "$DATA_DIR/config.json" ]; then
     DOWNS="$(python3 - "$DATA_DIR/config.json" <<'PY' 2>/dev/null || true
 import json, sys, os
@@ -49,27 +49,27 @@ except Exception:
 PY
 )"
     if [ -n "$DOWNS" ]; then
-        echo "  Dossiers conserves (jamais supprimes) :"
+        echo "  Kept folders (never deleted):"
         echo "$DOWNS" | sed 's/^/    /'
     fi
 fi
 
 # --- application
 if [ -e "$PREFIX" ]; then
-    echo "  Suppression de $PREFIX ..."
+    echo "  Removing $PREFIX ..."
     rm -rf "$PREFIX"
 fi
 rm -f "$BIN_LINK" "$DESKTOP_FILE" "$ICON_FILE"
 
-# --- donnees applicatives connues SEULEMENT (pas de rm -rf du dossier)
+# --- known application data ONLY (never rm -rf the whole folder)
 if [ -d "$DATA_DIR" ]; then
-    echo "  Nettoyage de $DATA_DIR (config, session, certificats) ..."
+    echo "  Cleaning up $DATA_DIR (config, session, certificates) ..."
     rm -f "$DATA_DIR/config.json" "$DATA_DIR/session.json" "$DATA_DIR/server.pid"
     rm -rf "$DATA_DIR/certs"
     rmdir "$DATA_DIR" 2>/dev/null || true
 fi
 
 echo
-echo "== Desinstalle =="
-echo "  L'application, ses dependances et sa config sont retirees."
-echo "  Vos fichiers recus et partages sont INTACTS (voir liste ci-dessus)."
+echo "== Uninstalled =="
+echo "  The application, its dependencies and its config have been removed."
+echo "  Your received and shared files are INTACT (see the list above)."

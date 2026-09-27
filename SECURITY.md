@@ -1,367 +1,356 @@
-# OpenDrop - Model de menace
+# OpenDrop - Threat Model
 
-## Objectif
+## Goal
 
-OpenDrop est un outil de transfert de fichiers sur reseau local (LAN).
-Il est concu pour un usage personnel, dans un reseau domestique ou bureautique.
+OpenDrop is a file transfer tool for local networks (LAN).
+It's meant for personal use, on a home or office network.
 
-Installation et prise en main : voir [README.md](README.md).
+Install and getting started: see [README.md](README.md).
 
 ---
 
-## Ce qu'OpenDrop protege
+## What OpenDrop protects
 
-### 1. Acces non autorise
+### 1. Unauthorized access
 
-- Chaque session a un token aleatoire de 32 caracteres ([a-zA-Z0-9],
-  62^32 combinaisons)
-- Les tokens expirent apres une duree configurable
-  (`session_expires_in` dans config.json, defaut: 1 heure)
-- Les tokens expires sont supprimes automatiquement
-- Un nettoyage periodique des sessions expirees tourne en arriere-plan
-- L'origine des requetes (`Origin`) est comparee a l'URL reelle du serveur
-  (HTTPS + IP + port) : toute origine etrangere, et surtout une origine en
-  HTTP, donne 403
-- Sans QR code, le code de session (6 caracteres, alphabet sans ambiguite :
-  31 lettres/chiffres sans O/0/I/1/L, soit 31^6 = 887 503 681 combinaisons)
-  debloque l'appareil : il est borne a 5 essais / minute / IP, la comparaison
-  se fait en temps constant (`secrets.compare_digest`), insensible a la casse
-  et aux separateurs
-- Le code n'a pas d'expiration propre : il vit aussi longtemps que
-  `session.json` et ne change qu'a la rotation (bouton Reset du bureau,
-  `--rotate-token`, case "Nouveau token au demarrage"). A la rotation, le
-  code precedent devient invalide immediatement (teste)
-- Le code reste utilisable une fois le jeton expire : c'est la fonction de
-  secours (teste)
-- Le deverrouillage delivre un nouveau jeton de 32 caracteres avec les memes
-  droits : chaque appareil debloque a son propre jeton, aucun droit n'est
-  granulaire
-- Chaque route marquee "jeton obligatoire" au tableau de la section 5 est
-  verifiee cote serveur, jeton absent ou expire donne 403
+- Every session gets a random 32-character token ([a-zA-Z0-9],
+  62^32 combinations)
+- Tokens expire after a configurable period
+  (`session_expires_in` in config.json, default: 1 hour)
+- Expired tokens are cleaned up automatically
+- A periodic sweep of expired sessions runs in the background
+- The request origin (`Origin`) is checked against the server's real URL
+  (HTTPS + IP + port): any foreign origin, and especially an HTTP origin,
+  gets 403
+- Without a QR code, the session code (6 characters, unambiguous alphabet:
+  31 letters/digits with no O/0/I/1/L, so 31^6 = 887 503 681 combinations)
+  unlocks the device: it's capped at 5 tries / minute / IP, the comparison
+  runs in constant time (`secrets.compare_digest`), and it ignores case and
+  separators
+- The code doesn't expire on its own: it lives as long as `session.json`
+  and only changes on rotation (desktop Reset button, `--rotate-token`,
+  "New token on start" checkbox). On rotation, the previous code goes invalid
+  right away (tested)
+- The code still works once the token has expired: that's the backup
+  function (tested)
+- Unlocking hands out a fresh 32-character token with the same rights: each
+  unlocked device gets its own token, no rights are granular
+- Every route marked "token required" in the section 5 table is enforced
+  server-side; a missing or expired token gives 403
 
-### 2. Chemins dangereux
+### 2. Dangerous paths
 
-- A l'envoi, le nom est ramene au nom de base (basename), les caracteres
-  dangereux (`< > : " / \ | ? *`, controles) sont remplaces par `_`, les
-  points et espaces de bord sont retires, et les noms reserves Windows
-  (CON, PRN, COM1...) sont ecartes : il ne reste que le nom du fichier
-- Au telechargement, le chemin est resolu contre le dossier de partage
-  (is_safe_path, avec `realpath`) : toute tentative de sortir du dossier
-  (`..`, separateur `/`, lien symbolique) donne 400 "Chemin non autorise"
-- Seuls les fichiers du dossier de partage sont accessibles en telechargement
+- On upload, the name is reduced to its basename, dangerous characters
+  (`< > : " / \ | ? *`, control chars) are swapped for `_`, leading and
+  trailing dots and spaces are dropped, and Windows reserved names (CON,
+  PRN, COM1...) are rejected: only the file name is left
+- On download, the path is resolved against the share folder (is_safe_path,
+  with `realpath`): any attempt to get out of the folder (`..`, the `/`
+  separator, a symlink) gives 400 "Path not allowed"
+- Only files inside the share folder are downloadable
 
-### 3. Deni de service
+### 3. Denial of service
 
-- Rate limiting par IP :
-  - Upload: 10 requetes / minute
-  - Download: 30 requetes / minute
-  - General (toutes les routes /api/ et /qr): 120 requetes / minute
-  - Deverrouillage de session: 5 requetes / minute
-- Limite de taille: 10 Go par fichier (MAX_UPLOAD_SIZE). Le corps de la
-  requete est strictement borne a Content-Length : mentir sur la longueur
-  n'autorise pas a depasser la limite, et un envoi tronque est rejete puis
-  supprime
-- Cette limite porte sur chaque fichier, pas sur le total recu : voir la
-  section "Remplissage du disque" (quota global optionnel) pour la suite
-- L'upload est lu et ecrit en flux (blocs de 64 Ko) : un fichier de 10 Go
-  n'est jamais charge entier en memoire
-- L'IP client est toujours celle de la connexion TCP ; X-Forwarded-For n'est
-  pris en compte que si "trust_proxy" est active dans config.json (proxy de
-  confiance), sinon il serait contournable pour esquiver le rate limiting
+- Rate limiting per IP:
+  - Upload: 10 requests / minute
+  - Download: 30 requests / minute
+  - General (all /api/ and /qr routes): 120 requests / minute
+  - Session unlock: 5 requests / minute
+- Size limit: 10 GB per file (MAX_UPLOAD_SIZE). The request body is
+  strictly bounded by Content-Length: lying about the length doesn't let you
+  go past the limit, and a truncated upload is rejected then deleted
+- That limit applies per file, not to everything received: see the "Filling
+  the disk" section (optional global quota) for the rest
+- Uploads are read and written as a stream (64 KB chunks): a 10 GB file is
+  never loaded into memory all at once
+- The client IP is always the one on the TCP connection; X-Forwarded-For is
+  only honored when "trust_proxy" is enabled in config.json (trusted proxy),
+  otherwise it would be trivial to spoof to dodge rate limiting
 
-### 4. Fuite d'informations
+### 4. Information leaks
 
-- Pas de traceback dans les reponses HTTP
-- Messages d'erreur generiques pour les erreurs internes
-- Les chemins reels du serveur ne sont pas exposes (voir section 6)
-- L'en-tete `Server` ne porte que `OpenDrop`, sans version de Python
-- Les reponses d'erreur HTML sont courtes, echappees et embarquent les
-  memes en-tetes de securite que le reste
+- No tracebacks in HTTP responses
+- Generic error messages for internal errors
+- The server's real paths are never exposed (see section 6)
+- The `Server` header only carries `OpenDrop`, no Python version
+- HTML error responses are short, escaped, and carry the same security
+  headers as everything else
 
-### 5. Routes et jetons
+### 5. Routes and tokens
 
-Table de verite testee par `python -m tests.test_routes` :
+Truth table tested by `python -m tests.test_routes`:
 
-| Route | Acces | Remarque |
+| Route | Access | Note |
 |---|---|---|
-| `POST /api/upload` | jeton obligatoire | rate limit 10/min par IP |
-| `GET /api/files` | jeton obligatoire | liste du dossier de partage (fichiers proposes) |
-| `GET /api/progress` | jeton obligatoire | progression d'upload |
-| `GET /api/quota` | jeton obligatoire | usage + quota global |
-| `GET /api/download/*` | jeton obligatoire | rate limit 30/min par IP |
-| `GET /qr` | jeton obligatoire | rate limit 120/min (PNG encode le token) |
-| `POST /api/session/unlock` | code a 6 caracteres | rate limit 5/min par IP, reponse = jeton |
-| `GET /api/info` | public | route de decouverte (ip + port) pour le desktop et le probe ; le bloc `session` (nb de sessions actives, duree) ne sort que pour un porteur de jeton valide, et un mauvais jeton donne 403 |
-| `GET /`, `/style.css`, `/app.js` | public | shell de l'interface web, aucun secret |
-| route `/api/*` inconnue | - | 404 JSON `{"error": ..., "code": 404}` |
-| page HTML inconnue | - | 404 HTML court, sans detail interne |
+| `POST /api/upload` | token required | rate limit 10/min per IP |
+| `GET /api/files` | token required | lists the share folder (files offered) |
+| `GET /api/progress` | token required | upload progress |
+| `GET /api/quota` | token required | usage + global quota |
+| `GET /api/download/*` | token required | rate limit 30/min per IP |
+| `GET /qr` | token required | rate limit 120/min (the PNG embeds the token) |
+| `POST /api/session/unlock` | 6-character code | rate limit 5/min per IP, response = token |
+| `GET /api/info` | public | discovery route (ip + port) for the desktop app and the probe; the `session` block (active session count, duration) only goes out to a valid token holder, and a bad token gives 403 |
+| `GET /`, `/style.css`, `/app.js` | public | web interface shell, no secrets |
+| unknown `/api/*` route | - | 404 JSON `{"error": ..., "code": 404}` |
+| unknown HTML page | - | short 404 HTML, no internal detail |
 
-- Ni jeton ni code de session n'apparaissent dans les pages HTML, les
-  erreurs ou `/api/info` ; seuls `/qr` (par conception) et la reponse de
-  `POST /api/session/unlock` (delivree au detenteur du code) transportent
-  le jeton
-- Le nom de fichier en telechargement est encode en fallback ASCII puis
-  `filename*=UTF-8''...` : un nom non Latin-1 ne casse plus l'en-tete et
-  aucun caractere de controle (CR/LF) ne peut y etre injecte
+- Neither the token nor the session code shows up in HTML pages, errors, or
+  `/api/info`; only `/qr` (by design) and the `POST /api/session/unlock`
+  response (delivered to whoever holds the code) carry the token
+- The download filename is encoded with an ASCII fallback first, then
+  `filename*=UTF-8''...`: a non-Latin-1 name no longer breaks the header,
+  and no control character (CR/LF) can be injected into it
 
-### 6. Chemins absolus
+### 6. Absolute paths
 
-Teste par `python -m tests.test_paths` :
+Tested by `python -m tests.test_paths`:
 
-- La reponse d'upload ne contient que `filename`, `size` et `sha256` : le
-  chemin reel du serveur (`str(dest)`) n'y figure plus, il ne sort que
-  dans la console du serveur
-- `GET /api/files` ne rend que `{name, size}` par fichier
-- `GET /api/progress` ne contient aucun chemin (etat : fichier, taille,
-  recu, vitesse, erreur)
-- Les messages d'erreur sont des chaines fixes (`errors.py`) : aucun
-  `OSError` brut, aucune stack trace, aucun chemin de dossier
-- Les erreurs d'ecriture disque (`DiskError`) ne portent que la raison
-  systeme (`[Errno 28] No space left on device`) : le nom de fichier ou de
-  dossier n'y figure pas, il ne sort donc ni dans la reponse 507 ni dans le
-  message d'erreur affiche
-- Les journaux du serveur masquent les secrets : `?token=...` et
-  `?code=...` sont remplaces par `token=***` / `code=***` avant impression.
-  Rediriger les sorties du serveur vers un fichier ne met donc ni le jeton
-  ni le code sur le disque
-- Les assets (`/`, `/style.css`, `/app.js`) ne contiennent aucun chemin
-  local : l'interface ne connait que des URLs relatives
-- Le dossier de reception et le dossier de partage sont affiches dans les
-  Reglages de l'application : interface locale uniquement, jamais servie
-  en reseau
-- Les traces avec chemins reels (`[OpenDrop] Fichier recu: ... ->
-  C:\...`) vont dans la console/les logs locaux du serveur, pas dans une
-  reponse HTTP
+- The upload response only carries `filename`, `size` and `sha256`: the
+  server's real path (`str(dest)`) isn't in it anymore, it only shows up in
+  the server console
+- `GET /api/files` only returns `{name, size}` per file
+- `GET /api/progress` contains no paths (state: file, size, received, speed,
+  error)
+- Error messages are fixed strings (`errors.py`): no raw `OSError`, no
+  stack trace, no folder path
+- Disk write errors (`DiskError`) only carry the system reason
+  (`[Errno 28] No space left on device`): no file or folder name, so it
+  shows up neither in the 507 response nor in the error message displayed
+- Server logs mask secrets: `?token=...` and `?code=...` are replaced with
+  `token=***` / `code=***` before printing. Piping the server's output to a
+  file therefore puts neither the token nor the code on disk
+- The assets (`/`, `/style.css`, `/app.js`) contain no local path: the
+  interface only knows relative URLs
+- The receive folder and the share folder are shown in the app's Settings:
+  local interface only, never served over the network
+- Traces with real paths (`[OpenDrop] File received: ... -> C:\...`) go to
+  the server's console/local logs, not into an HTTP response
 
 ---
 
-## Ce qu'OpenDrop ne protege PAS
+## What OpenDrop does NOT protect
 
-### Reseau
+### Network
 
-- Le trafic est chiffre en transit : HTTPS force, TLS 1.2 minimum (voir la
-  section "Certificat TLS")
-- Le certificat est auto-signe : aucune autorite ne garantit l'identite du
-  serveur. Un attaquant present sur le meme reseau peut proposer son propre
-  certificat ; il faut accepter celui de la machine OpenDrop, jamais celui
-  d'un autre appareil
-- Le token est place dans l'URL (?token=...) : il peut rester dans
-  l'historique du navigateur, les favoris et les logs du serveur
-- Un ancien QR code en http:// ne fonctionne plus : le serveur n'ecoute
-  qu'en HTTPS. Rescanne le QR affiche par l'application bureau
+- Traffic is encrypted in transit: HTTPS enforced, TLS 1.2 minimum (see the
+  "TLS certificate" section)
+- The certificate is self-signed: no authority vouches for the server's
+  identity. An attacker sitting on the same network can present their own
+  certificate; always accept the one from the OpenDrop machine, never
+  another device's
+- The token sits in the URL (?token=...): it can end up in browser history,
+  bookmarks, and the server's logs
+- An old http:// QR code no longer works: the server only listens on HTTPS.
+  Rescan the QR code shown by the desktop app
 
-### Authenticite
+### Authenticity
 
-- OpenDrop ne verifie pas l'identite des appareils
-- Quiconque a le token peut envoyer/recevoir des fichiers
-- La securite d'acces repose sur l'imprevisibilite cryptographique du
-  token (32 caracteres aleatoires)
+- OpenDrop doesn't check who the devices are
+- Anyone with the token can send/receive files
+- Access security rests on the cryptographic unpredictability of the token
+  (32 random characters)
 
-### Donnees
+### Data
 
-- Pas de chiffrement au repos
-- Le SHA-256 est calcule a l'ecriture, octet par octet, sur ce qui est
-  reellement ecrit, et il n'est renvoye que si la frontiere finale du corps
-  a ete vue : un envoi tronque ou une ecriture qui echoue au dernier bloc
-  donne 400/507, le fichier partiel est supprime et aucun hash n'est rendu.
-  Rien ne le compare automatiquement cote reception : l'interface web
-  l'affiche, l'emetteur doit le verifier
-- Les fichiers supprimes ne sont pas irreversiblement effaces
+- No encryption at rest
+- The SHA-256 is computed while writing, byte by byte, over what actually
+  hits the disk, and it's only handed back once the final body boundary has
+  been seen: a truncated upload or a write that fails on the last block
+  gives 400/507, the partial file is deleted, and no hash is returned.
+  Nothing compares it automatically on the receiving side: the web interface
+  displays it, the sender has to check it
+- Deleted files aren't wiped irreversibly
 
-### Remplissage du disque
+### Filling the disk
 
-- La limite de 10 Go vaut par fichier, pas pour l'ensemble des fichiers
-  recus : rien n'empeche d'envoyer des dizaines de fichiers de moins de
-  10 Go jusqu'a saturer le disque de destination
-- Quota global optionnel sur le dossier de reception
-  (`global_quota_bytes` dans config.json, en octets ; 0 ou cle absente =
-  illimite). Regle dans les Reglages de l'application, champ "Quota global
-  du dossier de reception" : nombre entier (sans unite = Go, d'ou "500
-  vaut 500 Go") ou avec unite (go, mo, kb, tb ; "500 mo" vaut 500 Mo),
-  virgule ou point acceptes, 0 = illimite. Une valeur illisible est
-  refusee (message d'erreur), jamais ignoree silencieusement ; une valeur
-  negative (config editee a la main) est ramenee a 0, c'est-a-dire illimite,
-  plutot que d'etre interpretee comme une limite impossible a satisfaire.
-  Le quota est verifie sur l'en-tete (Content-Length) avant la reception :
-  un envoi qui ferait depasser le total est refuse en 507
-  ("Quota global atteint : X utilise sur Y") sans ecrire de fichier, apres
-  absorption d'un morceau du corps pour que le client lise bien le message
-  - La reservation est atomique (verrou) : deux envois simultanes ne peuvent
-    pas passer sous la limite ensemble, l'un des deux est refuse en 507 et
-    le total reste inferieur ou egal au quota (teste)
-  - Le quota est accepte au poids exact (comparaison `>` : usage + taille =
-    quota passe, l'octet suivant est refuse), teste en HTTP
-  - Par defaut le quota est desactive : le remplissage du disque reste
-    possible sans limite d'ensemble tant que l'utilisateur n'en a pas regle
-    un
-  - Chaque reservation est liberee, y compris si l'ecriture echoue ou si le
-    corps est invalide : aucune place fantome n'est perdue
-- Avant l'enregistrement d'un quota superieur a 20 % de l'espace libre du
-  disque, l'application affiche un avertissement ("A vos risques et
-  perils") et n'enregistre que si l'utilisateur confirme
-- Suivi en direct : l'application desktop affiche "usage / quota" (vert
-  tant que la limite n'est pas atteinte, rouge ensuite, mis a jour toutes
-  les 3 s sans redemarrage) et l'interface web la meme ligne en haut des
-  onglets "Envoyer" et "Telecharger". Le web lit GET /api/quota (token
-  obligatoire, sinon 403) toutes les 5 s et apres chaque envoi ; le champ
-  "usage_bytes" inclut les envois en cours (reservation comprise)
-- Pas de verification d'espace libre avant ecriture : le manque de place
-  n'est detecte qu'en cours d'ecriture. Le quota, lui, ne compte que les
-  fichiers deja presents dans le dossier de reception : il ne dit rien de
-  l'espace libre restant sur le disque, ni de ce que les autres dossiers ou
-  applications en font
-- Dans ce cas le serveur repond 507 (Espace disque insuffisant), supprime
-  le fichier partiel et echoue proprement : aucun fichier tronque ne reste.
-  Cela vaut aussi quand la fermeture du fichier echoue au dernier bloc
-  (flush final) : le 507 est rendu et le hash n'est pas delivre
-- Le rate limiting d'upload (10/min) ralentit la cadence sans limiter le
-  volume total
+- The 10 GB limit is per file, not across all the files received: nothing
+  stops someone from sending dozens of files under 10 GB until the
+  destination disk is full
+- Optional global quota on the receive folder
+  (`global_quota_bytes` in config.json, in bytes; 0 or missing key =
+  unlimited). Set in the app's Settings, "Global quota for the receive
+  folder" field: an integer (no unit = GB, hence "500 means 500 GB") or with
+  a unit (go, mo, kb, tb; "500 mo" means 500 MB), comma or period accepted,
+  0 = unlimited. An unreadable value is refused (error message), never
+  ignored in silence; a negative value (hand-edited config) is reset to 0,
+  that is unlimited, rather than being read as a limit nothing can satisfy.
+  The quota is checked against the header (Content-Length) before anything
+  is received: a send that would push the total over is refused with 507
+  ("Global quota reached: X used of Y") without writing any file, after
+  swallowing a piece of the body so the client can actually read the message
+  - The reservation is atomic (locked): two simultaneous sends can't both
+    slip under the limit, one of them is refused with 507 and the total
+    stays at or below the quota (tested)
+  - The quota allows hitting the exact weight (comparison `>`: usage + size
+    = quota passes, the next byte is refused), tested over HTTP
+  - By default the quota is off: filling the disk stays possible with no
+    overall limit until the user sets one
+  - Every reservation is released, even when the write fails or the body is
+    invalid: no phantom space goes missing
+- Before saving a quota above 20% of the disk's free space, the app shows a
+  warning ("Proceed at your own risk") and only saves if the user confirms
+- Live tracking: the desktop app shows "usage / quota" (green while under
+  the limit, red after that, refreshed every 3 s without a restart) and the
+  web interface shows the same line on top of the "Send" and "Download"
+  tabs. The web app hits GET /api/quota (token required, otherwise 403)
+  every 5 s and after each send; the "usage_bytes" field includes uploads
+  in progress (reservation included)
+- No free-space check before writing: a lack of room is only caught while
+  writing. The quota, for its part, only counts the files already in the
+  receive folder: it says nothing about the disk space actually left, nor
+  about what other folders or apps do with it
+- In that case the server answers 507 (Out of disk space), deletes the
+  partial file, and fails cleanly: no truncated file is left behind. Same
+  goes when closing the file fails on the last block (final flush): the 507
+  comes back and the hash isn't delivered
+- Upload rate limiting (10/min) slows the pace down without capping the
+  total volume
 
 ### Validation
 
-- OpenDrop ne valide pas le contenu des fichiers
-- Les fichiers dangereux (.exe, .bat, etc.) peuvent etre recus
-- C'est a l'utilisateur de verifier ce qu'il ouvre
+- OpenDrop doesn't validate file contents
+- Dangerous files (.exe, .bat, etc.) can be received
+- It's on the user to check what they open
 
 ---
 
-## Certificat TLS
+## TLS certificate
 
-OpenDrop parle uniquement en HTTPS. Le certificat est genere localement au
-premier demarrage : il est auto-signe, donc le navigateur affiche un
-avertissement de confiance a la premiere connexion. C'est attendu.
+OpenDrop only speaks HTTPS. The certificate is generated locally on first
+launch: it's self-signed, so the browser shows a trust warning the first
+time you connect. That's expected.
 
-### Emplacement
+### Location
 
-- Dossier : `%LOCALAPPDATA%\OpenDrop\certs\`
-- Fichiers : `server.crt` (certificat) et `server.key` (cle privee, droits 600)
-- Algorithme : cle EC P-256, auto-signe, SHA-256, validite 397 jours
-- SAN : `localhost`, le nom de la machine, `127.0.0.1` et l'IP courante du LAN
+- Folder: `%LOCALAPPDATA%\OpenDrop\certs\`
+- Files: `server.crt` (certificate) and `server.key` (private key, 600
+  permissions)
+- Algorithm: EC P-256 key, self-signed, SHA-256, 397-day validity
+- SAN: `localhost`, the machine name, `127.0.0.1`, and the current LAN IP
 
-### Regeneration automatique
+### Automatic regeneration
 
-Le certificat est regenere au demarrage du serveur si :
+The certificate is regenerated when the server starts if:
 
-- le fichier est absent ou illisible,
-- il expire dans moins de 30 jours,
-- l'IP actuelle n'est plus dans les SAN (changement DHCP),
-- la cle ne correspond plus au certificat,
-- l'extension EKU serverAuth manque (exigee par iOS/Safari).
+- the file is missing or unreadable,
+- it expires in less than 30 days,
+- the current IP is no longer in the SAN (DHCP change),
+- the key no longer matches the certificate,
+- the serverAuth EKU extension is missing (required by iOS/Safari).
 
-### Regeneration manuelle
+### Manual regeneration
 
-1. Fermer OpenDrop (l'application bureau et son serveur).
-2. Supprimer le dossier `%LOCALAPPDATA%\OpenDrop\certs\`.
-3. Relancer OpenDrop : un nouveau certificat est cree automatiquement.
+1. Quit OpenDrop (the desktop app and its server).
+2. Delete the `%LOCALAPPDATA%\OpenDrop\certs\` folder.
+3. Relaunch OpenDrop: a new certificate is created automatically.
 
-Le token, le QR code et le code de session ne changent PAS lors d'une
-regeneration (ils ne changent que sur bouton Reset, minuterie ou case
-"Nouveau token au demarrage"). En cas de doute, rescanner le QR affiche par
-le bureau reste sans risque : c'est la source de verite.
+The token, the QR code and the session code do NOT change when you
+regenerate (they only change on the Reset button, the timer, or the "New
+token on start" checkbox). When in doubt, rescanning the QR code shown by
+the desktop app is always safe: that's the source of truth.
 
-### Premier acces depuis un telephone
+### First visit from a phone
 
-Le certificat auto-signe declenche un ecran d'avertissement. Ne clique pas
-sur "Arreter" : accepte celui de la machine OpenDrop uniquement.
+The self-signed certificate brings up a warning screen. Don't tap "Stop":
+accept the one from the OpenDrop machine only.
 
-Chrome / Android :
+Chrome / Android:
 
-1. « Votre connexion n'est pas privée »
-2. « Avancé »
-3. « Continuer vers *votre-ip* (non sécurisé) »
+1. "Your connection is not private"
+2. "Advanced"
+3. "Proceed to *your-ip* (unsafe)"
 
-Safari / iOS :
+Safari / iOS:
 
-1. « Cette connexion n'est pas privée »
-2. « Afficher les détails du site web »
-3. « Visiter ce site web »
+1. "This connection is not private"
+2. "Show website details"
+3. "Visit this website"
 
-Firefox :
+Firefox:
 
-1. « La connexion n'est pas sécurisée »
-2. « Continuer au poste de travail (non sécurisé) »
+1. "The connection is not secure"
+2. "Continue to this site (unsafe)"
 
-Si le certificat a ete regenere (IP changee, expiration, suppression du
-dossier certs), l'avertissement revient : il faut l'accepter a nouveau.
+If the certificate was regenerated (IP changed, expiry, certs folder
+deleted), the warning comes back: you have to accept it again.
 
-### Choisir une IP stable
+### Picking a stable IP
 
-Le certificat contient l'IP courante. Si le routeur attribue une autre IP
-(DHCP), le certificat est regenere et l'avertissement revient sur chaque
-telephone. Pour l'eviter : reserve l'IP de la machine dans les parametres
-DHCP du routeur (bail fixe / reservation DHCP). L'IP reste alors la meme et
-le certificat reste valable jusqu'a son expiration (397 jours).
+The certificate carries your current IP. If the router hands out a
+different one (DHCP), the certificate is regenerated and the warning comes
+back on every phone. To avoid that: reserve the machine's IP in your
+router's DHCP settings (fixed lease / DHCP reservation). The IP then stays
+the same and the certificate stays valid until it expires (397 days).
 
-### Ce que le chiffrement couvre
+### What the encryption covers
 
-- Fait : URL, token et contenu des fichiers transitent chiffres dans le LAN.
-  Une ecoute passive (tcpdump, Wireshark) ne voit que du TLS
-- Limite : pas de verification d'identite par une autorite de confiance
-  (certificat auto-signe). L'usager doit accepter manuellement ; accepter le
-  certificat d'un autre appareil rendrait la protection illusoire
-- Pas fait : chiffrement au repos, ni attestation de l'identite des appareils
-  qui possedent le token
+- Done: the URL, the token and the file contents travel encrypted across
+  the LAN. Passive sniffing (tcpdump, Wireshark) only sees TLS
+- Limit: no identity check by a trusted authority (self-signed
+  certificate). The user has to accept it by hand; accepting another
+  device's certificate would make the protection pointless
+- Not done: encryption at rest, nor any attestation of the identity of the
+  devices holding the token
 
 ---
 
 ## Verification
 
-Tout ce qui precede est couvert par des tests automatises (a lancer depuis
-la racine du depot, Python 3.12, aucun framework externe) :
+Everything above is covered by automated tests (run from the repo root,
+Python 3.12, no external framework):
 
-| Commande | Ce qu'elle prouve | Resultat |
+| Command | What it proves | Result |
 |---|---|---|
-| `python -m tests.test_security` | tokens, chemins, limites de taille, origine, corps incomplet, echec d'ecriture, journaux sans secret | 36/36 |
-| `python -m tests.test_routes` | table de verite des routes (section 5) | 44/44 |
-| `python -m tests.test_paths` | aucun chemin absolu en reponse (section 6) | 43/43 |
-| `python -m tests.test_quota` | quota global, reservations simultanees, remplissage exact, 507 | 40/40 |
-| `python -m tests.test_sessions` | sessions, expiration, code de session, rotation via `opendrop.main` | 34/34 |
-| `python -m tests.test_tls` | certificat auto-signe, cle/cert, EKU, renouvellement, HTTPS force | 15/15 |
-| `python -m tests.test_server` | routes generales, port occupe, demarrage rapide | 11/11 |
-| `python -m tests.test_beta` (+ `--large`) | parc complet, lots de fichiers, traversales | 64/64 et 76/76 |
+| `python -m tests.test_security` | tokens, paths, size limits, origin, incomplete body, write failure, logs with no secrets | 36/36 |
+| `python -m tests.test_routes` | route truth table (section 5) | 44/44 |
+| `python -m tests.test_paths` | no absolute path in any response (section 6) | 43/43 |
+| `python -m tests.test_quota` | global quota, simultaneous reservations, exact fill, 507 | 40/40 |
+| `python -m tests.test_sessions` | sessions, expiration, session code, rotation through `opendrop.main` | 34/34 |
+| `python -m tests.test_tls` | self-signed certificate, key/cert, EKU, renewal, forced HTTPS | 15/15 |
+| `python -m tests.test_server` | general routes, port already in use, fast startup | 11/11 |
+| `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 64/64 and 76/76 |
 
 ---
 
-## Model de menace
+## Threat Model
 
-| Menace | Protection | Statut |
+| Threat | Protection | Status |
 |---|---|---|
-| Acces sans token | Jeton obligatoire pour toute route portant des donnees ; `/api/info` public sans secret (voir section 5) | Fait |
-| Requete depuis un autre site | Origine (`Origin`) comparee a l'URL reelle du serveur : 403 sinon | Fait |
-| Force brute du code de session | Code a 6 caracteres (31^6), 5 essais / minute / IP, rotation a la demande | Fait |
-| Token brute-force | 32 caracteres aleatoires (62^32 combinaisons) | Fait |
-| Token expire | Expiration configurable + nettoyage automatique ; le code de secours reste utilisable | Fait |
-| Path traversal | Validation des chemins avec is_safe_path | Fait |
-| Remplissage disque | 10 Go par fichier + quota global optionnel (507, reservation atomique) | Partiel |
-| DoS par requetes | Rate limiting par IP | Fait |
-| Fuite de stack trace | Pas de traceback dans les reponses | Fait |
-| Fuite de chemin absolu | Reponses sans chemin serveur (upload = nom + taille + hash), erreurs disque sans chemin | Fait |
-| Fuite de secret dans les journaux | `token=` et `code=` remplaces par `***` dans les journaux du serveur | Fait |
-| Interception reseau | HTTPS force (TLS 1.2+), certificat auto-signe | Fait |
-| Chiffrement en transit | HTTPS force sur toutes les routes API | Fait |
-| Chiffrement au repos | Non protege | Futur |
-| Attestation d'identite | Certificat auto-signe, acceptation manuelle (teste : non approuve par defaut) | Limite |
-| Verification integrite | SHA-256 rendu seulement si le corps est complet ; affiche, pas de comparaison automatique | Fait |
+| Access with no token | Token required on every route that carries data; `/api/info` public with no secrets (see section 5) | Done |
+| Request from another site | Origin (`Origin`) checked against the server's real URL: 403 otherwise | Done |
+| Brute force on the session code | 6-character code (31^6), 5 tries / minute / IP, rotation on demand | Done |
+| Token brute-force | 32 random characters (62^32 combinations) | Done |
+| Expired token | Configurable expiration + automatic cleanup; the backup code keeps working | Done |
+| Path traversal | Path validation with is_safe_path | Done |
+| Filling the disk | 10 GB per file + optional global quota (507, atomic reservation) | Partial |
+| DoS by requests | Rate limiting per IP | Done |
+| Stack trace leak | No tracebacks in responses | Done |
+| Absolute path leak | Responses with no server path (upload = name + size + hash), disk errors with no path | Done |
+| Secret leak in logs | `token=` and `code=` replaced with `***` in the server logs | Done |
+| Network interception | HTTPS enforced (TLS 1.2+), self-signed certificate | Done |
+| Encryption in transit | HTTPS enforced on every API route | Done |
+| Encryption at rest | Not protected | Future |
+| Identity attestation | Self-signed certificate, manual acceptance (tested: not approved by default) | Limited |
+| Integrity check | SHA-256 returned only when the body is complete; displayed, no automatic comparison | Done |
 
 ---
 
-## Signaler une vulnerabilite
+## Reporting a vulnerability
 
-Si vous trouvez une faille de securite, ne la publiez pas publiquement
-(ici ni en issue). Deux canaux, par ordre de preference :
+If you find a security flaw, don't publish it anywhere public (not here,
+not in an issue). Two channels, in order of preference:
 
-1. **Formulaire prive GitHub** : onglet *Security* du depot >
-   *Report a vulnerability*. Le signalement est chiffre et reste confidentiel.
-2. **E-mail** : lucasbertholon1@gmail.com (objet : « OpenDrop - securite »).
+1. **GitHub private form**: repo *Security* tab >
+   *Report a vulnerability*. The report is encrypted and stays confidential.
+2. **E-mail**: lucasbertholon1@gmail.com (subject: "OpenDrop - security").
 
-Merci d'indiquer la route concernee, les etapes de reproduction et l'impact
-eventuel. Reponse sous quelques jours ; aucun recours contre un signalement
-de bonne foi.
+Please include the route involved, the steps to reproduce, and any potential
+impact. Reply within a few days; no retaliation against a good-faith
+report.
 
 ---
 
-## Licence
+## License
 
-OpenDrop est publie sous licence [MIT](LICENSE) - voir aussi
-[CONTRIBUTING.md](CONTRIBUTING.md). Utilisez-le sous votre propre
-responsabilite.
+OpenDrop is released under the [MIT](LICENSE) license - see also
+[CONTRIBUTING.md](CONTRIBUTING.md). Use it at your own risk.
