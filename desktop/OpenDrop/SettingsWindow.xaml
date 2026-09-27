@@ -1,0 +1,168 @@
+<Window x:Class="OpenDrop.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Parametres OpenDrop"
+        Width="420" Height="520"
+        Background="#0f0f0f"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="#1a1a1a"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#4a9eff"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#ccc"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="InputBox" TargetType="Border">
+            <Setter Property="Background" Value="#222"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,8"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+            <TextBlock Text="?" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#4a9eff"/>
+            <TextBlock Text="Parametres" FontSize="16" FontWeight="SemiBold" Foreground="White"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- General -->
+                <TextBlock Style="{StaticResource SectionHeader}" Text="GENERAL"/>
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Dossier de reception"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource InputBox}">
+                                <TextBlock x:Name="DownloadDirText" Text="Downloads/OpenDrop"
+                                           FontSize="12" Foreground="#888" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </Border>
+                            <Button Grid.Column="1" Content="..." Margin="8,0,0,0"
+                                    Padding="8,4" FontSize="12"
+                                    Background="#333" Foreground="#ccc" BorderThickness="0"
+                                    Cursor="Hand" Click="BtnBrowseDownload_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Dossier de partage"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource InputBox}">
+                                <TextBlock x:Name="ShareDirText" Text="Downloads/OpenDrop/Partage"
+                                           FontSize="12" Foreground="#888" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </Border>
+                            <Button Grid.Column="1" Content="..." Margin="8,0,0,0"
+                                    Padding="8,4" FontSize="12"
+                                    Background="#333" Foreground="#ccc" BorderThickness="0"
+                                    Cursor="Hand" Click="BtnBrowseShare_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Port"/>
+                        <Border Style="{StaticResource InputBox}">
+                            <TextBox x:Name="PortBox" Text="8080" FontSize="12" Foreground="#888"
+                                     Background="Transparent" BorderThickness="0"
+                                     VerticalContentAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Stockage -->
+                <TextBlock Style="{StaticResource SectionHeader}" Text="STOCKAGE"/>
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Quota global du dossier de reception"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource InputBox}">
+                                <TextBox x:Name="QuotaBox" Text="0" FontSize="12" Foreground="#888"
+                                         Background="Transparent" BorderThickness="0"
+                                         VerticalContentAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="Go ou Mo" Margin="8,0,0,0"
+                                       FontSize="12" Foreground="#666" VerticalAlignment="Center"/>
+                        </Grid>
+                        <TextBlock Text="Sans unite = Go : 500 vaut 500 Go, 500 mo vaut 500 Mo. 0 = illimite."
+                                   FontSize="11" Foreground="#555" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="QuotaUsageText" Text="" FontSize="11" Foreground="#666"
+                                   Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Taille cumulee des fichiers recus : un envoi qui ferait depasser le quota est refuse."
+                                   FontSize="11" Foreground="#555" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Security -->
+                <TextBlock Style="{StaticResource SectionHeader}" Text="SECURITE"/>
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Nouveau token au demarrage"
+                                   FontSize="13" Foreground="#ccc" VerticalAlignment="Center"/>
+                        <CheckBox Grid.Column="1" x:Name="ToggleNewToken" IsChecked="False"
+                                  Foreground="#4a9eff" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Network -->
+                <TextBlock Style="{StaticResource SectionHeader}" Text="RESEAU"/>
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Interface reseau"/>
+                        <TextBlock x:Name="InterfaceText" Text="Detection automatique"
+                                   FontSize="12" Foreground="#888"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Save button -->
+        <Button Grid.Row="2" x:Name="BtnSave" Content="Enregistrer"
+                HorizontalAlignment="Stretch" Padding="0,12" FontSize="13" FontWeight="SemiBold"
+                Background="#4a9eff" Foreground="White" BorderThickness="0" Cursor="Hand"
+                Click="BtnSave_Click"/>
+    </Grid>
+</Window>

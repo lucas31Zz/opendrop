@@ -1,0 +1,242 @@
+<Window x:Class="OpenDrop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OpenDrop"
+        Width="500" Height="720"
+        MinWidth="420" MinHeight="600"
+        Background="#0f0f0f"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip">
+
+    <Window.Resources>
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="#1a1a1a"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#4a9eff"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="SubtleBtn" TargetType="Button">
+            <Setter Property="Background" Value="#2a2a2a"/>
+            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="0,12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#3a3a3a"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="AccentBtn" TargetType="Button">
+            <Setter Property="Background" Value="#4a9eff"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="0,12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#3a8eef"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#2a7edf"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DangerBtn" TargetType="Button">
+            <Setter Property="Background" Value="#c0392b"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="0,12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#e74c3c"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title bar -->
+        <Border Grid.Row="0" Padding="20,12" Background="#0f0f0f">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="OpenDrop" FontSize="18" FontWeight="SemiBold" Foreground="White"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="28,0,28,24" Width="440" HorizontalAlignment="Center">
+
+                <!-- Status -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="StatusDot" Width="12" Height="12" Fill="#888" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="StatusText" Text="Demarrage..." FontSize="14" Foreground="#aaa" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Server address -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="ADRESSE DU SERVEUR"/>
+                        <TextBlock x:Name="AddressText" Text="---" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="#4a9eff" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- QR Code -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="QR CODE"/>
+                        <Border x:Name="QrBorder" Background="White" CornerRadius="12" Padding="16"
+                                HorizontalAlignment="Center" Visibility="Collapsed">
+                            <Image x:Name="QrImage" Width="220" Height="220"/>
+                        </Border>
+                        <TextBlock x:Name="QrHint" Text="Demarrez le serveur pour generer le QR code"
+                                   FontSize="12" Foreground="#666" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                   TextWrapping="Wrap" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Session code -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="CODE DE SESSION"/>
+                        <TextBlock x:Name="SessionCodeText" Text="---" FontSize="22" FontWeight="SemiBold"
+                                   FontFamily="Consolas" Foreground="#e0e0e0" HorizontalAlignment="Center"/>
+                        <TextBlock Text="A saisir sur l'autre appareil quand la session est verrouillee."
+                                   FontSize="11" Foreground="#666" HorizontalAlignment="Center"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Token refresh -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="RAFRAICHISSEMENT DU TOKEN"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="TokenIntervalCombo" Grid.Column="0"
+                                      Background="#222" Foreground="#ccc" FontSize="13"
+                                      SelectedIndex="0" VerticalAlignment="Center">
+                                <ComboBoxItem Content="Jamais"/>
+                                <ComboBoxItem Content="5 minutes"/>
+                                <ComboBoxItem Content="15 minutes"/>
+                                <ComboBoxItem Content="30 minutes"/>
+                                <ComboBoxItem Content="1 heure"/>
+                            </ComboBox>
+                            <Button x:Name="BtnRefreshToken" Grid.Column="1" Content="Reset"
+                                    Style="{StaticResource SubtleBtn}" Padding="16,8" FontSize="12"
+                                    Click="BtnRefreshToken_Click"/>
+                        </Grid>
+                        <TextBlock x:Name="TokenCountdownText" Text="" FontSize="11" Foreground="#666"
+                                   Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Share/Download info -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="DOSSIERS"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Recus: " FontSize="12" Foreground="#666"/>
+                            <TextBlock x:Name="DownloadDirText" Grid.Column="1" Text="---" FontSize="12"
+                                       Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Partage: " FontSize="12" Foreground="#666"/>
+                            <TextBlock x:Name="ShareDirText" Grid.Column="1" Text="---" FontSize="12"
+                                       Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Quota de reception -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="QUOTA DE RECEPTION"/>
+                        <TextBlock x:Name="QuotaStatusText" Text="Analyse..." FontSize="16"
+                                   FontWeight="SemiBold" Foreground="#666"
+                                   HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                        <TextBlock Text="Dossier de reception actuel, mis a jour automatiquement."
+                                   FontSize="11" Foreground="#666" HorizontalAlignment="Center"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Bottom buttons -->
+        <StackPanel Grid.Row="2" Margin="28,0,28,20" Width="440" HorizontalAlignment="Center">
+            <Button x:Name="BtnToggleServer" Content="Demarrer le serveur"
+                    Style="{StaticResource AccentBtn}" HorizontalAlignment="Stretch"
+                    Click="BtnToggleServer_Click" Margin="0,0,0,8"/>
+            <Button x:Name="BtnSettings" Content="Parametres"
+                    Style="{StaticResource SubtleBtn}" HorizontalAlignment="Stretch"
+                    Click="BtnSettings_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
