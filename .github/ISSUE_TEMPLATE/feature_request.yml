@@ -1,0 +1,35 @@
+name: "Proposer une fonctionnalite"
+description: Une idee d'amelioration ou un nouveau besoin.
+title: "[Idée] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: usage
+    attributes:
+      label: Usage reel
+      description: Quel probleme concret regle cette fonctionnalite ?
+      placeholder: |
+        En tant que ..., je veux ... afin de ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solution imaginee
+      description: Comportement souhaite, interface si pertinent.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives envisagees
+      description: Ce que vous faites aujourd'hui.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Avant d'envoyer
+      options:
+        - label: J'ai cherche si l'issue existe deja
+          required: true
+        - label: Je suis pret a en discuter avant d'ecrire le code (voir CONTRIBUTING.md)
+          required: true

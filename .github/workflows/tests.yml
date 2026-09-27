@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Installer le paquet
+        run: python -m pip install -e .
+
+      - name: Lancer les 8 suites de tests
+        shell: bash
+        run: |
+          set -e
+          for t in test_security test_routes test_paths test_quota test_sessions test_tls test_server test_beta; do
+            echo "::group::$t"
+            python -m tests.$t
+            echo "::endgroup::"
+          done

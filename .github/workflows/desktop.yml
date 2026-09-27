@@ -1,0 +1,20 @@
+name: desktop
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Builder l'application bureau
+        run: dotnet build desktop\OpenDrop\OpenDrop.csproj -c Release

@@ -1,0 +1,47 @@
+name: "Signaler un bug"
+description: Un comportement inattendu, une erreur, un crash.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: env
+    attributes:
+      label: Environnement
+      description: Systeme, version Python, version OpenDrop, application bureau ou serveur seul.
+      placeholder: |
+        Windows 11, Python 3.12.10, OpenDrop 0.1.0, application bureau
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Etapes pour reproduire
+      description: Le plus precisement possible.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportement observe
+      description: Messages d'erreur et journaux du serveur (les tokens y sont deja masques : token=***).
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Avant d'envoyer
+      options:
+        - label: J'ai cherche si l'issue existe deja
+          required: true
+        - label: Je n'ai pas signale de faille de securite ici (voir l'onglet Security)
+          required: true
