@@ -96,7 +96,7 @@ l'application, son `venv` et les donnees applicatives (`config.json`,
 **ne touche jamais aux dossiers de reception ni de partage** (fichiers recus
 et partages conserves tels quels).
 
-### Linux / Kali : tarball
+### Linux : tarball
 
 Prerequis : `sudo apt install python3 python3-venv` (Python 3.10+).
 
