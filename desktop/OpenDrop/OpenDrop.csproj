@@ -12,13 +12,14 @@
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationTitle>OpenDrop</ApplicationTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>0.1.1</Version>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net8.0-windows'">$(DefineConstants);WINDOWS_TARGET</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Remove="Microsoft.WindowsDesktop.App" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
-    <PackageReference Include="Autoupdater.NET.Official" Version="1.9.3" />
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
   </ItemGroup>
   <ItemGroup>

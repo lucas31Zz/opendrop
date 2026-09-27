@@ -77,4 +77,7 @@
     <x:String x:Key="Sm.Timeout">Timeout: the server did not respond.</x:String>
     <x:String x:Key="Sm.Exited">The Python server exited immediately.</x:String>
 
+    <!-- Auto-updater -->
+    <x:String x:Key="Update.Title">Update available</x:String>
+    <x:String x:Key="Update.Available">Version {1} is available (you have {0}). Download and install it now?</x:String>
 </ResourceDictionary>

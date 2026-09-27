@@ -1,12 +1,9 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
-#if NET8_0_WINDOWS
-using AutoUpdater.NET;
-#endif
 using QRCoder;
 
 namespace OpenDrop;
@@ -53,12 +50,11 @@ public partial class MainWindow : Window
 
         TokenIntervalCombo.SelectionChanged += (_, _) => OnTokenIntervalChanged();
 
-#if NET8_0_WINDOWS
-        // AutoUpdater.NET: check for a newer release on GitHub at startup.
+#if WINDOWS_TARGET
+        // Check for a newer release on GitHub at startup (Windows only).
         // The setup reinstalls into Program Files only; %LOCALAPPDATA%
         // (config.json, session.json, certs) is left untouched.
-        // Replace <TOKEN> with a read-only GitHub token.
-        AutoUpdater.Start("https://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@raw.githubusercontent.com/lucas31Zz/opendrop/main/update.xml");
+        UpdateChecker.CheckAsync(this);
 #endif
 
         Closed += (_, _) =>
@@ -362,5 +358,7 @@ public partial class MainWindow : Window
         }
     }
 }
+
+
 
 
