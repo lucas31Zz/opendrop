@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Binaires
+*.png binary
+*.ico binary
+*.crt binary
+*.snk binary

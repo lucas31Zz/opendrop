@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+.env
+build/
+dist/
+*.egg-info/
+
+# .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.pdb
+TestResults/
+
+# Divers / local
+.opencode/
+opencode.json
+projet.txt
+Thumbs.db
+.DS_Store

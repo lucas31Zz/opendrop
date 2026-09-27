@@ -1,0 +1,47 @@
+[project]
+name = "opendrop-lan"
+version = "0.1.0"
+description = "Simple local-first file transfer between devices over the local network (HTTPS, no cloud)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "lucas31Zz" }]
+keywords = [
+    "file-transfer",
+    "lan",
+    "local-first",
+    "qrcode",
+    "https",
+    "no-cloud",
+    "privacy",
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Communications :: File Sharing",
+    "Environment :: Console",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "qrcode[pil]>=7.0",
+    "cryptography>=42.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lucas31Zz/opendrop"
+Documentation = "https://github.com/lucas31Zz/opendrop#readme"
+Issues = "https://github.com/lucas31Zz/opendrop/issues"
+Source = "https://github.com/lucas31Zz/opendrop"
+
+[project.scripts]
+opendrop = "opendrop.main:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
