@@ -1,41 +1,41 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml.Linq;
 using Avalonia.Controls;
 
 namespace OpenDrop;
 
-// Update check for Windows: reads update.xml from GitHub, compares with
-// the assembly version, and offers to download + launch the new setup.
-// The setup reinstalls into Program Files only; %LOCALAPPDATA% (config,
-// session, certs) is never touched.
+// Update check for Windows: reads update.xml from the public updates repo,
+// compares with the assembly version, verifies the SHA-256 of the new setup,
+// and offers to download + launch it. The setup reinstalls into Program
+// Files only; %LOCALAPPDATA% (config, session, certs) is never touched.
 internal static class UpdateChecker
 {
+    private const string ManifestUrl =
+        "https://raw.githubusercontent.com/lucas31Zz/opendrop-updates/main/update.xml";
+
     private static readonly HttpClient _http = new(new HttpClientHandler
     {
         UseProxy = false,
         AllowAutoRedirect = false
     })
-    { Timeout = TimeSpan.FromSeconds(8) };
+    { Timeout = TimeSpan.FromSeconds(15) };
 
     // Called once at startup (Windows only).
     public static async void CheckAsync(object owner)
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get,
-                "https://raw.githubusercontent.com/lucas31Zz/opendrop/main/update.xml");
-            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
-                "Bearer", "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");
-            using var resp = await _http.SendAsync(req);
-            resp.EnsureSuccessStatusCode();
-            var xml = await resp.Content.ReadAsStringAsync();
+            var xml = await _http.GetStringAsync(ManifestUrl);
             var root = XDocument.Parse(xml).Root;
             if (root == null) return;
 
             var latest = root.Element("version")?.Value?.Trim();
             var setupUrl = root.Element("url")?.Value?.Trim();
+            var expectedHash = root.Element("sha256")?.Value?.Trim();
             if (string.IsNullOrEmpty(latest) || string.IsNullOrEmpty(setupUrl)) return;
 
             var current = typeof(UpdateChecker).Assembly.GetName().Version;
@@ -53,7 +53,21 @@ internal static class UpdateChecker
                     if (!answer) return;
                     var dest = Path.Combine(Path.GetTempPath(),
                         "OpenDrop-" + latest + "-win-x64-setup.exe");
-                    await DownloadAndLaunchAsync(setupUrl, dest);
+                    if (!await DownloadAndVerifyAsync(setupUrl, dest, expectedHash))
+                    {
+                        await Msg.ShowAsync(w, Lang.T("Update.Failed"), Lang.T("Update.Title"));
+                        return;
+                    }
+                    try
+                    {
+                        // The installer detects the running app (CloseApplications=yes)
+                        // and closes it itself.
+                        Process.Start(new ProcessStartInfo(dest) { UseShellExecute = true });
+                    }
+                    catch
+                    {
+                        Process.Start(new ProcessStartInfo(setupUrl) { UseShellExecute = true });
+                    }
                 }
 
                 if (w.IsVisible)
@@ -65,7 +79,8 @@ internal static class UpdateChecker
         catch { }
     }
 
-    private static async Task DownloadAndLaunchAsync(string setupUrl, string dest)
+    private static async Task<bool> DownloadAndVerifyAsync(
+        string setupUrl, string dest, string? expectedHash)
     {
         try
         {
@@ -76,18 +91,27 @@ internal static class UpdateChecker
         }
         catch
         {
-            Process.Start(new ProcessStartInfo(setupUrl) { UseShellExecute = true });
-            return;
+            return false;
         }
-        try
+
+        if (!string.IsNullOrEmpty(expectedHash))
         {
-            // The installer detects the running app (CloseApplications=yes)
-            // and closes it itself.
-            Process.Start(new ProcessStartInfo(dest) { UseShellExecute = true });
+            try
+            {
+                await using var fs = File.OpenRead(dest);
+                var hash = Convert.ToHexString(SHA256.HashData(fs));
+                if (!string.Equals(hash, expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(dest);
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
         }
-        catch
-        {
-            Process.Start(new ProcessStartInfo(setupUrl) { UseShellExecute = true });
-        }
+        return true;
     }
 }
+

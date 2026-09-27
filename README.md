@@ -299,6 +299,28 @@ Windows and Linux, Python 3.10 and 3.12.
 
 ---
 
+## Automatic updates (Windows)
+
+At startup, the desktop app checks a public manifest (`update.xml`) for a
+newer release. If one is found, a dialog asks whether to download and
+install it:
+
+- the setup is downloaded to the temp folder and **verified against a SHA-256
+  digest** from the manifest before anything runs (aborted and deleted on
+  mismatch);
+- launching the installer replaces the application in `Program Files (x86)`
+  and detects the running app (closed automatically);
+- **your data is preserved**: `config.json`, `session.json` and the TLS
+  certificate live in `%LOCALAPPDATA%\OpenDrop` and are never touched by an
+  update;
+- the check is **Windows-only** and reads a public manifest — no GitHub token
+  is embedded in the application.
+
+To disable the check, add `"check_updates": false` to
+`%LOCALAPPDATA%\OpenDrop\config.json` and relaunch.
+
+---
+
 ## Security
 
 The full threat model (routes, tokens, quota, certificate, limits) is

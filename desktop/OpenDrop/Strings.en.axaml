@@ -80,4 +80,5 @@
     <!-- Auto-updater -->
     <x:String x:Key="Update.Title">Update available</x:String>
     <x:String x:Key="Update.Available">Version {1} is available (you have {0}). Download and install it now?</x:String>
+    <x:String x:Key="Update.Failed">Could not download the update. Try again later or download it manually.</x:String>
 </ResourceDictionary>

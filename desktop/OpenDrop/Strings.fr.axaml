@@ -80,5 +80,6 @@
     <!-- Mise à jour automatique -->
     <x:String x:Key="Update.Title">Mise à jour disponible</x:String>
     <x:String x:Key="Update.Available">La version {1} est disponible (vous avez {0}). La télécharger et l'installer maintenant ?</x:String>
+    <x:String x:Key="Update.Failed">Impossible de télécharger la mise à jour. Réessayez plus tard ou téléchargez-la manuellement.</x:String>
 
 </ResourceDictionary>

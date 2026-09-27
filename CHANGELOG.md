@@ -5,7 +5,40 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [Unreleased]
+## [0.1.2] - 2026-09-27
+
+### Added
+
+- **Automatic updates (Windows)**: at startup the desktop app reads a public
+  `update.xml` manifest, and offers to download and install a newer release
+  in one click. The setup is verified against a SHA-256 digest before it is
+  launched. The installer reinstalls the application into `Program Files`
+  only and **never touches** `%LOCALAPPDATA%` (config, session, certificate),
+  so your settings survive an update. Opt out with `"check_updates": false`
+  in `config.json`.
+- **English/French language choice**, English everywhere by default:
+  - full English rewrite of the code, comments, web interface and
+    documentation; French kept as a second language
+  - new `language` setting in `config.json` (`en` by default, `fr`
+    optional); translated error messages on every API route, `/api/info`
+    reports the active language
+  - web interface picks the language from the server at startup
+  - desktop app: language selector in *Settings* (English/French), applied
+    live and persisted, English on first launch
+  - Windows installer: *Application language* task (English/French) that
+    seeds `config.json` on first install only
+
+### Fixed
+
+- CI: `test_routes` failed intermittently on Windows with
+  `PermissionError: [WinError 32]` while removing a file the server had just
+  sent; the cleanup now retries briefly
+- The update manifest now uses the real release asset name (`v` prefix) and
+  embeds the SHA-256 of the setup; it is mirrored to a public repo so the app
+  needs no token
+- Versions aligned on 0.1.2 (`pyproject.toml` was still 0.1.0)
+
+## [0.1.1] - 2026-09-27
 
 ### Added
 

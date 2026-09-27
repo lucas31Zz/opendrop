@@ -10,9 +10,21 @@ import http.client
 import json
 import os
 import sys
+import time
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+
+def _unlink(path):
+    # The server thread may still hold the handle for a moment on Windows.
+    for _ in range(20):
+        try:
+            os.remove(path)
+            return
+        except PermissionError:
+            time.sleep(0.05)
+    os.remove(path)
 
 from opendrop.server.rate_limit import limiter_general, limiter_session
 from tests.conftest import (SSL_CONTEXT, TestResult, _start_server, _url,
@@ -198,8 +210,8 @@ def _download_tests():
             r.check("Content-Disposition encoded in UTF-8 (filename*)",
                     "filename*=UTF-8''" in disposition, disposition)
         finally:
-            os.remove(os.path.join(sd, unicode_name))
-        os.remove(os.path.join(sd, ascii_name))
+            _unlink(os.path.join(sd, unicode_name))
+        _unlink(os.path.join(sd, ascii_name))
 
         status, _, _ = _get(port, "/api/download/inexistant.txt?token=" + token)
         r.check("Download of missing file = 404 JSON",
