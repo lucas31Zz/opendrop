@@ -1,0 +1,116 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: setup Windows (win-x64)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Publier l'application (single-file, self-contained)
+        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win
+
+      - name: Completer le bundle (serveur Python + web + docs)
+        shell: bash
+        run: |
+          set -e
+          cp pyproject.toml requirements.txt README.md LICENSE SECURITY.md publish/win/
+          cp -R src publish/win/src
+          cp packaging/windows/install-deps.ps1 publish/win/
+          test -f publish/win/web/index.html
+          test -f publish/win/src/opendrop/main.py
+
+      - name: Wheels hors-ligne (dependances du setup)
+        shell: pwsh
+        run: |
+          # Wheels par version mineure : pillow/cffi dependent de l'ABI, le
+          # setup doit fonctionner avec n'importe quel Python 3.10+ installe.
+          foreach ($v in "3.10", "3.11", "3.12", "3.13", "3.14") {
+            python -m pip download --requirement requirements.txt `
+              --dest publish/win/wheels --only-binary=:all: --python-version $v
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Installer Inno Setup (si absent)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Compiler le setup.exe
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ github.ref_name }}" `
+            "packaging\windows\OpenDrop.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Archiver la version portable
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/win `
+            -DestinationPath "dist/OpenDrop-${{ github.ref_name }}-win-x64.zip"
+
+      - name: Attacher les fichiers a la release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          for i in 1 2 3; do
+            gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1 && break
+            gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" \
+              --title "OpenDrop ${{ github.ref_name }}" --generate-notes || sleep 5
+          done
+          gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber dist/*
+
+  linux:
+    name: install Linux (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Publier l'application (single-file, self-contained)
+        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux
+
+      - name: Assembler le tarball (binaire + src + wheels + install.sh)
+        run: bash packaging/linux/build-tarball.sh "${{ github.ref_name }}"
+
+      - name: Attacher les fichiers a la release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          for i in 1 2 3; do
+            gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1 && break
+            gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" \
+              --title "OpenDrop ${{ github.ref_name }}" --generate-notes || sleep 5
+          done
+          gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber dist/*

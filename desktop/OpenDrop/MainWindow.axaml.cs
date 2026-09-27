@@ -1,11 +1,9 @@
-using System;
-using System.Diagnostics;
-using System.Net.Http;
 using System.Text.Json;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Threading;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using QRCoder;
 
 namespace OpenDrop;
@@ -38,7 +36,7 @@ public partial class MainWindow : Window
 
         _serverManager.OnStatusChanged += (_, status) =>
         {
-            Dispatcher.Invoke(() => OnServerStatusChanged(status));
+            Dispatcher.UIThread.Invoke(() => OnServerStatusChanged(status));
         };
 
         _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -61,7 +59,7 @@ public partial class MainWindow : Window
             _http.Dispose();
         };
 
-        Loaded += async (_, _) =>
+        Opened += async (_, _) =>
         {
             _quotaTimer.Start();
             await RefreshQuotaAsync();
@@ -103,10 +101,11 @@ public partial class MainWindow : Window
                 DownloadDirText.Text = downloadDir ?? "---";
                 ShareDirText.Text = shareDir ?? "---";
                 BtnToggleServer.Content = "Arreter le serveur";
-                BtnToggleServer.Style = (Style)FindResource("DangerBtn");
+                BtnToggleServer.Classes.Remove("accent");
+                BtnToggleServer.Classes.Add("danger");
                 _isRunning = true;
                 GenerateQrCode(uploadUrl);
-                QrHint.Visibility = Visibility.Collapsed;
+                QrHint.IsVisible = false;
                 break;
             case "stopped":
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(136, 136, 136));
@@ -115,9 +114,10 @@ public partial class MainWindow : Window
                 AddressText.Text = "---";
                 SessionCodeText.Text = "---";
                 BtnToggleServer.Content = "Demarrer le serveur";
-                BtnToggleServer.Style = (Style)FindResource("AccentBtn");
-                QrBorder.Visibility = Visibility.Collapsed;
-                QrHint.Visibility = Visibility.Visible;
+                BtnToggleServer.Classes.Remove("danger");
+                BtnToggleServer.Classes.Add("accent");
+                QrBorder.IsVisible = false;
+                QrHint.IsVisible = true;
                 QrHint.Text = "Demarrez le serveur pour generer le QR code";
                 _isRunning = false;
                 _tokenTimer.Stop();
@@ -138,8 +138,8 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrEmpty(url))
         {
-            QrBorder.Visibility = Visibility.Collapsed;
-            QrHint.Visibility = Visibility.Visible;
+            QrBorder.IsVisible = false;
+            QrHint.IsVisible = true;
             QrHint.Text = "QR code indisponible";
             return;
         }
@@ -151,25 +151,19 @@ public partial class MainWindow : Window
             using var qrImage = new PngByteQRCode(qrData);
             var qrBytes = qrImage.GetGraphic(8);
 
-            var bitmap = new BitmapImage();
             using var stream = new System.IO.MemoryStream(qrBytes);
             stream.Position = 0;
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = stream;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            QrImage.Source = bitmap;
-            QrBorder.Visibility = Visibility.Visible;
-            QrHint.Visibility = Visibility.Collapsed;
+            QrImage.Source = new Bitmap(stream);
+            QrBorder.IsVisible = true;
+            QrHint.IsVisible = false;
         }
         catch
         {
-            QrBorder.Visibility = Visibility.Collapsed;
+            QrBorder.IsVisible = false;
         }
     }
 
-    private async System.Threading.Tasks.Task PollServerAsync()
+    private async Task PollServerAsync()
     {
         if (_serverManager.Port == null) return;
 
@@ -188,7 +182,7 @@ public partial class MainWindow : Window
                 var address = $"{ip}:{port}";
                 var uploadUrl = _serverManager.UrlUpload;
 
-                Dispatcher.Invoke(() => UpdateUI("running", null, address, uploadUrl,
+                Dispatcher.UIThread.Invoke(() => UpdateUI("running", null, address, uploadUrl,
                     _serverManager.DownloadDir, _serverManager.ShareDir));
             }
         }
@@ -197,7 +191,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async System.Threading.Tasks.Task RefreshQuotaAsync()
+    private async Task RefreshQuotaAsync()
     {
         if (_quotaBusy) return;
         _quotaBusy = true;
@@ -205,7 +199,7 @@ public partial class MainWindow : Window
         {
             var limit = QuotaUsage.ReadLimit();
             var dir = QuotaUsage.ReadDownloadDir(_serverManager.DownloadDir);
-            var usage = await System.Threading.Tasks.Task.Run(() => QuotaUsage.ScanDirectory(dir));
+            var usage = await Task.Run(() => QuotaUsage.ScanDirectory(dir));
 
             if (limit <= 0)
             {
@@ -265,11 +259,11 @@ public partial class MainWindow : Window
             TokenCountdownText.Text = $"Prochain refresh dans {ts.Minutes}min{ts.Seconds:D2}s";
     }
 
-    private async System.Threading.Tasks.Task RefreshTokenAsync()
+    private async Task RefreshTokenAsync()
     {
         if (!_isRunning) return;
 
-        QrHint.Visibility = Visibility.Visible;
+        QrHint.IsVisible = true;
         QrHint.Text = "Generation d'un nouveau token...";
 
         // Reset explicite (bouton ou minuterie) : le seul cas qui change
@@ -281,7 +275,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void BtnToggleServer_Click(object sender, RoutedEventArgs e)
+    private async void BtnToggleServer_Click(object? sender, RoutedEventArgs e)
     {
         if (_isRunning)
         {
@@ -305,7 +299,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BtnRefreshToken_Click(object sender, RoutedEventArgs e)
+    private void BtnRefreshToken_Click(object? sender, RoutedEventArgs e)
     {
         if (_isRunning)
         {
@@ -314,12 +308,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BtnSettings_Click(object sender, RoutedEventArgs e)
+    private async void BtnSettings_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
             var settingsWindow = new SettingsWindow();
-            settingsWindow.ShowDialog();
+            await settingsWindow.ShowDialog(this);
 
             if (settingsWindow.SettingsChanged)
             {
@@ -332,16 +326,17 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Erreur Parametres:\n{ex.Message}\n\n{ex.InnerException?.Message}",
-                "OpenDrop", MessageBoxButton.OK, MessageBoxImage.Error);
+            await Msg.ShowAsync(this,
+                $"Erreur Parametres:\n{ex.Message}\n\n{ex.InnerException?.Message}",
+                "OpenDrop");
         }
     }
 
-    private async System.Threading.Tasks.Task RestartServerAsync()
+    private async Task RestartServerAsync()
     {
         _pollTimer.Stop();
         _tokenTimer.Stop();
-        QrHint.Visibility = Visibility.Visible;
+        QrHint.IsVisible = true;
         QrHint.Text = "Redemarrage du serveur...";
 
         var started = await _serverManager.RestartAsync();

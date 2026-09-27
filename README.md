@@ -7,7 +7,7 @@
 [![Tests](https://github.com/lucas31Zz/opendrop/actions/workflows/tests.yml/badge.svg)](https://github.com/lucas31Zz/opendrop/actions/workflows/tests.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![Windows](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
+[![Windows](https://img.shields.io/badge/bureau-Windows%20%2B%20Linux-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
 [![Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](.github/workflows/tests.yml)
 
 
@@ -42,8 +42,8 @@ pair-a-pair sur votre machine, rien ne transite par internet.
   indicateur en direct (vert sous la limite, rouge une fois atteint)
 - **Garde-fous** : 10 Go par fichier, limites de debit par IP, noms de
   fichiers assainis, chemins verifies, aucune fuite de chemin serveur
-- **Bureau Windows** (WPF/.NET 8) : QR code, adresse, code de session,
-  quota, dossiers, parametres, demarrage/Arret du serveur en un clic
+- **Bureau Windows et Linux** (Avalonia, .NET 8) : QR code, adresse, code de
+  session, quota, dossiers, parametres, demarrage/Arret du serveur en un clic
 
 ---
 
@@ -58,7 +58,8 @@ parametres) et l'interface web (onglets *Envoyer* / *Telecharger*).
 
 - Python **3.10+** (developpe et teste en 3.12) — Windows **ou Linux**
   (les tests passent en CI sur les deux)
-- Uniquement pour l'application bureau : **Windows** + .NET 8 SDK (WPF)
+- Uniquement pour builder l'application bureau depuis les sources :
+  **.NET 8 SDK** (disponible sous Windows, Linux et macOS)
 
 Dependances Python :
 
@@ -68,14 +69,85 @@ pip install -e .            # qrcode[pil] + cryptography, installe la commande "
 
 ---
 
+## Telechargements
+
+Chaque release GitHub (onglet *Releases*) contient, generees automatiquement
+a chaque tag :
+
+| Fichier | Plateforme | Contenu |
+|---|---|---|
+| `OpenDrop-vX.Y.Z-win-x64-setup.exe` | Windows 10/11 x64 | installeur complet (droits admin), dependances installees en local, hors-ligne |
+| `OpenDrop-vX.Y.Z-win-x64.zip` | Windows 10/11 x64 | version portable (a decompacter) |
+| `OpenDrop-vX.Y.Z-linux-x64.tar.gz` | Linux x64 (Debian, Kali, Ubuntu...) | binaire + serveur + wheels + scripts d'installation |
+
+### Windows : installeur
+
+1. Telecharger le `*-win-x64-setup.exe` et le lancer (administration requise).
+2. Choisir la langue (francais ou anglais) puis valider l'installation dans
+   `C:\Program Files (x86)\OpenDrop`.
+3. Python **3.10+** doit etre present (cocher *Add python.exe to PATH*) : le
+   setup installe les dependances dans un `venv` local a partir des wheels
+   fournis, sans acces reseau.
+
+Desinstallation : *Parametres Windows > Applications > OpenDrop* (ou
+`uninstall.exe` dans le dossier d'installation). Le desinstalleur supprime
+l'application, son `venv` et les donnees applicatives (`config.json`,
+`session.json`, `server.pid`, `certs\` dans `%LOCALAPPDATA%\OpenDrop`) mais
+**ne touche jamais aux dossiers de reception ni de partage** (fichiers recus
+et partages conserves tels quels).
+
+### Linux / Kali : tarball
+
+Prerequis : `sudo apt install python3 python3-venv` (Python 3.10+).
+
+```bash
+tar -xzf OpenDrop-vX.Y.Z-linux-x64.tar.gz
+cd OpenDrop
+sudo ./install.sh          # /opt/opendrop + venv local + menu d'applications
+opendrop-desktop           # ou depuis le menu
+```
+
+Desinstallation (conserve les dossiers *Recus* et *Partage*) :
+
+```bash
+sudo ./uninstall.sh
+```
+
+`install.sh` ecrit dans `/opt/opendrop` (application) et `~/.opendrop/`
+(donnees) ; les fichiers recus et partages, eux, restent dans
+`~/Downloads/OpenDrop`.
+
+### Version portable
+
+Decompresser l'archive et lancer `OpenDrop.exe` (Windows) ou `./OpenDrop`
+(Linux). L'application a besoin de Python 3.10+ et des dependances :
+
+```powershell
+pip install -r requirements.txt     # ou reutiliser le venv d'une installation
+```
+
+---
+
 ## Demarrage
 
-### 1. Application bureau (Windows uniquement)
+### 1. Application bureau (Windows et Linux)
+
+La meme application tourne sur les deux systemes (UI Avalonia).
+
+**Depuis les sources :**
 
 ```powershell
 dotnet build desktop\OpenDrop\OpenDrop.csproj
-.\desktop\OpenDrop\bin\Debug\net8.0-windows\OpenDrop.exe
+.\desktop\OpenDrop\bin\Debug\net8.0\OpenDrop.exe        # Windows
 ```
+
+```bash
+dotnet build desktop/OpenDrop/OpenDrop.csproj
+./desktop/OpenDrop/bin/Debug/net8.0/OpenDrop            # Linux
+```
+
+**Depuis une release** : voir *Telechargements* plus haut (installeur
+Windows, tarball Linux ou archive portable).
 
 L'application demarre le serveur automatiquement : la carte d'etat passe a
 **Serveur actif**, l'adresse s'affiche, le QR code et le code de session sont
@@ -123,8 +195,8 @@ present, sinon ouvrez l'URL a la main dans le navigateur.
   scripts.
 - Si le telephone ne se connecte pas, verifier le pare-feu :
   `sudo ufw allow 8080` (ou le port utilise).
-- L'application bureau (WPF) n'existe pas sous Linux : c'est le serveur et
-  son interface web qui servent ici.
+- L'application bureau fonctionne aussi sous Linux (meme binaire que le
+  serveur, voir *1. Application bureau*) : QR code, quota, parametres.
 
 ---
 
@@ -178,6 +250,9 @@ Les deux se changent dans **Parametres** (parcours + Enregistrer).
 | `%LOCALAPPDATA%\OpenDrop\config.json` | dossiers, port, quota, options |
 | `%LOCALAPPDATA%\OpenDrop\session.json` | token + code de session en cours |
 | `%LOCALAPPDATA%\OpenDrop\certs\server.crt` / `server.key` | certificat TLS auto-signe (EC P-256, 397 jours) |
+
+Sous Linux/macOS, le meme dossier est `~/.opendrop/` (les dossiers de
+reception et de partage, eux, restent dans `~/Downloads/OpenDrop`).
 
 Cles de `config.json` :
 
@@ -239,8 +314,10 @@ documente dans [SECURITY.md](SECURITY.md). En resume :
 | Dossier | Role |
 |---|---|
 | `src/opendrop/` | serveur Python (HTTPS, routes, sessions, quota, TLS) |
-| `desktop/OpenDrop/` | application bureau WPF (.NET 8) qui pilote le serveur |
+| `desktop/OpenDrop/` | application bureau Avalonia (.NET 8, Windows + Linux) qui pilote le serveur |
 | `web/` | interface web (`index.html`, `app.js`, `style.css`) |
+| `packaging/` | installeur Windows (Inno Setup) et scripts Linux (install/uninstall) |
+| `tools/` | utilitaires de developpement (generation de l'icone) |
 | `tests/` | suites de tests maison |
 | `docs/` | documents du projet (captures) |
 | `.github/` | integration continue, Dependabot, modeles d'issues |

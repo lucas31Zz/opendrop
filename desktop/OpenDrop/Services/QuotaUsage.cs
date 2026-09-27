@@ -9,9 +9,24 @@ namespace OpenDrop;
 // (compteur d'usage) : une seule source pour le calcul et le formatage.
 internal static class QuotaUsage
 {
-    public static string ConfigPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                     "OpenDrop", "config.json");
+    // Meme logique que le cote Python (src/opendrop/config/config.py) :
+    // LOCALAPPDATA/APPDATA s'il existe, sinon ~/.opendrop sous Linux/macOS.
+    // Sans cela, le desktop et le serveur liraient deux config.json differents.
+    public static string ConfigDir
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("LOCALAPPDATA")
+                      ?? Environment.GetEnvironmentVariable("APPDATA");
+            if (!string.IsNullOrEmpty(env))
+                return Path.Combine(env, "OpenDrop");
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".opendrop");
+        }
+    }
+
+    public static string ConfigPath => Path.Combine(ConfigDir, "config.json");
 
     public static long ScanDirectory(string? dir)
     {

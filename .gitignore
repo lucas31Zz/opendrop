@@ -13,6 +13,7 @@ dist/
 # .NET / Visual Studio
 [Bb]in/
 [Oo]bj/
+publish/
 .vs/
 *.user
 *.suo
@@ -25,3 +26,4 @@ opencode.json
 projet.txt
 Thumbs.db
 .DS_Store
+wheels/

@@ -7,13 +7,45 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-27
+
 ### Ajoute
 
+- Application bureau multiplateforme : port de WPF vers **Avalonia** (.NET 8),
+  un seul code pour Windows (`win-x64`) et Linux (`linux-x64`), publie en
+  fichier unique auto-contenu
+- **Installeur Windows** (Inno Setup) : droits admin, installation dans
+  `Program Files (x86)`, dependances Python installees en local a partir des
+  wheels fournis (hors-ligne, venv dans le dossier d'installation),
+  raccourcis menu/bureau, interface francais/anglais, desinstalleur qui
+  nettoie les donnees applicatives **sans jamais toucher** aux dossiers de
+  reception et de partage
+- **Scripts Linux** (`install.sh` / `uninstall.sh`) : installation dans
+  `/opt/opendrop` avec venv local et entree de menu (`opendrop-desktop`),
+  desinstallation equivalentes conservant les fichiers recus et partages
+- Release automatique : a chaque tag `v*`, GitHub Actions genere
+  `*-win-x64-setup.exe`, `*-win-x64.zip` et `*-linux-x64.tar.gz` (wheels
+  hors-ligne inclus)
+- Icône d'application et de menu generees par `tools/make_icon.py` (QR code)
 - Lancement sous Linux : le QR code s'ouvre via `xdg-open` (et `open` sur
   macOS) au lieu d'etre ignore (`os.startfile` n'existe que sous Windows)
-- README : section *Linux (pas de bureau possible)*, prerequisites
-  multiplateformes, badge Linux
+- README : section *Linux (pas de bureau possible)*, section
+  *Telechargements*, prerequisites multiplateformes, badge Linux
 - Classifier `Operating System :: POSIX :: Linux` dans pyproject
+
+### Corrige
+
+- `server.pid` : le dossier de config n'existait pas au tout premier
+  lancement, l'ecriture echouait en silence et un serveur orphelin pouvait
+  garder le port au lancement suivant
+- L'application bureau utilise d'abord le `venv` cree par l'installeur
+  (`venv/Scripts/python.exe`, `venv/bin/python3`) avant `python`/`python3`
+  du PATH : dependances garanties quelle que soit la configuration
+- Chemin de config du bureau aligne sur le serveur Python : lecture de
+  `LOCALAPPDATA` comme cote Python, repli `~/.opendrop` sous Linux (desktop
+  et serveur lisent le meme `config.json` sur les deux systemes)
+- Lancement du serveur sous Linux : `python3` d'abord (Debian/Kali n'ont pas
+  d'alias `python`)
 
 ## [0.1.0] - 2026-09-27
 

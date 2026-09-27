@@ -6,7 +6,8 @@ correction ou une fonctionnalite.
 ## Prérequis
 
 - Python **3.10+** (developpe et teste en 3.12)
-- Windows + **.NET 8 SDK** si vous touchez a l'application bureau (WPF)
+- **.NET 8 SDK** si vous touchez a l'application bureau (Avalonia, Windows
+  ou Linux)
 - `git`
 
 ## Mise en place

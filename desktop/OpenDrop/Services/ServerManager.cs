@@ -72,7 +72,6 @@ public class ServerManager
 
             var startInfo = new ProcessStartInfo
             {
-                FileName = "python",
                 Arguments = rotateToken
                     ? "-m opendrop.main --headless --rotate-token"
                     : "-m opendrop.main --headless",
@@ -93,13 +92,48 @@ public class ServerManager
                 startInfo.EnvironmentVariables["PYTHONPATH"] = pythonPath;
             }
 
-            _process = Process.Start(startInfo);
+            // Python : d'abord le venv cree par l'installeur (depot
+            // installe avec ses wheels, dependances garanties), sinon
+            // python3/python du PATH. Sous Linux la commande s'appelle
+            // python3 (Debian/Kali n'ont pas d'alias "python").
+            var pythons = new List<string>();
+            var venvWin = Path.Combine(projectDir, "venv", "Scripts", "python.exe");
+            var venvUnix3 = Path.Combine(projectDir, "venv", "bin", "python3");
+            var venvUnix = Path.Combine(projectDir, "venv", "bin", "python");
+            if (File.Exists(venvWin)) pythons.Add(venvWin);
+            if (File.Exists(venvUnix3)) pythons.Add(venvUnix3);
+            if (File.Exists(venvUnix)) pythons.Add(venvUnix);
+            if (OperatingSystem.IsWindows())
+                pythons.Add("python");
+            else
+            {
+                pythons.Add("python3");
+                pythons.Add("python");
+            }
+
+            foreach (var py in pythons)
+            {
+                startInfo.FileName = py;
+                try
+                {
+                    _process = Process.Start(startInfo);
+                }
+                catch
+                {
+                    // Executable introuvable (Win32Exception) : on tente le suivant.
+                    _process = null;
+                }
+                if (_process != null)
+                    break;
+            }
+
             if (_process == null)
             {
                 OnStatusChanged?.Invoke(this, new ServerStatus
                 {
                     State = "error",
-                    Message = "Echec du lancement de Python."
+                    Message = "Python introuvable. Installez Python 3.10+ puis " +
+                              "pip install qrcode cryptography."
                 });
                 return false;
             }
@@ -214,14 +248,17 @@ public class ServerManager
         DeletePidFile();
     }
 
-    private static string PidFilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "OpenDrop", "server.pid");
+    private static string PidFilePath => Path.Combine(QuotaUsage.ConfigDir, "server.pid");
 
     private static void WritePidFile(Process process)
     {
         try
         {
+            // Le dossier de config peut ne pas exister au 1er lancement (le
+            // serveur Python ne l'a pas encore cree) : sans cela, l'ecriture
+            // echoue en silence et KillStaleServer ne retrouve pas le serveur
+            // au lancement suivant (port deja pris).
+            Directory.CreateDirectory(QuotaUsage.ConfigDir);
             File.WriteAllText(PidFilePath,
                 $"{process.Id}|{process.StartTime.ToString("O", CultureInfo.InvariantCulture)}");
         }
@@ -255,9 +292,10 @@ public class ServerManager
             }
 
             using var stale = Process.GetProcessById(pid);
-            // Verifications anti-recyclage de PID : on ne tue que python, et
-            // seulement si son heure de demarrage correspond a celle notee.
-            if (!stale.ProcessName.Equals("python", StringComparison.OrdinalIgnoreCase))
+            // Verifications anti-recyclage de PID : on ne tue que python (la
+            // commande s'appelle python3 sous Linux), et seulement si son
+            // heure de demarrage correspond a celle notee.
+            if (!stale.ProcessName.StartsWith("python", StringComparison.OrdinalIgnoreCase))
                 return;
             if (recorded != DateTime.MinValue &&
                 (stale.StartTime - recorded).Duration() > TimeSpan.FromMinutes(5))
@@ -274,7 +312,12 @@ public class ServerManager
 
     private static string? FindProjectRoot()
     {
-        var dir = AppDomain.CurrentDomain.BaseDirectory;
+        // Priorite au dossier reel de l'executable : avec un binaire livre en
+        // fichier unique (dotnet publish -p:PublishSingleFile), le dossier
+        // temporaire d'extraction ne contient pas pyproject.toml. Le dossier
+        // livre doit contenir pyproject.toml + src/ + web/.
+        var dir = Path.GetDirectoryName(Environment.ProcessPath)
+                  ?? AppContext.BaseDirectory;
 
         for (var i = 0; i < 10; i++)
         {

@@ -1,12 +1,10 @@
-using System;
 using System.Globalization;
-using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Threading;
-using Microsoft.Win32;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 
 namespace OpenDrop;
 
@@ -51,42 +49,45 @@ public partial class SettingsWindow : Window
         UpdateQuotaUsage();
     }
 
-    private void BtnBrowseDownload_Click(object sender, RoutedEventArgs e)
+    private async void BtnBrowseDownload_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
-            var dialog = new OpenFolderDialog
+            var folder = await PickFolderAsync("Choisir le dossier de reception");
+            if (folder != null)
             {
-                Title = "Choisir le dossier de reception"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                DownloadDirText.Text = dialog.FolderName;
+                DownloadDirText.Text = folder;
                 UpdateQuotaUsage();
             }
         }
         catch { }
     }
 
-    private void BtnBrowseShare_Click(object sender, RoutedEventArgs e)
+    private async void BtnBrowseShare_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
-            var dialog = new OpenFolderDialog
+            var folder = await PickFolderAsync("Choisir le dossier de partage");
+            if (folder != null)
             {
-                Title = "Choisir le dossier de partage"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                ShareDirText.Text = dialog.FolderName;
+                ShareDirText.Text = folder;
             }
         }
         catch { }
     }
 
-    private void BtnSave_Click(object sender, RoutedEventArgs e)
+    // Selectionneur de dossier natif (GTK sous Linux, Windows sous Windows).
+    private async Task<string?> PickFolderAsync(string title)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false
+        });
+        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+    }
+
+    private async void BtnSave_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -111,8 +112,8 @@ public partial class SettingsWindow : Window
                 catch { }
             }
 
-            config["download_directory"] = DownloadDirText.Text;
-            config["share_directory"] = ShareDirText.Text;
+            config["download_directory"] = DownloadDirText.Text ?? "";
+            config["share_directory"] = ShareDirText.Text ?? "";
             config["preferred_port"] = int.TryParse(PortBox.Text, out var p) ? p : 8080;
             config["generate_new_token"] = ToggleNewToken.IsChecked == true;
 
@@ -120,19 +121,19 @@ public partial class SettingsWindow : Window
             // du disque : on laisse l'utilisateur choisir, mais il le fait en
             // connaissance de cause.
             var quotaBytes = 0L;
-            if (!TryParseQuota(QuotaBox.Text, out quotaBytes))
+            if (!TryParseQuota(QuotaBox.Text ?? "", out quotaBytes))
             {
-                MessageBox.Show(
+                await Msg.ShowAsync(this,
                     "Quota invalide : \"" + QuotaBox.Text + "\"\n\n" +
                     "Exemples acceptes : 0,5 go (512 Mo), 500 mo, 10.75.\n" +
                     "Un nombre sans unite est compte en Go. 0 = illimite.",
-                    "Quota global", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Quota global");
                 return;
             }
-            var freeBytes = GetFreeSpace(DownloadDirText.Text);
+            var freeBytes = GetFreeSpace(DownloadDirText.Text ?? "");
             if (ExceedsFreeSpaceWarning(quotaBytes, freeBytes))
             {
-                var answer = MessageBox.Show(
+                var answer = await Msg.ConfirmAsync(this,
                     "Quota global de " + FormatSize(quotaBytes) + "\n\n" +
                     "Ce quota depasse 20% de l'espace libre sur ce disque (" +
                     FormatSize(freeBytes) + " libres).\n\n" +
@@ -140,9 +141,8 @@ public partial class SettingsWindow : Window
                     "la machine peut ralentir, voir ne plus pouvoir ecrire " +
                     "(systeme, mises a jour, fichiers temporaires).\n\n" +
                     "A vos risques et perils : enregistrer quand meme ?",
-                    "Quota global important",
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (answer != MessageBoxResult.Yes)
+                    "Quota global important");
+                if (!answer)
                     return;
             }
             config["global_quota_bytes"] = quotaBytes;
@@ -182,7 +182,7 @@ public partial class SettingsWindow : Window
         Task.Run(() =>
         {
             var used = QuotaUsage.ScanDirectory(dir);
-            Dispatcher.Invoke(() =>
+            Dispatcher.UIThread.Invoke(() =>
             {
                 QuotaUsageText.Text = used > 0
                     ? "Actuellement recu : " + QuotaUsage.Format(used) + " dans ce dossier"

@@ -7,8 +7,17 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
-    timeout-minutes: 15
+    name: ${{ matrix.os }} (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
     steps:
       - uses: actions/checkout@v7
 
@@ -16,5 +25,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Builder l'application bureau
-        run: dotnet build desktop\OpenDrop\OpenDrop.csproj -c Release
+      - name: Publier l'application (single-file, self-contained)
+        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/OpenDrop
+
+      - name: Completer le bundle (serveur Python + web + docs)
+        shell: bash
+        run: |
+          set -e
+          cp pyproject.toml requirements.txt README.md LICENSE publish/OpenDrop/
+          cp -R src publish/OpenDrop/src
+          test -f publish/OpenDrop/web/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opendrop-${{ matrix.rid }}
+          path: publish/OpenDrop
+          retention-days: 7

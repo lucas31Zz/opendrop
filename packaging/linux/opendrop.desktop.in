@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenDrop
+GenericName=File transfer
+Comment=Transfert de fichiers direct sur le reseau local (sans cloud)
+Exec=opendrop-desktop
+Icon=opendrop
+Terminal=false
+Categories=Network;Utility;
+StartupWMClass=OpenDrop
