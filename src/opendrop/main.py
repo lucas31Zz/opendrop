@@ -2,6 +2,7 @@ import sys
 import os
 import webbrowser
 import threading
+import subprocess
 import argparse
 
 from opendrop.network.interfaces import get_local_ip, find_available_port
@@ -114,8 +115,20 @@ def main():
                     tmp.close()
                     print(f"  QR code: {tmp.name}", flush=True)
                     print(flush=True)
+                    # Ouverture du PNG : os.startfile existe uniquement sous
+                    # Windows. Sur Linux on passe par xdg-open, sur macOS par
+                    # open ; sans bureau (VM/headless) la commande echoue ou
+                    # n'existe pas, le serveur demarre quand meme.
                     try:
-                        os.startfile(tmp.name)
+                        if os.name == "nt":
+                            os.startfile(tmp.name)
+                        else:
+                            cmd = "open" if os.name == "darwin" else "xdg-open"
+                            subprocess.Popen(
+                                [cmd, tmp.name],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
                     except Exception:
                         pass
         except Exception:

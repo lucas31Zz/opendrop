@@ -8,6 +8,7 @@
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Windows](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
+[![Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](.github/workflows/tests.yml)
 
 
 ```text
@@ -55,9 +56,9 @@ parametres) et l'interface web (onglets *Envoyer* / *Telecharger*).
 
 ## Prerequis
 
-- Windows (l'application bureau est en WPF, .NET 8)
-- Python **3.10+** (developpe et teste en 3.12)
-- .NET 8 SDK pour builder l'application bureau
+- Python **3.10+** (developpe et teste en 3.12) — Windows **ou Linux**
+  (les tests passent en CI sur les deux)
+- Uniquement pour l'application bureau : **Windows** + .NET 8 SDK (WPF)
 
 Dependances Python :
 
@@ -69,7 +70,7 @@ pip install -e .            # qrcode[pil] + cryptography, installe la commande "
 
 ## Demarrage
 
-### 1. Application bureau (recommande)
+### 1. Application bureau (Windows uniquement)
 
 ```powershell
 dotnet build desktop\OpenDrop\OpenDrop.csproj
@@ -86,6 +87,8 @@ generes. Boutons en bas :
 
 ### 2. Serveur seul (sans interface bureau)
 
+Fonctionne sur Windows, Linux et macOS :
+
 ```powershell
 opendrop                      # apres pip install -e .
 # ou
@@ -99,6 +102,29 @@ Options utiles :
 | `--headless` | pas de fenetre QR ni de navigateur (usage GUI/automatisation) |
 | `--port 9090` | force un port different de `preferred_port` |
 | `--rotate-token` | force un nouveau token et un nouveau code de session |
+
+### 3. Linux (pas de bureau possible)
+
+Sur un poste ou une VM (Kali, Ubuntu, etc.) :
+
+```bash
+git clone https://github.com/lucas31Zz/opendrop.git
+cd opendrop
+pip install -e .
+opendrop
+```
+
+Le terminal affiche l'adresse `https://<ip>:<port>`, le code de session et le
+chemin du QR code ; le PNG s'ouvre tout seul avec `xdg-open` si un bureau est
+present, sinon ouvrez l'URL a la main dans le navigateur.
+
+- Sans affichage (SSH, serveur) : `opendrop --headless` imprime une ligne
+  JSON (`ip`, `port`, `token`, `session_code`, `url_upload`) pour les
+  scripts.
+- Si le telephone ne se connecte pas, verifier le pare-feu :
+  `sudo ufw allow 8080` (ou le port utilise).
+- L'application bureau (WPF) n'existe pas sous Linux : c'est le serveur et
+  son interface web qui servent ici.
 
 ---
 

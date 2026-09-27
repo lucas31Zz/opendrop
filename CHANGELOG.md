@@ -5,6 +5,16 @@ Tous les changements importants de ce projet sont documentes dans ce fichier.
 Format adapte de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning : [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [Unreleased]
+
+### Ajoute
+
+- Lancement sous Linux : le QR code s'ouvre via `xdg-open` (et `open` sur
+  macOS) au lieu d'etre ignore (`os.startfile` n'existe que sous Windows)
+- README : section *Linux (pas de bureau possible)*, prerequisites
+  multiplateformes, badge Linux
+- Classifier `Operating System :: POSIX :: Linux` dans pyproject
+
 ## [0.1.0] - 2026-09-27
 
 Premiere version publique.
