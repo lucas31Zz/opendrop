@@ -2,7 +2,7 @@
 <item>
     <version>0.1.2</version>
     <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.2/OpenDrop-v0.1.2-win-x64-setup.exe</url>
-    <sha256>PLACEHOLDER</sha256>
+    <sha256>59277a53413ebcd3d210b6fea12d2def24f0c90014fc28cbcac5ba3abab343f8</sha256>
     <changelog>https://github.com/lucas31Zz/opendrop/releases</changelog>
     <mandatory>false</mandatory>
 </item>
