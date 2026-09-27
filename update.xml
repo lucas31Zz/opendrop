@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <item>
-    <version>0.2.0</version>
-    <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.2.0/OpenDrop-0.2.0-win-x64-setup.exe</url>
+    <version>0.1.1</version>
+    <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.1/OpenDrop-0.1.1-win-x64-setup.exe</url>
     <changelog>https://github.com/lucas31Zz/opendrop/releases</changelog>
     <mandatory>false</mandatory>
 </item>
