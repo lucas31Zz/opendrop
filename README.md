@@ -301,9 +301,9 @@ Windows and Linux, Python 3.10 and 3.12.
 
 ## Automatic updates (Windows)
 
-At startup, the desktop app checks a public manifest (`update.xml`) for a
-newer release. If one is found, a dialog asks whether to download and
-install it:
+At startup, the desktop app checks the public manifest of this repository
+(`update.xml`) for a newer release. If one is found, a dialog asks whether to
+download and install it:
 
 - the setup is downloaded to the temp folder and **verified against a SHA-256
   digest** from the manifest before anything runs (aborted and deleted on

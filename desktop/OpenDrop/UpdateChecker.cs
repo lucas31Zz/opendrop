@@ -8,14 +8,14 @@ using Avalonia.Controls;
 
 namespace OpenDrop;
 
-// Update check for Windows: reads update.xml from the public updates repo,
+// Update check for Windows: reads update.xml from the public repository,
 // compares with the assembly version, verifies the SHA-256 of the new setup,
 // and offers to download + launch it. The setup reinstalls into Program
 // Files only; %LOCALAPPDATA% (config, session, certs) is never touched.
 internal static class UpdateChecker
 {
     private const string ManifestUrl =
-        "https://raw.githubusercontent.com/lucas31Zz/opendrop-updates/main/update.xml";
+        "https://raw.githubusercontent.com/lucas31Zz/opendrop/main/update.xml";
 
     private static readonly HttpClient _http = new(new HttpClientHandler
     {

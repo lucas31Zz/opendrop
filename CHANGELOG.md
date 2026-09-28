@@ -34,8 +34,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   `PermissionError: [WinError 32]` while removing a file the server had just
   sent; the cleanup now retries briefly
 - The update manifest now uses the real release asset name (`v` prefix) and
-  embeds the SHA-256 of the setup; it is mirrored to a public repo so the app
-  needs no token
+  embeds the SHA-256 of the setup; it is committed on `main` and served from
+  this public repository, so the app needs no token
 - Versions aligned on 0.1.2 (`pyproject.toml` was still 0.1.0)
 
 ## [0.1.1] - 2026-09-27

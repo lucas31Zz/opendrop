@@ -83,8 +83,6 @@ jobs:
 
       - name: Update update.xml (auto-update manifest)
         shell: bash
-        env:
-          UPDATES_TOKEN: ${{ secrets.OPENDROP_UPDATES_TOKEN }}
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
@@ -106,23 +104,6 @@ jobs:
           git add update.xml
           git commit -m "Update update.xml for ${GITHUB_REF_NAME}" || echo "nothing to commit"
           git push origin HEAD:main
-
-          # Mirror the manifest + the Windows setup to the public updates repo
-          # so the desktop app can download them without any token.
-          if [ -n "$UPDATES_TOKEN" ]; then
-            export GH_TOKEN="$UPDATES_TOKEN"
-            gh release create "${GITHUB_REF_NAME}" \
-              --repo lucas31Zz/opendrop-updates \
-              --title "OpenDrop ${GITHUB_REF_NAME}" \
-              --notes "Windows setup for OpenDrop ${GITHUB_REF_NAME}" || true
-            gh release upload "${GITHUB_REF_NAME}" "dist/${ASSET}" \
-              --repo lucas31Zz/opendrop-updates --clobber
-            cp update.xml opendrop-updates-update.xml
-            gh release upload "${GITHUB_REF_NAME}" opendrop-updates-update.xml \
-              --repo lucas31Zz/opendrop-updates --clobber
-          else
-            echo "::warning::OPENDROP_UPDATES_TOKEN not set; skipping public mirror"
-          fi
 
   linux:
     name: Linux install (linux-x64)
