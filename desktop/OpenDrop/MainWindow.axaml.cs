@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
@@ -18,11 +19,18 @@ internal sealed class ShareFile
     public string Size { get; }
     public string FullPath { get; }
 
-    public ShareFile(string name, string size, string fullPath)
+    // Where the file came from when the user moved it here; null when the
+    // file was added by copy or by another tool.
+    public string? Origin { get; }
+
+    public bool CanPutBack => !string.IsNullOrEmpty(Origin);
+
+    public ShareFile(string name, string size, string fullPath, string? origin = null)
     {
         Name = name;
         Size = size;
         FullPath = fullPath;
+        Origin = origin;
     }
 }
 
@@ -237,12 +245,15 @@ public partial class MainWindow : Window
             var files = new List<ShareFile>();
             if (dir != null && Directory.Exists(dir))
             {
+                var origins = MoveRegistry.Load();
                 foreach (var path in Directory.EnumerateFiles(dir))
                 {
                     try
                     {
                         var info = new FileInfo(path);
-                        files.Add(new ShareFile(info.Name, QuotaUsage.Format(info.Length), info.FullName));
+                        origins.TryGetValue(info.FullName, out var origin);
+                        files.Add(new ShareFile(info.Name, QuotaUsage.Format(info.Length),
+                            info.FullName, origin));
                     }
                     catch { }
                 }
@@ -284,10 +295,87 @@ public partial class MainWindow : Window
     private async void BtnRename_Click(object? sender, RoutedEventArgs e)
         => await RenameSelectedAsync();
 
+    // Double click opens the file with the system default application;
+    // renaming stays on the Rename button.
     private async void FileList_DoubleTapped(object? sender, RoutedEventArgs e)
     {
-        if (FileList.SelectedItem is ShareFile)
-            await RenameSelectedAsync();
+        if (FileList.SelectedItem is not ShareFile file) return;
+
+        if (!File.Exists(file.FullPath))
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.NotFound"), Lang.T("Label.SharedFiles"));
+            RefreshFiles();
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(file.FullPath) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            await Msg.ShowAsync(this,
+                $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Label.SharedFiles"));
+        }
+    }
+
+    // Returns a file that was moved into the share folder to where it came
+    // from; the entry is dropped so the button disappears with the file.
+    private async void BtnPutBack_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ShareFile file } || !file.CanPutBack) return;
+
+        var origin = file.Origin!;
+        var answer = await Msg.ConfirmAsync(this,
+            Lang.Format("Files.PutBackConfirm", file.Name, origin),
+            Lang.T("Files.PutBackTitle"));
+        if (!answer) return;
+
+        try
+        {
+            var target = origin;
+            var parent = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(parent) && !Directory.Exists(parent))
+                Directory.CreateDirectory(parent);
+
+            // Never overwrite a file that came back in the meantime.
+            target = UniquePath(target);
+            File.Move(file.FullPath, target);
+            MoveRegistry.Forget(file.FullPath);
+        }
+        catch (Exception ex)
+        {
+            await Msg.ShowAsync(this,
+                $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Files.PutBackTitle"));
+        }
+
+        RefreshFiles();
+    }
+
+    private async void BtnOpenReceived_Click(object? sender, RoutedEventArgs e)
+        => await OpenFolderAsync(QuotaUsage.ReadDownloadDir(_serverManager.DownloadDir));
+
+    private async void BtnOpenShared_Click(object? sender, RoutedEventArgs e)
+        => await OpenFolderAsync(ResolveShareDir());
+
+    private async Task OpenFolderAsync(string? dir)
+    {
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+        {
+            await Msg.ShowAsync(this,
+                Lang.Format("Folders.Missing", dir ?? "---"), Lang.T("Label.Folders"));
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(dir) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            await Msg.ShowAsync(this,
+                $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Label.Folders"));
+        }
     }
 
     private async Task RenameSelectedAsync()
@@ -335,6 +423,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        MoveRegistry.Rename(file.FullPath, target);
+
         RefreshFiles();
         SelectByName(name);
     }
@@ -367,7 +457,11 @@ public partial class MainWindow : Window
         var failed = 0;
         foreach (var file in selection)
         {
-            try { File.Delete(file.FullPath); }
+            try
+            {
+                File.Delete(file.FullPath);
+                MoveRegistry.Forget(file.FullPath);
+            }
             catch { failed++; }
         }
 
@@ -425,9 +519,10 @@ public partial class MainWindow : Window
         BtnAddFiles.IsEnabled = false;
 
         int added, skipped = 0, failed = 0;
+        var moved = new List<(string Target, string Origin)>();
         try
         {
-            (added, skipped, failed) = await Task.Run(() => ImportFiles(sources, dir, move));
+            (added, skipped, failed, moved) = await Task.Run(() => ImportFiles(sources, dir, move));
         }
         finally
         {
@@ -435,6 +530,10 @@ public partial class MainWindow : Window
             FilesHint.IsVisible = false;
             FilesHint.Foreground = new SolidColorBrush(Color.FromRgb(0xc0, 0x39, 0x2b));
         }
+
+        // Remember where each moved file came from so it can be put back.
+        foreach (var (target, origin) in moved)
+            MoveRegistry.Record(target, origin);
 
         RefreshFiles();
 
@@ -447,13 +546,15 @@ public partial class MainWindow : Window
     }
 
     // Copies (or moves) the chosen files into the share folder. The
-    // original stays where it is unless the user asked for a move.
-    private static (int Added, int Skipped, int Failed) ImportFiles(
-        List<string> sources, string dir, bool move)
+    // original stays where it is unless the user asked for a move; every
+    // move is returned so the caller can remember its origin.
+    private static (int Added, int Skipped, int Failed, List<(string Target, string Origin)> Moved)
+        ImportFiles(List<string> sources, string dir, bool move)
     {
         var added = 0;
         var skipped = 0;
         var failed = 0;
+        var moved = new List<(string Target, string Origin)>();
 
         try
         {
@@ -462,7 +563,7 @@ public partial class MainWindow : Window
         }
         catch
         {
-            return (0, 0, sources.Count);
+            return (0, 0, sources.Count, moved);
         }
 
         foreach (var source in sources)
@@ -489,9 +590,14 @@ public partial class MainWindow : Window
                 target = UniquePath(target);
 
                 if (move)
+                {
                     File.Move(full, target);
+                    moved.Add((target, full));
+                }
                 else
+                {
                     File.Copy(full, target, overwrite: false);
+                }
 
                 added++;
             }
@@ -501,7 +607,7 @@ public partial class MainWindow : Window
             }
         }
 
-        return (added, skipped, failed);
+        return (added, skipped, failed, moved);
     }
 
     // "report.pdf" then "report (2).pdf": never overwrites an existing file.

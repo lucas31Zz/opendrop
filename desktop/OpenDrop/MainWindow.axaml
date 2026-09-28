@@ -213,19 +213,31 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Received}" FontSize="12" Foreground="#666"/>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Received}" FontSize="12"
+                                           Foreground="#666" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="DownloadDirText" Grid.Column="1" Text="---" FontSize="12"
-                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
+                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"
+                                           Margin="8,0,8,0" VerticalAlignment="Center"/>
+                                <Button Grid.Column="2" Classes="small" FontSize="11" Padding="8,4"
+                                        Content="{DynamicResource Btn.Open}"
+                                        Click="BtnOpenReceived_Click"/>
                             </Grid>
                             <Grid Margin="0,4,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Shared}" FontSize="12" Foreground="#666"/>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Shared}" FontSize="12"
+                                           Foreground="#666" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="ShareDirText" Grid.Column="1" Text="---" FontSize="12"
-                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
+                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"
+                                           Margin="8,0,8,0" VerticalAlignment="Center"/>
+                                <Button Grid.Column="2" Classes="small" FontSize="11" Padding="8,4"
+                                        Content="{DynamicResource Btn.Open}"
+                                        Click="BtnOpenShared_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -279,10 +291,15 @@
                              FontSize="13" Margin="0,4,0,0" DoubleTapped="FileList_DoubleTapped">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid ColumnDefinitions="*,Auto">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
                                     <TextBlock Grid.Column="0" Classes="filename" Text="{Binding Name}"
                                                VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Classes="filesize" Text="{Binding Size}"
+                                    <Button Grid.Column="1" Classes="small" FontSize="11" Padding="8,4"
+                                            Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Content="{DynamicResource Btn.PutBack}"
+                                            IsVisible="{Binding CanPutBack}"
+                                            Tag="{Binding}" Click="BtnPutBack_Click"/>
+                                    <TextBlock Grid.Column="2" Classes="filesize" Text="{Binding Size}"
                                                Margin="12,0,0,0" VerticalAlignment="Center"/>
                                 </Grid>
                             </DataTemplate>

@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.4] - 2026-09-28
+
+### Added
+
+- **Put back**: a file added to the share folder with *Add files…* → *Move*
+  now remembers where it came from and shows a **Put back** button on its
+  row. One click (after a confirmation) moves it back to its original
+  folder, even after a restart: the remembered origins are stored in
+  `%LOCALAPPDATA%\OpenDrop\moves.json`. Files that are copied, renamed or
+  deleted no longer point anywhere and their button disappears.
+- **Open** button next to each folder line of the **FOLDERS** card
+  (received and shared) to open that folder in File Explorer.
+- **Double-click a file in the share folder to open it** (rename stays on
+  the *Rename* button). A file that disappeared in the meantime is reported
+  instead of failing silently.
+
 ## [0.1.3] - 2026-09-28
 
 ### Added

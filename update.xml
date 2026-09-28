@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <item>
-    <version>0.1.3</version>
-    <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.3/OpenDrop-v0.1.3-win-x64-setup.exe</url>
-    <sha256>fc1683cfcd84411afbdf85f557cc3fafba8a6443671c4e0c7e700ee6566f9bd9</sha256>
+    <version>0.1.4</version>
+    <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.4/OpenDrop-v0.1.4-win-x64-setup.exe</url>
+    <sha256>0000000000000000000000000000000000000000000000000000000000000000</sha256>
     <changelog>https://github.com/lucas31Zz/opendrop/releases</changelog>
     <mandatory>false</mandatory>
 </item>

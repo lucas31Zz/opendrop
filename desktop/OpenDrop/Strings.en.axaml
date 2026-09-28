@@ -30,6 +30,7 @@
     <x:String x:Key="Label.Folders">FOLDERS</x:String>
     <x:String x:Key="Folders.Received">Received:</x:String>
     <x:String x:Key="Folders.Shared">Shared:</x:String>
+    <x:String x:Key="Folders.Missing">This folder does not exist: {0}</x:String>
     <x:String x:Key="Label.ReceiveQuota">RECEIVE QUOTA</x:String>
     <x:String x:Key="Quota.Analyzing">Analyzing...</x:String>
     <x:String x:Key="Quota.Description">Current receive folder, updated automatically.</x:String>
@@ -84,6 +85,8 @@
     <x:String x:Key="Btn.Delete">Delete</x:String>
     <x:String x:Key="Btn.Refresh">Refresh</x:String>
     <x:String x:Key="Btn.Check">Check</x:String>
+    <x:String x:Key="Btn.Open">Open</x:String>
+    <x:String x:Key="Btn.PutBack">Put back</x:String>
     <x:String x:Key="Files.Empty">The share folder is empty.</x:String>
     <x:String x:Key="Files.MissingFolder">The share folder does not exist. Pick one in Settings.</x:String>
     <x:String x:Key="Files.SelectOne">Select exactly one file.</x:String>
@@ -102,6 +105,9 @@
     <x:String x:Key="Files.Adding">Adding files...</x:String>
     <x:String x:Key="Files.AddFailed">{0} added, {1} failed.</x:String>
     <x:String x:Key="Files.AddSkipped">{0} added, {1} already in the share folder.</x:String>
+    <x:String x:Key="Files.NotFound">This file is no longer in the share folder.</x:String>
+    <x:String x:Key="Files.PutBackTitle">Put back</x:String>
+    <x:String x:Key="Files.PutBackConfirm">Move {0} back to its original folder?&#10;&#10;{1}</x:String>
 
     <!-- Server manager -->
     <x:String x:Key="Sm.ProjectNotFound">Could not find the OpenDrop project.</x:String>

@@ -30,6 +30,7 @@
     <x:String x:Key="Label.Folders">DOSSIERS</x:String>
     <x:String x:Key="Folders.Received">Reçus :</x:String>
     <x:String x:Key="Folders.Shared">Partagés :</x:String>
+    <x:String x:Key="Folders.Missing">Ce dossier n'existe pas : {0}</x:String>
     <x:String x:Key="Label.ReceiveQuota">QUOTA DE RÉCEPTION</x:String>
     <x:String x:Key="Quota.Analyzing">Analyse...</x:String>
     <x:String x:Key="Quota.Description">Dossier de réception actuel, mis à jour automatiquement.</x:String>
@@ -84,6 +85,8 @@
     <x:String x:Key="Btn.Delete">Supprimer</x:String>
     <x:String x:Key="Btn.Refresh">Actualiser</x:String>
     <x:String x:Key="Btn.Check">Vérifier</x:String>
+    <x:String x:Key="Btn.Open">Ouvrir</x:String>
+    <x:String x:Key="Btn.PutBack">Remettre</x:String>
     <x:String x:Key="Files.Empty">Le dossier de partage est vide.</x:String>
     <x:String x:Key="Files.MissingFolder">Le dossier de partage n'existe pas. Choisissez-en un dans les Paramètres.</x:String>
     <x:String x:Key="Files.SelectOne">Sélectionnez exactement un fichier.</x:String>
@@ -102,6 +105,9 @@
     <x:String x:Key="Files.Adding">Ajout des fichiers...</x:String>
     <x:String x:Key="Files.AddFailed">{0} ajouté(s), {1} en échec.</x:String>
     <x:String x:Key="Files.AddSkipped">{0} ajouté(s), {1} déjà dans le dossier de partage.</x:String>
+    <x:String x:Key="Files.NotFound">Ce fichier n'est plus dans le dossier de partage.</x:String>
+    <x:String x:Key="Files.PutBackTitle">Remettre</x:String>
+    <x:String x:Key="Files.PutBackConfirm">Remettre {0} dans son dossier d'origine ?&#10;&#10;{1}</x:String>
 
     <!-- Server manager -->
     <x:String x:Key="Sm.ProjectNotFound">Impossible de trouver le projet OpenDrop.</x:String>
