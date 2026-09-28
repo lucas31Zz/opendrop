@@ -81,7 +81,7 @@ jobs:
           done
           files=$(find dist -maxdepth 1 -type f); gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber $files
 
-      - name: Update update.xml (auto-update manifest)
+- name: Update update.xml (auto-update manifest)
         shell: bash
         run: |
           set -e
@@ -108,6 +108,7 @@ jobs:
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
           git add update.xml
           git commit -m "Update update.xml for ${GITHUB_REF_NAME}" || echo "nothing to commit"
           git push origin HEAD:main
