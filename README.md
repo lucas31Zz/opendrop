@@ -52,8 +52,31 @@ server running on your machine, nothing goes over the internet.
 
 ## Screenshots
 
-Coming soon (`docs/screenshots/`): the desktop app (QR code, quota,
-settings) and the web interface (*Send* / *Download* tabs).
+### Desktop App
+
+The main interface shows the QR code, server address, session code, and current usage vs. quota.
+
+![Desktop App - Main Interface](docs/screenshots/interface%20principale%20opendrop.png)
+
+### Settings
+
+Configure folders, port, storage quota, token rotation, and language.
+
+![Settings - Part 1](docs/screenshots/screen%20opendrop%20setting%20part1.png)
+![Settings - Part 2](docs/screenshots/opendrop%20setting%20part2.png)
+![Settings - Part 3](docs/screenshots/opendrop%20setting%20part3.png)
+
+### Web Interface
+
+Send files and download from the Share folder directly in your browser — no install needed.
+
+**Send Tab:**
+
+![Web Interface - Send](docs/screenshots/opendrop%20web%20ui%20upload.png)
+
+**Download Tab:**
+
+![Web Interface - Download](docs/screenshots/opendrop%20web%20ui%20download.png)
 
 ---
 
