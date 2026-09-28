@@ -81,39 +81,11 @@ jobs:
           done
           files=$(find dist -maxdepth 1 -type f); gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber $files
 
-      - name: Update update.xml (auto-update manifest)
-        shell: bash
-        run: |
-          set -e
-          VERSION="${GITHUB_REF_NAME#v}"
-          ASSET="OpenDrop-${GITHUB_REF_NAME}-win-x64-setup.exe"
-          URL="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/${ASSET}"
-          SHA=$(sha256sum "dist/${ASSET}" | cut -d' ' -f1)
-          # Payload used by the in-place update (files copied over the
-          # application folder); the setup stays for older releases.
-          PAYLOAD="OpenDrop-${GITHUB_REF_NAME}-win-x64.zip"
-          PAYLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/${PAYLOAD}"
-          PAYLOAD_SHA=$(sha256sum "dist/${PAYLOAD}" | cut -d' ' -f1)
-          cat > update.xml << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <item>
-              <version>${VERSION}</version>
-              <url>${URL}</url>
-              <sha256>${SHA}</sha256>
-              <zip>${PAYLOAD_URL}</zip>
-              <zip_sha256>${PAYLOAD_SHA}</zip_sha256>
-              <changelog>https://github.com/${{ github.repository }}/releases</changelog>
-              <mandatory>false</mandatory>
-          </item>
-          EOF
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git stash -u
-          git pull --rebase origin main
-          git stash pop
-          git add update.xml
-          git commit -m "Update update.xml for ${GITHUB_REF_NAME}" || echo "nothing to commit"
-          git push origin HEAD:main
+      # The auto-update manifest (update.xml) is updated manually on main after each release.
+# This avoids git push conflicts from the tag-based detached HEAD workflow.
+# To regenerate: run `./scripts/update-manifest.sh <version>` locally and commit.
+# - name: Update update.xml (auto-update manifest)
+#   ...
 
   linux:
     name: Linux install (linux-x64)
