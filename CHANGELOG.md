@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.6] - 2026-09-28
+
+### Added
+
+- **Theme engine**: 10 built-in themes (System, Light, Dark, Neon, Midnight, Forest, Sunset, Monochrome, Rose, Amber) with live preview in Settings. Each theme defines accent colour, backgrounds, surfaces, borders, text colours, and optional custom font.
+- **Extensible architecture**: `ThemeManager` service with `RegisterTheme()` for future plugins; CSS variable injection (`Theme.Accent`, `Theme.Background`, etc.) for custom XAML styling.
+- **Per-theme fonts**: Neon → Consolas/JetBrains Mono, Amber → VT323/Courier New, others → system UI.
+- **i18n**: all theme names and descriptions in English and French.
+
+### Changed
+
+- Settings window: new **Appearance** section with visual theme selector (accent swatch + description) that applies instantly.
+- Config schema: `"theme"` key persists choice across restarts.
+
 ## [0.1.5] - 2026-09-28
 
 ### Changed

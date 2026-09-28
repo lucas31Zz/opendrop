@@ -193,7 +193,7 @@
 
                 <!-- Updates -->
                 <TextBlock Classes="section" Text="{DynamicResource Section.Updates}"/>
-                <Border Classes="card" Margin="0,0,0,20">
+                <Border Classes="card" Margin="0,0,0,16">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -209,6 +209,31 @@
                                     Click="BtnCheckUpdates_Click"/>
                         </Grid>
                         <TextBlock x:Name="UpdateStatusText" Text="" FontSize="11" Foreground="#666"
+                                   Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Appearance / Theme -->
+                <TextBlock Classes="section" Text="{DynamicResource Section.Appearance}"/>
+                <Border Classes="card" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Classes="field" Text="{DynamicResource Field.Theme}"/>
+                        <ComboBox x:Name="ThemeCombo" FontSize="13" Margin="0,4,0,0"
+                                  VerticalAlignment="Center" SelectionChanged="ThemeCombo_SelectionChanged">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="4,2">
+                                        <Border Width="12" Height="12" CornerRadius="3"
+                                                Margin="0,0,8,0" VerticalAlignment="Center"
+                                                Background="{Binding AccentBrush}"/>
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="13" Foreground="White"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock x:Name="ThemeDescText" Text="" FontSize="11" Foreground="#666"
                                    Margin="0,6,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>

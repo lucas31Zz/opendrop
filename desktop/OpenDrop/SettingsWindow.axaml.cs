@@ -1,4 +1,7 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -7,6 +10,19 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
 namespace OpenDrop;
+
+/// <summary>View-model for a single theme entry in the ComboBox.</summary>
+internal sealed class ThemeItem : INotifyPropertyChanged
+{
+    public string Id { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public string Description { get; init; } = "";
+    public IBrush AccentBrush { get; init; } = Brushes.Transparent;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
 
 public partial class SettingsWindow : Window
 {
@@ -48,6 +64,28 @@ public partial class SettingsWindow : Window
 
         LanguageCombo.SelectedIndex = Lang.Current == "fr" ? 1 : 0;
 
+        // Theme combo
+        var items = new ObservableCollection<ThemeItem>();
+        foreach (var kv in ThemeManager.Themes)
+        {
+            var t = kv.Value;
+            items.Add(new ThemeItem
+            {
+                Id = t.Id,
+                DisplayName = t.DisplayName,
+                Description = t.Description,
+                AccentBrush = t.IsSystem
+                    ? new SolidColorBrush(Color.Parse("#4a9eff"))
+                    : new SolidColorBrush(Color.Parse(t.Accent ?? "#4a9eff"))
+            });
+        }
+        ThemeCombo.ItemsSource = items;
+
+        // Select current theme
+        var current = ThemeManager.CurrentThemeId;
+        var idx = items.ToList().FindIndex(x => x.Id == current);
+        ThemeCombo.SelectedIndex = idx >= 0 ? idx : 0;
+
         UpdateQuotaUsage();
     }
 
@@ -63,6 +101,16 @@ public partial class SettingsWindow : Window
             }
         }
         catch { }
+    }
+
+    private void ThemeCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeCombo.SelectedItem is ThemeItem item)
+        {
+            ThemeDescText.Text = item.Description;
+            // Live preview: apply immediately
+            ThemeManager.SetTheme(item.Id);
+        }
     }
 
     private async void BtnBrowseShare_Click(object? sender, RoutedEventArgs e)
@@ -119,6 +167,9 @@ public partial class SettingsWindow : Window
             config["share_directory"] = ShareDirText.Text ?? "";
             config["preferred_port"] = int.TryParse(PortBox.Text, out var p) ? p : 8080;
             config["generate_new_token"] = ToggleNewToken.IsChecked == true;
+            // Theme is written by ThemeManager.SetTheme on live preview,
+            // but we also store it here for consistency.
+            config["theme"] = ThemeManager.CurrentThemeId;
 
             // Warn when the requested quota exceeds 20% of the disk's free
             // space: the user may still choose it, but knowingly.

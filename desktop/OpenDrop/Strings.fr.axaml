@@ -128,4 +128,28 @@
     <x:String x:Key="Section.Updates">MISES À JOUR</x:String>
     <x:String x:Key="Field.CheckUpdates">Vérification automatique des mises à jour</x:String>
 
+    <!-- Thèmes -->
+    <x:String x:Key="Section.Appearance">APPARIENCE</x:String>
+    <x:String x:Key="Field.Theme">Thème</x:String>
+    <x:String x:Key="Theme.System">Système</x:String>
+    <x:String x:Key="Theme.SystemDesc">Suit le réglage clair/sombre du système d'exploitation.</x:String>
+    <x:String x:Key="Theme.Light">Clair</x:String>
+    <x:String x:Key="Theme.LightDesc">Thème clair classique — épuré et lumineux.</x:String>
+    <x:String x:Key="Theme.Dark">Sombre</x:String>
+    <x:String x:Key="Theme.DarkDesc">Thème sombre classique — doux pour les yeux.</x:String>
+    <x:String x:Key="Theme.Neon">Néon</x:String>
+    <x:String x:Key="Theme.NeonDesc">Lueur cyberpunk cyan — contraste élevé, futuriste.</x:String>
+    <x:String x:Key="Theme.Midnight">Minuit</x:String>
+    <x:String x:Key="Theme.MidnightDesc">Bleu professionnel profond — focus et calme.</x:String>
+    <x:String x:Key="Theme.Forest">Forêt</x:String>
+    <x:String x:Key="Theme.ForestDesc">Vert nature — frais et organique.</x:String>
+    <x:String x:Key="Theme.Sunset">Coucher de soleil</x:String>
+    <x:String x:Key="Theme.SunsetDesc">Lueur corail chaleureuse — soirées cosy.</x:String>
+    <x:String x:Key="Theme.Monochrome">Monochrome</x:String>
+    <x:String x:Key="Theme.MonochromeDesc">Gris pur — minimaliste, sans distraction.</x:String>
+    <x:String x:Key="Theme.Rose">Rose</x:String>
+    <x:String x:Key="Theme.RoseDesc">Rose élégant — doux et raffiné.</x:String>
+    <x:String x:Key="Theme.Amber">Ambre</x:String>
+    <x:String x:Key="Theme.AmberDesc">Ambre terminal rétro — ambiance hacker nostalgique.</x:String>
+
 </ResourceDictionary>
