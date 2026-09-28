@@ -70,6 +70,38 @@
     <!-- Message boxes -->
     <x:String x:Key="Msg.Yes">Oui</x:String>
     <x:String x:Key="Msg.No">Non</x:String>
+    <x:String x:Key="Msg.Ok">OK</x:String>
+    <x:String x:Key="Msg.Cancel">Annuler</x:String>
+
+    <!-- Zone de notification -->
+    <x:String x:Key="Tray.Show">Afficher OpenDrop</x:String>
+    <x:String x:Key="Tray.Quit">Quitter OpenDrop</x:String>
+
+    <!-- Fichiers partagés -->
+    <x:String x:Key="Label.SharedFiles">FICHIERS PARTAGÉS</x:String>
+    <x:String x:Key="Btn.AddFiles">Ajouter des fichiers...</x:String>
+    <x:String x:Key="Btn.Rename">Renommer</x:String>
+    <x:String x:Key="Btn.Delete">Supprimer</x:String>
+    <x:String x:Key="Btn.Refresh">Actualiser</x:String>
+    <x:String x:Key="Btn.Check">Vérifier</x:String>
+    <x:String x:Key="Files.Empty">Le dossier de partage est vide.</x:String>
+    <x:String x:Key="Files.MissingFolder">Le dossier de partage n'existe pas. Choisissez-en un dans les Paramètres.</x:String>
+    <x:String x:Key="Files.SelectOne">Sélectionnez exactement un fichier.</x:String>
+    <x:String x:Key="Files.SelectAny">Sélectionnez au moins un fichier.</x:String>
+    <x:String x:Key="Files.RenameTitle">Renommer</x:String>
+    <x:String x:Key="Files.RenamePrompt">Nouveau nom :</x:String>
+    <x:String x:Key="Files.RenameInvalid">Ce nom ne peut pas être utilisé sur ce système.</x:String>
+    <x:String x:Key="Files.RenameExists">Un fichier porte déjà ce nom.</x:String>
+    <x:String x:Key="Files.DeleteTitle">Suppression</x:String>
+    <x:String x:Key="Files.DeleteConfirm">Supprimer {0} fichier(s) ?&#10;&#10;{1}&#10;&#10;Les fichiers sont retirés du disque.</x:String>
+    <x:String x:Key="Files.DeleteFailed">{0} fichier(s) n'ont pas pu être supprimés.</x:String>
+    <x:String x:Key="Files.AddTitle">Ajouter des fichiers au dossier de partage</x:String>
+    <x:String x:Key="Files.CopyOrMove">Les copier dans le dossier de partage, ou les y déplacer ?&#10;&#10;Déplacer retire l'original de son dossier actuel.</x:String>
+    <x:String x:Key="Files.Copy">Copier</x:String>
+    <x:String x:Key="Files.Move">Déplacer</x:String>
+    <x:String x:Key="Files.Adding">Ajout des fichiers...</x:String>
+    <x:String x:Key="Files.AddFailed">{0} ajouté(s), {1} en échec.</x:String>
+    <x:String x:Key="Files.AddSkipped">{0} ajouté(s), {1} déjà dans le dossier de partage.</x:String>
 
     <!-- Server manager -->
     <x:String x:Key="Sm.ProjectNotFound">Impossible de trouver le projet OpenDrop.</x:String>
@@ -81,5 +113,11 @@
     <x:String x:Key="Update.Title">Mise à jour disponible</x:String>
     <x:String x:Key="Update.Available">La version {1} est disponible (vous avez {0}). La télécharger et l'installer maintenant ?</x:String>
     <x:String x:Key="Update.Failed">Impossible de télécharger la mise à jour. Réessayez plus tard ou téléchargez-la manuellement.</x:String>
+    <x:String x:Key="Update.UpToDate">Vous êtes à jour (version {0}).</x:String>
+    <x:String x:Key="Update.Checking">Recherche d'une nouvelle version...</x:String>
+    <x:String x:Key="Update.Downloading">Téléchargement de la version {0}...</x:String>
+    <x:String x:Key="Update.Verifying">Vérification du téléchargement...</x:String>
+    <x:String x:Key="Section.Updates">MISES À JOUR</x:String>
+    <x:String x:Key="Field.CheckUpdates">Vérification automatique des mises à jour</x:String>
 
 </ResourceDictionary>

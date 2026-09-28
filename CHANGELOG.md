@@ -5,7 +5,52 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [0.1.2] - 2026-09-27
+## [0.1.3] - 2026-09-28
+
+### Added
+
+- **Share folder browser** in the main window: the right-hand panel lists
+  every file of the share folder (name and size) with **Add files…**,
+  **Rename**, **Delete** and **Refresh**, multiple selection, the folder path
+  always visible, and a refresh whenever the window regains focus.
+  - *Add files…* opens a file picker (several files at once) and then asks
+    whether to **copy** or **move** them into the share folder: an existing
+    file is never overwritten (a numbered name is used instead) and the
+    result reports how many files were added, skipped or failed.
+  - *Delete* confirms first and lists the files it removes from the disk;
+    *Rename* refuses a name that is already used or invalid.
+- **Close to tray (Windows)**: the close button now hides the window instead
+  of stopping the server. The tray icon offers *Show* and *Quit*; the server
+  keeps serving while the window is hidden, and *Quit* is the only way to
+  really exit.
+- **Download progress for updates**: while downloading, a dialog shows the
+  percentage and the transferred / total size with a working **Cancel**, then
+  a "verifying" state while the SHA-256 is checked. A failed, cancelled or
+  corrupted download is reported instead of failing silently.
+- **Manual update check** in *Settings → Updates* (**Check now**): reports
+  "you are up to date" or offers the newer version, without restarting the
+  app.
+- `"check_updates": false` in `config.json` is now actually honoured
+  (documented since 0.1.2 but not read yet).
+
+### Changed
+
+- Main window widened (880×720, minimum 760) with a two-column layout:
+  connection information on the left, share folder on the right.
+- Update downloads stream to disk instead of holding the whole file in
+  memory, and the SHA-256 is computed off the UI thread.
+
+### Fixed
+
+- The update check follows HTTP redirects again: GitHub serves release assets
+  with a `302`, so without redirects every download failed right away.
+- The desktop app reads `update.xml` from this repository; the 0.1.2 build
+  still pointed at the retired updates mirror and could not see newer
+  releases.
+- The left column no longer jumps down when the QR code appears at startup.
+- The startup check runs only once, even when the window is hidden to the
+  tray and shown again later.
+
 
 ### Added
 

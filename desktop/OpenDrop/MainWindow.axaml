@@ -2,8 +2,8 @@
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="OpenDrop"
-        Width="500" Height="720"
-        MinWidth="420" MinHeight="600"
+        Width="880" Height="720"
+        MinWidth="760" MinHeight="600"
         Background="#0f0f0f"
         WindowStartupLocation="CenterScreen">
 
@@ -32,6 +32,9 @@
         </Style>
         <Style Selector="Button.subtle:pointerover">
             <Setter Property="Background" Value="#3a3a3a"/>
+        </Style>
+        <Style Selector="Button.subtle:disabled">
+            <Setter Property="Opacity" Value="0.45"/>
         </Style>
         <Style Selector="Button.accent">
             <Setter Property="Background" Value="#4a9eff"/>
@@ -64,6 +67,45 @@
         <Style Selector="Button.danger:pointerover">
             <Setter Property="Background" Value="#e74c3c"/>
         </Style>
+
+        <!-- Shared-files list -->
+        <Style Selector="ListBox.filelist">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.filelist ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="ListBox.filelist ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#264a75"/>
+        </Style>
+        <Style Selector="TextBlock.filename">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style Selector="TextBlock.filesize">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#888"/>
+        </Style>
+        <Style Selector="Button.small">
+            <Setter Property="Background" Value="#2a2a2a"/>
+            <Setter Property="Foreground" Value="#ccc"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.small:pointerover">
+            <Setter Property="Background" Value="#3a3a3a"/>
+        </Style>
+        <Style Selector="Button.small:disabled">
+            <Setter Property="Opacity" Value="0.45"/>
+        </Style>
     </Window.Styles>
 
     <Grid>
@@ -80,122 +122,178 @@
             </StackPanel>
         </Border>
 
-        <!-- Content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="28,0,28,24" Width="440" HorizontalAlignment="Center">
+        <!-- Content: server status on the left, shared files on the right -->
+        <Grid Grid.Row="1" Margin="28,0,28,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="460"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <!-- Status -->
-                <Border Classes="card">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse x:Name="StatusDot" Width="12" Height="12" Fill="#888" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="StatusText" Text="{DynamicResource Status.Starting}" FontSize="14" Foreground="#aaa" VerticalAlignment="Center"/>
+            <!-- No scroll-to-focus: the QR code appears after the first
+                 layout pass and would drag the view down by itself. -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
+                          BringIntoViewOnFocusChange="False">
+                <StackPanel>
+
+                    <!-- Status -->
+                    <Border Classes="card">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="StatusDot" Width="12" Height="12" Fill="#888" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StatusText" Text="{DynamicResource Status.Starting}" FontSize="14" Foreground="#aaa" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Server address -->
+                    <Border Classes="card">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="{DynamicResource Label.ServerAddress}"/>
+                            <TextBlock x:Name="AddressText" Text="---" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="#4a9eff" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- QR Code -->
+                    <Border Classes="card">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="{DynamicResource Label.QrCode}"/>
+                            <Border x:Name="QrBorder" Background="White" CornerRadius="12" Padding="16"
+                                    HorizontalAlignment="Center" IsVisible="False">
+                                <Image x:Name="QrImage" Width="220" Height="220"/>
+                            </Border>
+                            <TextBlock x:Name="QrHint" Text="{DynamicResource Qr.HintStart}"
+                                       FontSize="12" Foreground="#666" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" TextAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Session code -->
+                    <Border Classes="card">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="{DynamicResource Label.SessionCode}"/>
+                            <TextBlock x:Name="SessionCodeText" Text="---" FontSize="22" FontWeight="SemiBold"
+                                       Foreground="#e0e0e0" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Session.Hint}"
+                                       FontSize="11" Foreground="#666" HorizontalAlignment="Center"
+                                       Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Token refresh -->
+                    <Border Classes="card">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="{DynamicResource Label.TokenRefresh}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="TokenIntervalCombo" Grid.Column="0"
+                                          FontSize="13" SelectedIndex="0" VerticalAlignment="Center">
+                                    <ComboBoxItem Content="{DynamicResource Token.Never}"/>
+                                    <ComboBoxItem Content="{DynamicResource Token.5m}"/>
+                                    <ComboBoxItem Content="{DynamicResource Token.15m}"/>
+                                    <ComboBoxItem Content="{DynamicResource Token.30m}"/>
+                                    <ComboBoxItem Content="{DynamicResource Token.1h}"/>
+                                </ComboBox>
+                                <Button x:Name="BtnRefreshToken" Grid.Column="1" Content="{DynamicResource Btn.Reset}"
+                                        Classes="subtle" Padding="16,8" FontSize="12"
+                                        Click="BtnRefreshToken_Click"/>
+                            </Grid>
+                            <TextBlock x:Name="TokenCountdownText" Text="" FontSize="11" Foreground="#666"
+                                       Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Share/Download info -->
+                    <Border Classes="card">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="{DynamicResource Label.Folders}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Received}" FontSize="12" Foreground="#666"/>
+                                <TextBlock x:Name="DownloadDirText" Grid.Column="1" Text="---" FontSize="12"
+                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Shared}" FontSize="12" Foreground="#666"/>
+                                <TextBlock x:Name="ShareDirText" Grid.Column="1" Text="---" FontSize="12"
+                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Receive quota -->
+                    <Border Classes="card">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="{DynamicResource Label.ReceiveQuota}"/>
+                            <TextBlock x:Name="QuotaStatusText" Text="{DynamicResource Quota.Analyzing}" FontSize="16"
+                                       FontWeight="SemiBold" Foreground="#666"
+                                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Quota.Description}"
+                                       FontSize="11" Foreground="#666" HorizontalAlignment="Center"
+                                       Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Shared files -->
+            <Border Grid.Column="2" Classes="card" Margin="0" VerticalAlignment="Stretch">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Top" Classes="label"
+                               Text="{DynamicResource Label.SharedFiles}"/>
+
+                    <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <Button Classes="small" x:Name="BtnAddFiles" Content="{DynamicResource Btn.AddFiles}"
+                                Click="BtnAddFiles_Click" Margin="0,0,6,6"/>
+                        <Button Classes="small" Content="{DynamicResource Btn.Rename}"
+                                Click="BtnRename_Click" Margin="0,0,6,6"/>
+                        <Button Classes="small" Content="{DynamicResource Btn.Delete}"
+                                Click="BtnDelete_Click" Margin="0,0,6,6"/>
+                        <Button Classes="small" Content="{DynamicResource Btn.Refresh}"
+                                Click="BtnRefreshFiles_Click" Margin="0,0,6,6"/>
+                    </WrapPanel>
+
+                    <TextBlock DockPanel.Dock="Top" x:Name="FilesEmpty"
+                               Text="{DynamicResource Files.Empty}" IsVisible="False"
+                               FontSize="12" Foreground="#666" TextWrapping="Wrap"
+                               Margin="0,4,0,0" HorizontalAlignment="Center"/>
+
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <TextBlock x:Name="FilesPathText" Text="" FontSize="11" Foreground="#555"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="FilesHint" Text="" FontSize="11" Foreground="#c0392b"
+                                   TextWrapping="Wrap" IsVisible="False" Margin="0,2,0,0"/>
                     </StackPanel>
-                </Border>
 
-                <!-- Server address -->
-                <Border Classes="card">
-                    <StackPanel>
-                        <TextBlock Classes="label" Text="{DynamicResource Label.ServerAddress}"/>
-                        <TextBlock x:Name="AddressText" Text="---" FontSize="18" FontWeight="SemiBold"
-                                   Foreground="#4a9eff" HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- QR Code -->
-                <Border Classes="card">
-                    <StackPanel>
-                        <TextBlock Classes="label" Text="{DynamicResource Label.QrCode}"/>
-                        <Border x:Name="QrBorder" Background="White" CornerRadius="12" Padding="16"
-                                HorizontalAlignment="Center" IsVisible="False">
-                            <Image x:Name="QrImage" Width="220" Height="220"/>
-                        </Border>
-                        <TextBlock x:Name="QrHint" Text="{DynamicResource Qr.HintStart}"
-                                   FontSize="12" Foreground="#666" HorizontalAlignment="Center" Margin="0,8,0,0"
-                                   TextWrapping="Wrap" TextAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Session code -->
-                <Border Classes="card">
-                    <StackPanel>
-                        <TextBlock Classes="label" Text="{DynamicResource Label.SessionCode}"/>
-                        <TextBlock x:Name="SessionCodeText" Text="---" FontSize="22" FontWeight="SemiBold"
-                                   Foreground="#e0e0e0" HorizontalAlignment="Center"/>
-                        <TextBlock Text="{DynamicResource Session.Hint}"
-                                   FontSize="11" Foreground="#666" HorizontalAlignment="Center"
-                                   Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Token refresh -->
-                <Border Classes="card">
-                    <StackPanel>
-                        <TextBlock Classes="label" Text="{DynamicResource Label.TokenRefresh}"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="TokenIntervalCombo" Grid.Column="0"
-                                      FontSize="13" SelectedIndex="0" VerticalAlignment="Center">
-                                <ComboBoxItem Content="{DynamicResource Token.Never}"/>
-                                <ComboBoxItem Content="{DynamicResource Token.5m}"/>
-                                <ComboBoxItem Content="{DynamicResource Token.15m}"/>
-                                <ComboBoxItem Content="{DynamicResource Token.30m}"/>
-                                <ComboBoxItem Content="{DynamicResource Token.1h}"/>
-                            </ComboBox>
-                            <Button x:Name="BtnRefreshToken" Grid.Column="1" Content="{DynamicResource Btn.Reset}"
-                                    Classes="subtle" Padding="16,8" FontSize="12"
-                                    Click="BtnRefreshToken_Click"/>
-                        </Grid>
-                        <TextBlock x:Name="TokenCountdownText" Text="" FontSize="11" Foreground="#666"
-                                   Margin="0,6,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Share/Download info -->
-                <Border Classes="card">
-                    <StackPanel>
-                        <TextBlock Classes="label" Text="{DynamicResource Label.Folders}"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Received}" FontSize="12" Foreground="#666"/>
-                            <TextBlock x:Name="DownloadDirText" Grid.Column="1" Text="---" FontSize="12"
-                                       Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
-                        </Grid>
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Shared}" FontSize="12" Foreground="#666"/>
-                            <TextBlock x:Name="ShareDirText" Grid.Column="1" Text="---" FontSize="12"
-                                       Foreground="#ccc" TextTrimming="CharacterEllipsis"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <!-- Receive quota -->
-                <Border Classes="card">
-                    <StackPanel>
-                        <TextBlock Classes="label" Text="{DynamicResource Label.ReceiveQuota}"/>
-                        <TextBlock x:Name="QuotaStatusText" Text="{DynamicResource Quota.Analyzing}" FontSize="16"
-                                   FontWeight="SemiBold" Foreground="#666"
-                                   HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-                        <TextBlock Text="{DynamicResource Quota.Description}"
-                                   FontSize="11" Foreground="#666" HorizontalAlignment="Center"
-                                   Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-            </StackPanel>
-        </ScrollViewer>
+                    <ListBox x:Name="FileList" Classes="filelist" SelectionMode="Multiple"
+                             FontSize="13" Margin="0,4,0,0" DoubleTapped="FileList_DoubleTapped">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0" Classes="filename" Text="{Binding Name}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Classes="filesize" Text="{Binding Size}"
+                                               Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
 
         <!-- Bottom buttons -->
-        <StackPanel Grid.Row="2" Margin="28,0,28,20" Width="440" HorizontalAlignment="Center">
+        <StackPanel Grid.Row="2" Margin="28,0,28,20" Width="460" HorizontalAlignment="Left">
             <Button x:Name="BtnToggleServer" Content="{DynamicResource Btn.StartServer}"
                     Classes="accent" HorizontalAlignment="Stretch"
                     Click="BtnToggleServer_Click" Margin="0,0,0,8"/>

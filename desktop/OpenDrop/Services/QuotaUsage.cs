@@ -62,10 +62,22 @@ internal static class QuotaUsage
 
     public static string? ReadDownloadDir(string? fallback)
     {
+        return ReadConfigString("download_directory", fallback);
+    }
+
+    // The share folder as configured (used when the server is stopped:
+    // once it runs, /api/info reports its own resolved path).
+    public static string? ReadShareDir(string? fallback)
+    {
+        return ReadConfigString("share_directory", fallback);
+    }
+
+    private static string? ReadConfigString(string key, string? fallback)
+    {
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(ConfigPath));
-            if (doc.RootElement.TryGetProperty("download_directory", out var d) &&
+            if (doc.RootElement.TryGetProperty(key, out var d) &&
                 d.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(d.GetString()))
                 return d.GetString();
         }

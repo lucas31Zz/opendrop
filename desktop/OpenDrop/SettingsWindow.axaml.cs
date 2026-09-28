@@ -176,6 +176,23 @@ public partial class SettingsWindow : Window
         catch { }
     }
 
+    // Manual update check: reports the outcome either way, and works even
+    // when the automatic startup check is disabled.
+    private async void BtnCheckUpdates_Click(object? sender, RoutedEventArgs e)
+    {
+        BtnCheckUpdates.IsEnabled = false;
+        UpdateStatusText.Text = Lang.T("Update.Checking");
+        try
+        {
+            await UpdateChecker.CheckManualAsync(this);
+        }
+        finally
+        {
+            UpdateStatusText.Text = "";
+            BtnCheckUpdates.IsEnabled = true;
+        }
+    }
+
     private void UpdateQuotaUsage()
     {
         var dir = DownloadDirText.Text;

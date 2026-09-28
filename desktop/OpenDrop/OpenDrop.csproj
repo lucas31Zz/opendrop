@@ -12,9 +12,9 @@
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationTitle>OpenDrop</ApplicationTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.1.2</Version>
-    <AssemblyVersion>0.1.2.0</AssemblyVersion>
-    <FileVersion>0.1.2.0</FileVersion>
+    <Version>0.1.3</Version>
+    <AssemblyVersion>0.1.3.0</AssemblyVersion>
+    <FileVersion>0.1.3.0</FileVersion>
     <DefineConstants Condition="'$(TargetFramework)' == 'net8.0-windows'">$(DefineConstants);WINDOWS_TARGET</DefineConstants>
   </PropertyGroup>
 
@@ -29,6 +29,11 @@
     <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.3" />
     <PackageReference Include="QRCoder" Version="1.4.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tray icon: read at runtime through avares:// -->
+    <AvaloniaResource Include="app.ico" />
   </ItemGroup>
 
   <ItemGroup>

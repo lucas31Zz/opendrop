@@ -17,6 +17,10 @@ internal static class Lang
 {
     public static string Current { get; private set; } = "en";
 
+    // Raised after the string table switched: text set from code (tray
+    // menu) does not resolve through DynamicResource and needs a refresh.
+    public static event Action? Changed;
+
     private static readonly Dictionary<string, string> _en =
         Load("avares://OpenDrop/Strings.en.axaml");
     private static readonly Dictionary<string, string> _fr =
@@ -51,6 +55,7 @@ internal static class Lang
     // language table. DynamicResource references re-resolve immediately.
     public static void Set(string lang)
     {
+        var previous = Current;
         Current = lang != null && lang.StartsWith("fr", StringComparison.OrdinalIgnoreCase)
             ? "fr"
             : "en";
@@ -63,6 +68,9 @@ internal static class Lang
         var table = Current == "fr" ? _fr : _en;
         foreach (var kv in table)
             res[kv.Key] = kv.Value;
+
+        if (Current != previous)
+            Changed?.Invoke();
     }
 
     // Localized string for code-behind (labels in XAML use DynamicResource).

@@ -183,11 +183,33 @@
 
                 <!-- Network -->
                 <TextBlock Classes="section" Text="{DynamicResource Section.Network}"/>
-                <Border Classes="card" Margin="0,0,0,20">
+                <Border Classes="card" Margin="0,0,0,16">
                     <StackPanel>
                         <TextBlock Classes="field" Text="{DynamicResource Field.NetworkInterface}"/>
                         <TextBlock x:Name="InterfaceText" Text="{DynamicResource Interface.Auto}"
                                    FontSize="12" Foreground="#888"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Updates -->
+                <TextBlock Classes="section" Text="{DynamicResource Section.Updates}"/>
+                <Border Classes="card" Margin="0,0,0,20">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Field.CheckUpdates}"
+                                       FontSize="13" Foreground="#ccc" VerticalAlignment="Center"
+                                       TextWrapping="Wrap"/>
+                            <Button Grid.Column="1" x:Name="BtnCheckUpdates"
+                                    Content="{DynamicResource Btn.Check}" Classes="browse"
+                                    Margin="12,0,0,0" VerticalAlignment="Center"
+                                    Click="BtnCheckUpdates_Click"/>
+                        </Grid>
+                        <TextBlock x:Name="UpdateStatusText" Text="" FontSize="11" Foreground="#666"
+                                   Margin="0,6,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 

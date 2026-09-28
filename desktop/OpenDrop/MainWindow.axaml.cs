@@ -1,12 +1,30 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using QRCoder;
 
 namespace OpenDrop;
+
+// One row of the shared-files list.
+internal sealed class ShareFile
+{
+    public string Name { get; }
+    public string Size { get; }
+    public string FullPath { get; }
+
+    public ShareFile(string name, string size, string fullPath)
+    {
+        Name = name;
+        Size = size;
+        FullPath = fullPath;
+    }
+}
 
 public partial class MainWindow : Window
 {
@@ -19,6 +37,14 @@ public partial class MainWindow : Window
     private bool _isRunning;
     private int _tokenSecondsLeft;
     private int _tokenIntervalSeconds;
+
+    // Tray (Windows): closing the window hides it, the server keeps running.
+    private TrayIcon? _trayIcon;
+    private NativeMenuItem? _trayShow;
+    private NativeMenuItem? _trayQuit;
+    private bool _forceClose;
+
+    private List<ShareFile> _shareFiles = new();
 
     public MainWindow()
     {
@@ -50,12 +76,24 @@ public partial class MainWindow : Window
 
         TokenIntervalCombo.SelectionChanged += (_, _) => OnTokenIntervalChanged();
 
+        SetupTray();
+        Lang.Changed += ApplyTrayStrings;
+
 #if WINDOWS_TARGET
         // Check for a newer release on GitHub at startup (Windows only).
         // The setup reinstalls into Program Files only; %LOCALAPPDATA%
         // (config.json, session.json, certs) is left untouched.
         UpdateChecker.CheckAsync(this);
 #endif
+
+        // With a tray icon the close button hides the window instead of
+        // stopping the server; the server only stops when really quitting.
+        Closing += (_, e) =>
+        {
+            if (_forceClose || _trayIcon == null) return;
+            e.Cancel = true;
+            Hide();
+        };
 
         Closed += (_, _) =>
         {
@@ -64,17 +102,31 @@ public partial class MainWindow : Window
             _quotaTimer.Stop();
             _serverManager.Stop();
             _http.Dispose();
+            Lang.Changed -= ApplyTrayStrings;
+            if (_trayIcon != null)
+            {
+                RemoveTrayIcon(_trayIcon);
+                _trayIcon.Dispose();
+                _trayIcon = null;
+            }
         };
+
+        // The share folder can change outside the app (another tool): a
+        // refresh when the window regains focus is enough and keeps the
+        // current selection untouched while working.
+        Activated += (_, _) => RefreshFiles();
 
         Opened += async (_, _) =>
         {
             _quotaTimer.Start();
             await RefreshQuotaAsync();
+            RefreshFiles();
 
             var started = await _serverManager.StartAsync();
             if (started)
             {
                 _pollTimer.Start();
+                RefreshFiles();
             }
             else
             {
@@ -82,6 +134,396 @@ public partial class MainWindow : Window
             }
         };
     }
+
+    #region Tray
+
+    private void SetupTray()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        try
+        {
+            _trayShow = new NativeMenuItem(Lang.T("Tray.Show"));
+            _trayShow.Click += (_, _) => ShowFromTray();
+
+            _trayQuit = new NativeMenuItem(Lang.T("Tray.Quit"));
+            _trayQuit.Click += (_, _) => Quit();
+
+            var menu = new NativeMenu();
+            menu.Items.Add(_trayShow);
+            menu.Items.Add(new NativeMenuItemSeparator());
+            menu.Items.Add(_trayQuit);
+
+            using var stream = AssetLoader.Open(new Uri("avares://OpenDrop/app.ico"));
+            _trayIcon = new TrayIcon
+            {
+                Icon = new WindowIcon(stream),
+                ToolTipText = "OpenDrop",
+                Menu = menu
+            };
+            _trayIcon.Clicked += (_, _) => ShowFromTray();
+            AddTrayIcon(_trayIcon);
+        }
+        catch
+        {
+            _trayIcon = null;
+        }
+    }
+
+    private void ApplyTrayStrings()
+    {
+        if (_trayShow != null) _trayShow.Header = Lang.T("Tray.Show");
+        if (_trayQuit != null) _trayQuit.Header = Lang.T("Tray.Quit");
+    }
+
+    private void ShowFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void Quit()
+    {
+        _forceClose = true;
+        Close();
+    }
+
+    // TrayIcon.TrayIcons is an attached property on the application.
+    private static void AddTrayIcon(TrayIcon icon)
+    {
+        var app = Application.Current;
+        if (app == null) return;
+
+        var icons = TrayIcon.GetIcons(app);
+        if (icons == null)
+        {
+            icons = new TrayIcons();
+            TrayIcon.SetIcons(app, icons);
+        }
+        icons.Add(icon);
+    }
+
+    private static void RemoveTrayIcon(TrayIcon icon)
+    {
+        var app = Application.Current;
+        if (app == null) return;
+        TrayIcon.GetIcons(app)?.Remove(icon);
+    }
+
+    #endregion
+
+    #region Shared files
+
+    private string? ResolveShareDir()
+    {
+        // The running server knows the path it actually serves; fall back
+        // on config.json when it is stopped.
+        var dir = _serverManager.ShareDir;
+        if (string.IsNullOrWhiteSpace(dir))
+            dir = QuotaUsage.ReadShareDir(null);
+        return string.IsNullOrWhiteSpace(dir) ? null : dir;
+    }
+
+    private void RefreshFiles()
+    {
+        try
+        {
+            var dir = ResolveShareDir();
+            FilesPathText.Text = dir ?? "---";
+            FilesHint.IsVisible = false;
+
+            var files = new List<ShareFile>();
+            if (dir != null && Directory.Exists(dir))
+            {
+                foreach (var path in Directory.EnumerateFiles(dir))
+                {
+                    try
+                    {
+                        var info = new FileInfo(path);
+                        files.Add(new ShareFile(info.Name, QuotaUsage.Format(info.Length), info.FullName));
+                    }
+                    catch { }
+                }
+                files.Sort((a, b) =>
+                    string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (dir != null)
+            {
+                FilesHint.Text = Lang.T("Files.MissingFolder");
+                FilesHint.IsVisible = true;
+            }
+
+            _shareFiles = files;
+            FileList.ItemsSource = _shareFiles;
+            FilesEmpty.IsVisible = files.Count == 0;
+        }
+        catch { }
+    }
+
+    private List<ShareFile> SelectedFiles()
+    {
+        var picked = new List<ShareFile>();
+        var selection = FileList.SelectedItems;
+        if (selection == null) return picked;
+        foreach (var item in selection)
+        {
+            if (item is ShareFile file)
+                picked.Add(file);
+        }
+        return picked;
+    }
+
+    private async void BtnRefreshFiles_Click(object? sender, RoutedEventArgs e)
+    {
+        RefreshFiles();
+        await Task.CompletedTask;
+    }
+
+    private async void BtnRename_Click(object? sender, RoutedEventArgs e)
+        => await RenameSelectedAsync();
+
+    private async void FileList_DoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        if (FileList.SelectedItem is ShareFile)
+            await RenameSelectedAsync();
+    }
+
+    private async Task RenameSelectedAsync()
+    {
+        var selection = SelectedFiles();
+        if (selection.Count != 1)
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.SelectOne"), Lang.T("Label.SharedFiles"));
+            return;
+        }
+
+        var file = selection[0];
+        var name = await Msg.InputAsync(this, Lang.T("Files.RenameTitle"),
+            Lang.T("Files.RenamePrompt"), file.Name);
+        if (name == null) return;
+
+        name = name.Trim();
+        if (name.Length == 0 || name == file.Name) return;
+
+        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.RenameInvalid"), Lang.T("Files.RenameTitle"));
+            return;
+        }
+
+        var dir = ResolveShareDir();
+        if (dir == null) return;
+
+        var target = Path.Combine(dir, name);
+        if (File.Exists(target))
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.RenameExists"), Lang.T("Files.RenameTitle"));
+            return;
+        }
+
+        try
+        {
+            // Renames the real file in the share folder, not a copy.
+            File.Move(file.FullPath, target);
+        }
+        catch (Exception ex)
+        {
+            await Msg.ShowAsync(this,
+                $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Files.RenameTitle"));
+            return;
+        }
+
+        RefreshFiles();
+        SelectByName(name);
+    }
+
+    private void SelectByName(string name)
+    {
+        foreach (var file in _shareFiles)
+        {
+            if (!string.Equals(file.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+            FileList.SelectedItem = file;
+            FileList.ScrollIntoView(file);
+            break;
+        }
+    }
+
+    private async void BtnDelete_Click(object? sender, RoutedEventArgs e)
+    {
+        var selection = SelectedFiles();
+        if (selection.Count == 0)
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.SelectAny"), Lang.T("Label.SharedFiles"));
+            return;
+        }
+
+        var answer = await Msg.ConfirmAsync(this,
+            Lang.Format("Files.DeleteConfirm", selection.Count, NamePreview(selection)),
+            Lang.T("Files.DeleteTitle"));
+        if (!answer) return;
+
+        var failed = 0;
+        foreach (var file in selection)
+        {
+            try { File.Delete(file.FullPath); }
+            catch { failed++; }
+        }
+
+        RefreshFiles();
+
+        if (failed > 0)
+            await Msg.ShowAsync(this, Lang.Format("Files.DeleteFailed", failed),
+                Lang.T("Files.DeleteTitle"));
+    }
+
+    private static string NamePreview(List<ShareFile> files)
+    {
+        const int max = 5;
+        var names = files.Take(max).Select(f => f.Name);
+        var text = string.Join(", ", names);
+        if (files.Count > max)
+            text += $" (+{files.Count - max})";
+        return text;
+    }
+
+    private async void BtnAddFiles_Click(object? sender, RoutedEventArgs e)
+    {
+        var dir = ResolveShareDir();
+        if (dir == null)
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.MissingFolder"), Lang.T("Label.SharedFiles"));
+            return;
+        }
+
+        var picked = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Lang.T("Files.AddTitle"),
+            AllowMultiple = true
+        });
+        if (picked.Count == 0) return;
+
+        var choice = await Msg.ChoiceAsync(this, Lang.T("Files.CopyOrMove"),
+            Lang.T("Files.AddTitle"),
+            Lang.T("Files.Copy"), Lang.T("Files.Move"), Lang.T("Msg.Cancel"));
+        if (choice != 0 && choice != 1) return;
+        var move = choice == 1;
+
+        var sources = new List<string>();
+        foreach (var item in picked)
+        {
+            var local = item.TryGetLocalPath();
+            if (!string.IsNullOrEmpty(local))
+                sources.Add(local);
+        }
+        if (sources.Count == 0) return;
+
+        FilesHint.Text = Lang.T("Files.Adding");
+        FilesHint.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+        FilesHint.IsVisible = true;
+        BtnAddFiles.IsEnabled = false;
+
+        int added, skipped = 0, failed = 0;
+        try
+        {
+            (added, skipped, failed) = await Task.Run(() => ImportFiles(sources, dir, move));
+        }
+        finally
+        {
+            BtnAddFiles.IsEnabled = true;
+            FilesHint.IsVisible = false;
+            FilesHint.Foreground = new SolidColorBrush(Color.FromRgb(0xc0, 0x39, 0x2b));
+        }
+
+        RefreshFiles();
+
+        if (failed > 0)
+            await Msg.ShowAsync(this,
+                Lang.Format("Files.AddFailed", added, failed), Lang.T("Files.AddTitle"));
+        else if (skipped > 0)
+            await Msg.ShowAsync(this,
+                Lang.Format("Files.AddSkipped", added, skipped), Lang.T("Files.AddTitle"));
+    }
+
+    // Copies (or moves) the chosen files into the share folder. The
+    // original stays where it is unless the user asked for a move.
+    private static (int Added, int Skipped, int Failed) ImportFiles(
+        List<string> sources, string dir, bool move)
+    {
+        var added = 0;
+        var skipped = 0;
+        var failed = 0;
+
+        try
+        {
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+        }
+        catch
+        {
+            return (0, 0, sources.Count);
+        }
+
+        foreach (var source in sources)
+        {
+            try
+            {
+                var full = Path.GetFullPath(source);
+                if (!File.Exists(full))
+                {
+                    failed++;
+                    continue;
+                }
+
+                var target = Path.Combine(dir, Path.GetFileName(full));
+
+                // Already in the share folder: nothing to do.
+                if (string.Equals(Path.GetFullPath(target), full,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                target = UniquePath(target);
+
+                if (move)
+                    File.Move(full, target);
+                else
+                    File.Copy(full, target, overwrite: false);
+
+                added++;
+            }
+            catch
+            {
+                failed++;
+            }
+        }
+
+        return (added, skipped, failed);
+    }
+
+    // "report.pdf" then "report (2).pdf": never overwrites an existing file.
+    private static string UniquePath(string target)
+    {
+        if (!File.Exists(target)) return target;
+
+        var dir = Path.GetDirectoryName(target) ?? "";
+        var name = Path.GetFileNameWithoutExtension(target);
+        var ext = Path.GetExtension(target);
+
+        for (var i = 2; i < 1000; i++)
+        {
+            var candidate = Path.Combine(dir, $"{name} ({i}){ext}");
+            if (!File.Exists(candidate))
+                return candidate;
+        }
+
+        return Path.Combine(dir, $"{name} ({Guid.NewGuid():N}){ext}");
+    }
+
+    #endregion
 
     private void OnServerStatusChanged(ServerManager.ServerStatus status)
     {
@@ -131,6 +573,7 @@ public partial class MainWindow : Window
                 TokenCountdownText.Text = "";
                 DownloadDirText.Text = "---";
                 ShareDirText.Text = "---";
+                RefreshFiles();
                 break;
             case "error":
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54));
@@ -279,6 +722,7 @@ public partial class MainWindow : Window
         if (started)
         {
             await PollServerAsync();
+            RefreshFiles();
         }
     }
 
@@ -298,6 +742,7 @@ public partial class MainWindow : Window
             {
                 _pollTimer.Start();
                 OnTokenIntervalChanged();
+                RefreshFiles();
             }
             else
             {
@@ -325,6 +770,7 @@ public partial class MainWindow : Window
             if (settingsWindow.SettingsChanged)
             {
                 _ = RefreshQuotaAsync();
+                RefreshFiles();
                 if (_isRunning)
                 {
                     _ = RestartServerAsync();
@@ -351,6 +797,7 @@ public partial class MainWindow : Window
         {
             _pollTimer.Start();
             OnTokenIntervalChanged();
+            RefreshFiles();
         }
         else
         {
@@ -358,7 +805,3 @@ public partial class MainWindow : Window
         }
     }
 }
-
-
-
-
