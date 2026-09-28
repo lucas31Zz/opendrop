@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -88,9 +89,9 @@ public partial class MainWindow : Window
         Lang.Changed += ApplyTrayStrings;
 
 #if WINDOWS_TARGET
-        // Check for a newer release on GitHub at startup (Windows only).
-        // The setup reinstalls into Program Files only; %LOCALAPPDATA%
-        // (config.json, session.json, certs) is left untouched.
+        // Check for a newer release on GitHub at startup (Windows only). The
+        // new files are copied over the application folder; %LOCALAPPDATA%
+        // (config.json, session.json, certs, moves) is left untouched.
         UpdateChecker.CheckAsync(this);
 #endif
 
@@ -196,6 +197,22 @@ public partial class MainWindow : Window
     {
         _forceClose = true;
         Close();
+    }
+
+    // Used by the updater: the file copy must see a process that is really
+    // gone (the server included), so every window is closed instead of only
+    // hiding this one - a dialog left open would keep the process running.
+    internal void QuitForUpdate()
+    {
+        _forceClose = true;
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            foreach (var window in desktop.Windows.ToArray())
+            {
+                if (!ReferenceEquals(window, this)) window.Close();
+            }
+        }
+        try { Close(); } catch { }
     }
 
     // TrayIcon.TrayIcons is an attached property on the application.

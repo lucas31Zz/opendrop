@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.5] - 2026-09-28
+
+### Changed
+
+- **In-place updates**: the application now downloads a payload zip, verifies it, extracts it, and atomically replaces its own files before restarting. Configuration, sessions, certificates and the moved-files registry (`moves.json`) are preserved.
+- **Elevation only when needed**: if the application folder is writable (typical user install), the update runs without UAC. For Program Files installs the worker requests elevation once; the restarted application drops back to standard rights.
+- **Specific UAC decline message**: if the elevation prompt is dismissed, a clear message is shown and the current version keeps running.
+
 ## [0.1.4] - 2026-09-28
 
 ### Added

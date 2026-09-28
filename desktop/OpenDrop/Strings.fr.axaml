@@ -117,12 +117,14 @@
 
     <!-- Mise à jour automatique -->
     <x:String x:Key="Update.Title">Mise à jour disponible</x:String>
-    <x:String x:Key="Update.Available">La version {1} est disponible (vous avez {0}). La télécharger et l'installer maintenant ?</x:String>
+    <x:String x:Key="Update.Available">La version {1} est disponible (vous avez {0}). Mettre à jour maintenant ?</x:String>
     <x:String x:Key="Update.Failed">Impossible de télécharger la mise à jour. Réessayez plus tard ou téléchargez-la manuellement.</x:String>
+    <x:String x:Key="Update.NeedsPermission">Windows doit autoriser OpenDrop à remplacer ses fichiers. La mise à jour a été annulée.</x:String>
     <x:String x:Key="Update.UpToDate">Vous êtes à jour (version {0}).</x:String>
     <x:String x:Key="Update.Checking">Recherche d'une nouvelle version...</x:String>
     <x:String x:Key="Update.Downloading">Téléchargement de la version {0}...</x:String>
     <x:String x:Key="Update.Verifying">Vérification du téléchargement...</x:String>
+    <x:String x:Key="Update.Applying">Application de la mise à jour, OpenDrop va redémarrer...</x:String>
     <x:String x:Key="Section.Updates">MISES À JOUR</x:String>
     <x:String x:Key="Field.CheckUpdates">Vérification automatique des mises à jour</x:String>
 

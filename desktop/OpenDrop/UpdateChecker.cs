@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -13,14 +15,19 @@ using Avalonia.Threading;
 
 namespace OpenDrop;
 
-// Update check for Windows: reads update.xml from the public repository,
-// compares with the assembly version, verifies the SHA-256 of the new setup,
-// and offers to download + launch it. The setup reinstalls into Program
-// Files only; %LOCALAPPDATA% (config, session, certs) is never touched.
+// Update check for Windows: reads update.xml from the public repository and
+// compares it with the assembly version. The manifest carries the payload zip
+// (files + SHA-256), which is extracted and copied over the application
+// folder by a worker started from the staged copy: the application restarts
+// on the new files, nothing is installed again. %LOCALAPPDATA% (config,
+// session, certs, moves) and the receive / share folders are never touched.
+// When the manifest has no payload (older release) the full setup is
+// downloaded and launched, as before.
 internal static class UpdateChecker
 {
-    private const string ManifestUrl =
-        "https://raw.githubusercontent.com/lucas31Zz/opendrop/main/update.xml";
+    private static string ManifestUrl =>
+        Environment.GetEnvironmentVariable("OPENDROP_UPDATE_URL")
+        ?? "https://raw.githubusercontent.com/lucas31Zz/opendrop/main/update.xml";
 
     private const int BufferSize = 81920;
 
@@ -80,6 +87,8 @@ internal static class UpdateChecker
         string latest = "";
         string setupUrl = "";
         string? expectedHash = null;
+        string? zipUrl = null;
+        string? zipHash = null;
 
         try
         {
@@ -91,6 +100,8 @@ internal static class UpdateChecker
             latest = root.Element("version")?.Value?.Trim() ?? "";
             setupUrl = root.Element("url")?.Value?.Trim() ?? "";
             expectedHash = root.Element("sha256")?.Value?.Trim();
+            zipUrl = root.Element("zip")?.Value?.Trim();
+            zipHash = root.Element("zip_sha256")?.Value?.Trim();
             if (latest.Length == 0 || setupUrl.Length == 0) return;
 
             var assembly = typeof(UpdateChecker).Assembly.GetName().Version;
@@ -129,32 +140,159 @@ internal static class UpdateChecker
                 Lang.T("Update.Title"));
             if (!answer) return;
 
-            var dest = Path.Combine(Path.GetTempPath(),
-                "OpenDrop-" + latest + "-win-x64-setup.exe");
+            // A payload zip means a real update (files replaced in place, then
+            // a restart). Without it the manifest only offers the setup, which
+            // is what older releases do.
+            var files = !string.IsNullOrEmpty(zipUrl);
+            var work = Path.Combine(Path.GetTempPath(), "OpenDrop-update", latest);
+            var dest = files
+                ? Path.Combine(work, $"OpenDrop-{latest}-win-x64.zip")
+                : SetupPath(latest);
+
+            if (files)
+            {
+                try { Directory.CreateDirectory(work); }
+                catch
+                {
+                    files = false;
+                    dest = SetupPath(latest);
+                }
+            }
+
+            var url = files ? zipUrl! : setupUrl;
+            var hash = files ? zipHash : expectedHash;
 
             var dialog = new DownloadDialog(latest);
             dialog.Show();
-            var result = await DownloadAndVerifyAsync(setupUrl, dest, expectedHash, dialog, dialog.Token);
-            SafeClose(dialog);
+            var result = await DownloadAndVerifyAsync(url, dest, hash, dialog, dialog.Token);
 
-            if (result == Result.Cancelled) return;
+            if (result == Result.Cancelled)
+            {
+                SafeClose(dialog);
+                return;
+            }
             if (result != Result.Ok)
             {
+                SafeClose(dialog);
+                await Msg.ShowAsync(w, Lang.T("Update.Failed"), Lang.T("Update.Title"));
+                return;
+            }
+
+            if (!files)
+            {
+                SafeClose(dialog);
+                try
+                {
+                    // The installer detects the running app (CloseApplications=yes)
+                    // and closes it itself.
+                    Process.Start(new ProcessStartInfo(dest) { UseShellExecute = true });
+                }
+                catch
+                {
+                    Process.Start(new ProcessStartInfo(setupUrl) { UseShellExecute = true });
+                }
+                return;
+            }
+
+            // Real update: unpack next to this application, hand the copy work
+            // over to the staged binary and leave. The dialog is closed right
+            // before the quit: a window left open would keep this process
+            // alive, and the worker waits for the process to disappear.
+            dialog.ShowApplying();
+            string payload;
+            try
+            {
+                var stage = Path.Combine(work, "stage");
+                await Task.Run(() =>
+                {
+                    if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true);
+                    ZipFile.ExtractToDirectory(dest, stage, overwriteFiles: true);
+                });
+
+                payload = FindPayloadRoot(stage)
+                    ?? throw new FileNotFoundException("payload not found");
+            }
+            catch
+            {
+                SafeClose(dialog);
                 await Msg.ShowAsync(w, Lang.T("Update.Failed"), Lang.T("Update.Title"));
                 return;
             }
 
             try
             {
-                // The installer detects the running app (CloseApplications=yes)
-                // and closes it itself.
-                Process.Start(new ProcessStartInfo(dest) { UseShellExecute = true });
+                StartWorker(payload, work, Environment.ProcessId);
             }
             catch
             {
-                Process.Start(new ProcessStartInfo(setupUrl) { UseShellExecute = true });
+                // The elevation prompt was declined (or the staged copy could
+                // not run): this application is still the running one, so
+                // only the update is lost.
+                SafeClose(dialog);
+                await Msg.ShowAsync(w, Lang.T("Update.NeedsPermission"), Lang.T("Update.Title"));
+                return;
             }
+
+            // The worker waits for this process, copies the files and starts
+            // the application again. Every window has to go first: a progress
+            // dialog left open would keep the process (and the worker) alive.
+            SafeClose(dialog);
+            if (owner is MainWindow main) main.QuitForUpdate();
+            else if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                desktop.Shutdown();
         }
+    }
+
+    private static string SetupPath(string version)
+        => Path.Combine(Path.GetTempPath(), $"OpenDrop-{version}-win-x64-setup.exe");
+
+    // The staged copy runs the update: it is not the file being replaced,
+    // so the running image can always be overwritten. Program Files needs
+    // administrator rights, everything else runs without prompting.
+    private static void StartWorker(string payload, string work, int ownerPid)
+    {
+        var worker = Path.Combine(payload, "OpenDrop.exe");
+        if (!File.Exists(worker))
+            throw new FileNotFoundException("worker not found");
+
+        var appDir = AppContext.BaseDirectory.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        var psi = new ProcessStartInfo(worker) { UseShellExecute = true };
+        psi.ArgumentList.Add("--apply-update");
+        psi.ArgumentList.Add(payload);
+        psi.ArgumentList.Add(appDir);
+        psi.ArgumentList.Add(work);
+        psi.ArgumentList.Add(ownerPid.ToString());
+        if (!IsWritable(appDir)) psi.Verb = "RunAs";
+        Process.Start(psi);
+    }
+
+    // First directory of the payload that actually holds the application.
+    private static string? FindPayloadRoot(string stage)
+    {
+        if (File.Exists(Path.Combine(stage, "OpenDrop.exe"))) return stage;
+        foreach (var dir in Directory.EnumerateDirectories(stage))
+        {
+            if (File.Exists(Path.Combine(dir, "OpenDrop.exe"))) return dir;
+        }
+        foreach (var dir in Directory.EnumerateDirectories(stage, "*", SearchOption.AllDirectories))
+        {
+            if (File.Exists(Path.Combine(dir, "OpenDrop.exe"))) return dir;
+        }
+        return null;
+    }
+
+    private static bool IsWritable(string dir)
+    {
+        try
+        {
+            var probe = Path.Combine(dir, ".update-probe-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(probe, "1");
+            File.Delete(probe);
+            return true;
+        }
+        catch { return false; }
     }
 
     private static string FormatVersion(Version version)
@@ -339,6 +477,18 @@ internal static class UpdateChecker
 
             _bar.IsIndeterminate = true;
             _status.Text = Lang.T("Update.Verifying");
+        }
+
+        public void ShowApplying()
+        {
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Post(ShowApplying);
+                return;
+            }
+
+            _bar.IsIndeterminate = true;
+            _status.Text = Lang.T("Update.Applying");
         }
     }
 }

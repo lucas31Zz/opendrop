@@ -89,12 +89,19 @@ jobs:
           ASSET="OpenDrop-${GITHUB_REF_NAME}-win-x64-setup.exe"
           URL="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/${ASSET}"
           SHA=$(sha256sum "dist/${ASSET}" | cut -d' ' -f1)
+          # Payload used by the in-place update (files copied over the
+          # application folder); the setup stays for older releases.
+          PAYLOAD="OpenDrop-${GITHUB_REF_NAME}-win-x64.zip"
+          PAYLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/${PAYLOAD}"
+          PAYLOAD_SHA=$(sha256sum "dist/${PAYLOAD}" | cut -d' ' -f1)
           cat > update.xml << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <item>
               <version>${VERSION}</version>
               <url>${URL}</url>
               <sha256>${SHA}</sha256>
+              <zip>${PAYLOAD_URL}</zip>
+              <zip_sha256>${PAYLOAD_SHA}</zip_sha256>
               <changelog>https://github.com/${{ github.repository }}/releases</changelog>
               <mandatory>false</mandatory>
           </item>
