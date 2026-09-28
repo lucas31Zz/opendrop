@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <item>
-    <version>0.1.5</version>
-    <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.5/OpenDrop-v0.1.5-win-x64-setup.exe</url>
-    <sha256>e37389fe08e93a363aacdd73ec633e76fc2b7c606acf9beea99c5d7967e5f9f1</sha256>
-    <zip>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.5/OpenDrop-v0.1.5-win-x64.zip</zip>
-    <zip_sha256>618746d7378dad97664c7d24e457a303f07c80df91f1b79fc3290f70fddbda30</zip_sha256>
+    <version>0.1.6</version>
+    <url>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.6/OpenDrop-v0.1.6-win-x64-setup.exe</url>
+    <sha256>aa2be1982cc4e0553cbdc1dd0c58ea8b486b13804f041e6f32ba97d816393bf2</sha256>
+    <zip>https://github.com/lucas31Zz/opendrop/releases/download/v0.1.6/OpenDrop-v0.1.6-win-x64.zip</zip>
+    <zip_sha256>f94ed4902b9d14f34e632a0b65b2448bdc1b3e991bdc07099172cc82695e8c4f</zip_sha256>
     <changelog>https://github.com/lucas31Zz/opendrop/releases</changelog>
     <mandatory>false</mandatory>
 </item>
