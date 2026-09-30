@@ -131,6 +131,7 @@
     <!-- Themes -->
     <x:String x:Key="Section.Appearance">APPEARANCE</x:String>
     <x:String x:Key="Field.Theme">Theme</x:String>
+    <x:String x:Key="Btn.ApplyTheme">Apply Theme</x:String>
     <x:String x:Key="Theme.System">System</x:String>
     <x:String x:Key="Theme.SystemDesc">Follows the operating system light/dark setting.</x:String>
     <x:String x:Key="Theme.Light">Light</x:String>

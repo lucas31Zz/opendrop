@@ -112,7 +112,7 @@ public static class ThemeManager
             Border: "#00ffff44",
             TextPrimary: "#e0ffff",
             TextSecondary: "#88ffcc",
-            FontFamily: "Consolas, 'JetBrains Mono', monospace");
+            FontFamily: "Consolas, JetBrains Mono, monospace");
 
         // ── Midnight (deep blue professional) ────────────────────────
         _themes["midnight"] = new ThemeDefinition(
@@ -197,7 +197,7 @@ public static class ThemeManager
             Border: "#ffb00033",
             TextPrimary: "#ffe080",
             TextSecondary: "#ccaa55",
-            FontFamily: "'VT323', 'Courier New', monospace");
+            FontFamily: "VT323, Courier New, monospace");
     }
 
     private static void Apply(string themeId)
@@ -223,24 +223,34 @@ public static class ThemeManager
 
         Application.Current.RequestedThemeVariant = theme.EffectiveVariant;
 
-        // Inject CSS-like variables as DynamicResources for use in XAML
-        dict["Theme.Accent"] = theme.Accent;
-        dict["Theme.Background"] = theme.Background;
-        dict["Theme.Surface"] = theme.Surface;
-        dict["Theme.SurfaceHover"] = theme.SurfaceHover;
-        dict["Theme.Border"] = theme.Border;
-        dict["Theme.TextPrimary"] = theme.TextPrimary;
-        dict["Theme.TextSecondary"] = theme.TextSecondary;
-        dict["Theme.FontFamily"] = theme.FontFamily ?? "Segoe UI, system-ui, sans-serif";
+        try
+        {
+            // Inject CSS-like variables as DynamicResources for use in XAML
+            dict["Theme.Accent"] = theme.Accent;
+            dict["Theme.Background"] = theme.Background;
+            dict["Theme.Surface"] = theme.Surface;
+            dict["Theme.SurfaceHover"] = theme.SurfaceHover;
+            dict["Theme.Border"] = theme.Border;
+            dict["Theme.TextPrimary"] = theme.TextPrimary;
+            dict["Theme.TextSecondary"] = theme.TextSecondary;
+            dict["Theme.FontFamily"] = theme.FontFamily ?? "Segoe UI, system-ui, sans-serif";
 
-        // FluentTheme respects RequestedThemeVariant; we also push a few
-        // commonly used overrides so custom controls pick them up.
-        dict["SystemControlBackgroundBaseHighBrush"] = theme.Surface;
-        dict["SystemControlBackgroundChromeMediumBrush"] = theme.SurfaceHover;
-        dict["SystemControlForegroundBaseHighBrush"] = theme.TextPrimary;
-        dict["SystemControlForegroundBaseMediumBrush"] = theme.TextSecondary;
-        dict["SystemControlHighlightAccentBrush"] = theme.Accent;
-        dict["SystemControlHighlightAltAccentBrush"] = theme.Accent;
+            // FluentTheme respects RequestedThemeVariant; we also push a few
+            // commonly used overrides so custom controls pick them up.
+            dict["SystemControlBackgroundBaseHighBrush"] = theme.Surface;
+            dict["SystemControlBackgroundChromeMediumBrush"] = theme.SurfaceHover;
+            dict["SystemControlForegroundBaseHighBrush"] = theme.TextPrimary;
+            dict["SystemControlForegroundBaseMediumBrush"] = theme.TextSecondary;
+            dict["SystemControlHighlightAccentBrush"] = theme.Accent;
+            dict["SystemControlHighlightAltAccentBrush"] = theme.Accent;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ThemeManager] Apply failed: {ex.Message}");
+            // Revert to system theme on error
+            Application.Current.RequestedThemeVariant = null;
+            throw;
+        }
     }
 
     private static string GetConfigPath()

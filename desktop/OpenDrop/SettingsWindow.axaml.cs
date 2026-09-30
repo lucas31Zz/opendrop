@@ -69,14 +69,23 @@ public partial class SettingsWindow : Window
         foreach (var kv in ThemeManager.Themes)
         {
             var t = kv.Value;
+            IBrush accentBrush;
+            try
+            {
+                accentBrush = t.IsSystem
+                    ? new SolidColorBrush(Color.Parse("#4a9eff"))
+                    : new SolidColorBrush(Color.Parse(t.Accent ?? "#4a9eff"));
+            }
+            catch
+            {
+                accentBrush = new SolidColorBrush(Color.Parse("#4a9eff"));
+            }
             items.Add(new ThemeItem
             {
                 Id = t.Id,
                 DisplayName = t.DisplayName,
                 Description = t.Description,
-                AccentBrush = t.IsSystem
-                    ? new SolidColorBrush(Color.Parse("#4a9eff"))
-                    : new SolidColorBrush(Color.Parse(t.Accent ?? "#4a9eff"))
+                AccentBrush = accentBrush
             });
         }
         ThemeCombo.ItemsSource = items;
@@ -108,8 +117,30 @@ public partial class SettingsWindow : Window
         if (ThemeCombo.SelectedItem is ThemeItem item)
         {
             ThemeDescText.Text = item.Description;
-            // Live preview: apply immediately
-            ThemeManager.SetTheme(item.Id);
+            // No live preview - only update description
+        }
+    }
+
+    private void BtnApplyTheme_Click(object? sender, RoutedEventArgs e)
+    {
+        if (ThemeCombo.SelectedItem is ThemeItem item)
+        {
+            try
+            {
+                ThemeManager.SetTheme(item.Id);
+                BtnApplyTheme.Content = Lang.T("Btn.ApplyTheme") + " ✓";
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                timer.Tick += (_, _) =>
+                {
+                    BtnApplyTheme.Content = Lang.T("Btn.ApplyTheme");
+                    timer.Stop();
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                Msg.ShowAsync(this, $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Field.Theme"));
+            }
         }
     }
 

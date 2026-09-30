@@ -235,6 +235,9 @@
                         </ComboBox>
                         <TextBlock x:Name="ThemeDescText" Text="" FontSize="11" Foreground="#666"
                                    Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <Button x:Name="BtnApplyTheme" Content="{DynamicResource Btn.ApplyTheme}"
+                                Classes="save" Margin="0,12,0,0" HorizontalAlignment="Right"
+                                Click="BtnApplyTheme_Click"/>
                     </StackPanel>
                 </Border>
 
