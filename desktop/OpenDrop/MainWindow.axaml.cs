@@ -185,7 +185,7 @@ public partial class MainWindow : Window
         if (_trayQuit != null) _trayQuit.Header = Lang.T("Tray.Quit");
     }
 
-    private void ShowFromTray()
+    internal void ShowFromTray()
     {
         Show();
         if (WindowState == WindowState.Minimized)
