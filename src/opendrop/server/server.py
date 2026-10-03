@@ -240,6 +240,12 @@ class OpenDropHandler(BaseHTTPRequestHandler):
 
     def finish(self):
         try:
+            # The response is already on the wire (wbufsize is 0). Closing
+            # while the request body is still queued makes the kernel reset
+            # the connection and the client loses that response, so absorb
+            # whatever the handler never read - this is the last chance.
+            # It must happen before super().finish() closes self.rfile.
+            self._drain_left_body()
             super().finish()
         finally:
             # shutdown_request() only ever sees the detached raw socket
@@ -402,8 +408,13 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             if path == "/api/upload":
                 self._route_upload(query, ip)
             elif path == "/api/session/unlock":
+                # Absorb the (empty) body first: `finish()` would do it,
+                # but answering with bytes still queued is what resets the
+                # connection on some systems.
+                self._drain_left_body()
                 self._route_session_unlock(query, ip)
             else:
+                self._drain_left_body()
                 self._send_json({"error": t("Unknown route", lang), "code": 404}, 404)
         except OpenDropError as e:
             # An error answer written while the request body is still
@@ -435,15 +446,19 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         if getattr(self, "_body_drained", False):
             return
         self._body_drained = True
+        headers = getattr(self, "headers", None)
+        if headers is None:
+            return
         try:
-            length = int(self.headers.get("Content-Length", 0) or 0)
+            length = int(headers.get("Content-Length", 0) or 0)
         except (TypeError, ValueError):
             return
         if length <= 0:
             return
         try:
             self._drain_body(length)
-        except OSError:
+        except Exception:
+            # Never let a defensive read break the response path.
             pass
 
     def _route_qr(self, query: dict, ip: str) -> None:
