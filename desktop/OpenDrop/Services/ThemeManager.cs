@@ -60,8 +60,12 @@ public static class ThemeManager
 
     private static string GetConfigPath()
     {
-        var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(baseDir, "OpenDrop", "config.json");
+        // Same path as every other component: the shell folder and the
+        // LOCALAPPDATA environment variable are not always the same
+        // directory (tests and sandboxed runs redirect the variable), and
+        // the theme writer must follow that redirection like Lang,
+        // SettingsWindow, ServerManager and MoveRegistry already do.
+        return QuotaUsage.ConfigPath;
     }
 
     private static string? ReadThemeFromConfig()

@@ -27,3 +27,6 @@ projet.txt
 Thumbs.db
 .DS_Store
 wheels/
+
+# Screenshot automation: local only, never published
+tools/screenshots/

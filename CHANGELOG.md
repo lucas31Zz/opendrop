@@ -51,6 +51,11 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   framework's `shutdown_request()` could no longer close anything and the
   response used to depend on when the collector showed up. A handshake
   that fails is closed on the spot as well.
+- The theme preference now goes through the same config path as every
+  other component: `ThemeManager` resolved the shell folder instead of the
+  `LOCALAPPDATA` environment variable, so a redirected profile (tests,
+  sandboxed runs) saw its real `config.json` rewritten while the rest of
+  the app wrote to the redirected one.
 - The receive-folder quota scan no longer runs while holding the quota
   lock. The phone polls usage every 5 s, and a slow folder (large tree,
   OneDrive placeholders, antivirus) could previously block uploads and
