@@ -30,3 +30,4 @@ wheels/
 
 # Screenshot automation: local only, never published
 tools/screenshots/
+tests screen/
