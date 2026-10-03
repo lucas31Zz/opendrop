@@ -27,7 +27,6 @@ from opendrop.server.errors import (
     RateLimitError,
     MultipartParseError, FilenameInvalidError, FilenameUnsafeError,
     FileTooLargeError, FileDeletedError, DownloadError, DiskError,
-    QuotaExceededError,
     format_error_response, log_error,
 )
 
@@ -221,11 +220,38 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         context = getattr(self.server, "ssl_context", None)
         if context is not None and not isinstance(self.request, ssl.SSLSocket):
             self.request.settimeout(TLS_HANDSHAKE_TIMEOUT)
-            # wrap_socket detaches the raw socket: the SSLSocket owns the
-            # file descriptor from here on, shutdown_request stays harmless.
-            self.request = context.wrap_socket(self.request, server_side=True)
+            # wrap_socket detaches the raw socket and hands the descriptor
+            # to the SSLSocket. The handshake is run by hand so a failure
+            # still leaves us holding an object we can close, instead of
+            # waiting for the garbage collector to notice an orphan.
+            tls = context.wrap_socket(self.request, server_side=True,
+                                      do_handshake_on_connect=False)
+            try:
+                tls.do_handshake()
+            except BaseException:
+                try:
+                    tls.close()
+                except OSError:
+                    pass
+                raise
+            self.request = tls
             self.request.settimeout(REQUEST_TIMEOUT)
         super().setup()
+
+    def finish(self):
+        try:
+            super().finish()
+        finally:
+            # shutdown_request() only ever sees the detached raw socket
+            # (fd already transferred above), so the SSLSocket would be
+            # closed by the garbage collector at an arbitrary moment -
+            # after the response may have been lost. Release it here.
+            sock = self.request
+            if isinstance(sock, ssl.SSLSocket):
+                try:
+                    sock.close()
+                except OSError:
+                    pass
 
     def handle(self):
         self.connection.settimeout(REQUEST_TIMEOUT)
@@ -362,6 +388,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         ip = self._get_client_ip()
         lang = getattr(self.server, "language", "en")
+        self._body_drained = False
 
         try:
             self._check_origin()
@@ -379,6 +406,10 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"error": t("Unknown route", lang), "code": 404}, 404)
         except OpenDropError as e:
+            # An error answer written while the request body is still
+            # queued makes the kernel reset the connection: the client then
+            # loses the status line and only sees a cut connection.
+            self._drain_left_body()
             self._send_error_json(e)
         except ConnectionResetError:
             pass
@@ -388,10 +419,32 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             log_error(e, "do_POST")
+            self._drain_left_body()
             try:
                 self._send_error_json(OpenDropError())
             except Exception:
                 pass
+
+    def _drain_left_body(self) -> None:
+        """Swallow a request body that was never read, before answering.
+
+        Bounded in size and time (`_drain_body`), and done at most once per
+        request: once `parse_multipart_upload` has started, the remaining
+        bytes are no longer where this would look for them.
+        """
+        if getattr(self, "_body_drained", False):
+            return
+        self._body_drained = True
+        try:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return
+        if length <= 0:
+            return
+        try:
+            self._drain_body(length)
+        except OSError:
+            pass
 
     def _route_qr(self, query: dict, ip: str) -> None:
         # Outside /api/: without this line the route would generate PNGs
@@ -529,18 +582,13 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             raise MultipartParseError("Invalid request format")
 
         if content_length > MAX_UPLOAD_SIZE:
-            self._drain_body(content_length)
             raise FileTooLargeError("File too large (max 10 GB)")
 
         # Global quota: scan the folder + reserve the announced space
         # (raises 507 if the upload would exceed the quota).
         quota = getattr(self.server, "quota", None)
         if quota is not None:
-            try:
-                quota.reserve(content_length)
-            except QuotaExceededError:
-                self._drain_body(content_length)
-                raise
+            quota.reserve(content_length)
 
         with transfer_lock:
             transfer_state.update({
@@ -553,6 +601,9 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             with transfer_lock:
                 transfer_state["received"] = received
 
+        # From here the body is being consumed: any later error must not
+        # try to re-read it (see `_drain_left_body`).
+        self._body_drained = True
         try:
             safe_name, error, file_hash = parse_multipart_upload(
                 self.rfile, content_type, content_length,

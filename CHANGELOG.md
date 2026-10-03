@@ -40,6 +40,17 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   client was left waiting on an unresponsive page. The handshake now
   happens in the worker thread that owns the connection and is bounded to
   10 s; the accept loop never waits on a client.
+- A rejected POST could lose its own status code: the server answered
+  while the request body was still queued, the kernel then reset the
+  connection, and the client saw a cut connection instead of the
+  400/429/507 (it showed up as `RemoteDisconnected` in the Linux CI).
+  The unread body is now absorbed first, bounded in size and time, and
+  only until the upload parser starts consuming it.
+- The TLS connection is released in the handler instead of by the garbage
+  collector: `wrap_socket()` hands the descriptor to a new object, so the
+  framework's `shutdown_request()` could no longer close anything and the
+  response used to depend on when the collector showed up. A handshake
+  that fails is closed on the spot as well.
 - The receive-folder quota scan no longer runs while holding the quota
   lock. The phone polls usage every 5 s, and a slow folder (large tree,
   OneDrive placeholders, antivirus) could previously block uploads and
