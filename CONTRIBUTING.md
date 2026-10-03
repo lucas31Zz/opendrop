@@ -42,8 +42,10 @@ python -m tests.test_beta         # 64
 
 ## Conventions
 
-- **Code and comments in French, without accents** (keeps encoding simple
-  everywhere). Markdown (README, docs) may use accents.
+- **Code and comments in English**: the server, the desktop app and the
+  documentation are all written in English. French only exists as an
+  *interface* language (`"language": "fr"`), never as a source language.
+  Same for commit messages.
 - **No out-of-scope refactoring**: if a fix is 3 lines long, it stays 3
   lines.
 - No new dependency without discussing it first (issues).

@@ -1,12 +1,22 @@
 # Screenshots
 
-Expected files in this folder (to be added before the public launch):
+Images committed here and linked from the *Screenshots* section of the
+[top-level README](../../README.md). Keep the names stable: the README
+points at these exact files.
 
-| File | Subject |
-|---|---|
-| `desktop.png` | Desktop app: QR code, address, session code, quota |
-| `settings.png` | Settings window: folders, port, quota, token |
-| `web-send.png` | Web interface, *Send* tab (after scanning the QR code) |
-| `web-share.png` | Web interface, *Download* tab (Share folder) |
+| File | Subject | Theme |
+|---|---|---|
+| `desktop.png` | Desktop app: QR code, server address, session code, quota, folders | dark |
+| `desktop-light.png` | Same window, light theme | light |
+| `desktop-scroll.png` | Left column of the main window, top to bottom (the column scrolls) | dark |
+| `settings.png` | Settings window: top of the form | dark |
+| `settings-scroll.png` | Whole settings form, top to bottom (the form scrolls) | dark |
+| `web-send-dark.png` | Web interface, *Send* tab | dark |
+| `web-share-dark.png` | Web interface, *Download* tab | dark |
+| `web-send-light.png` | Web interface, *Send* tab | light |
+| `web-share-light.png` | Web interface, *Download* tab | light |
 
-They are referenced from the *Screenshots* section of the README.
+The desktop shots are full client-area captures of the app (no window
+borders, no desktop background) so they stay readable at any zoom. The
+`*-scroll` images are the scrollable columns stitched back together: they
+show the content that sits below the fold in the plain window shot.

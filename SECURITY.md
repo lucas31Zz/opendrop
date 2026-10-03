@@ -316,8 +316,6 @@ Python 3.12, no external framework):
 
 | Threat | Protection | Status |
 |---|---|---|
-| Update manifest spoofed / tampered | Manifest + SHA-256 digest served from this public repository; the app verifies the digest before launching the installer | Done |
-| Token stolen from the app | No token embedded: the manifest and the Windows setup are publicly downloadable release assets | Done |
 | Access with no token | Token required on every route that carries data; `/api/info` public with no secrets (see section 5) | Done |
 | Request from another site | Origin (`Origin`) checked against the server's real URL: 403 otherwise | Done |
 | Brute force on the session code | 6-character code (31^6), 5 tries / minute / IP, rotation on demand | Done |
@@ -334,7 +332,6 @@ Python 3.12, no external framework):
 | Encryption at rest | Not protected | Future |
 | Identity attestation | Self-signed certificate, manual acceptance (tested: not approved by default) | Limited |
 | Integrity check | SHA-256 returned only when the body is complete; displayed, no automatic comparison | Done |
-| Update integrity | Update manifest + SHA-256 verified before launching a new setup; manifest served from this public repository, no token in the app | Done |
 
 ---
 

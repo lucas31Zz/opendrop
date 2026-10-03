@@ -55,31 +55,47 @@ server running on your machine, nothing goes over the internet.
 
 ## Screenshots
 
-### Desktop App
+### Desktop app
 
-The main interface shows the QR code, server address, session code, and current usage vs. quota.
+The main window: QR code, server address, session code, receive quota,
+folders, and the Start/Stop/Settings buttons along the bottom.
 
-![Desktop App - Main Interface](docs/screenshots/interface%20principale%20opendrop.png)
+![Desktop app - dark](docs/screenshots/desktop.png)
+
+The same window in the light theme (*Settings > Appearance*):
+
+![Desktop app - light](docs/screenshots/desktop-light.png)
+
+The left column scrolls; here it is from top to bottom (QR code, address,
+session code, token refresh, folders, quota):
+
+![Desktop app - scrollable column](docs/screenshots/desktop-scroll.png)
 
 ### Settings
 
-Configure folders, port, storage quota, token rotation, appearance (light/dark), and language.
+Configure folders, port, storage quota, token rotation, appearance
+(light/dark) and language. The form scrolls too, so here it is whole:
 
-![Settings - Part 1](docs/screenshots/screen%20opendrop%20setting%20part1.png)
-![Settings - Part 2](docs/screenshots/opendrop%20setting%20part2.png)
-![Settings - Part 3](docs/screenshots/opendrop%20setting%20part3.png)
+![Settings - window](docs/screenshots/settings.png)
 
-### Web Interface
+![Settings - full form](docs/screenshots/settings-scroll.png)
 
-Send files and download from the Share folder directly in your browser — no install needed.
+### Web interface
 
-**Send Tab:**
+Send files and download from the Share folder directly in your browser —
+no install needed, in the same light/dark theme as the app.
 
-![Web Interface - Send](docs/screenshots/opendrop%20web%20ui%20upload.png)
+**Send tab:**
 
-**Download Tab:**
+| Dark | Light |
+|---|---|
+| ![Web interface - Send (dark)](docs/screenshots/web-send-dark.png) | ![Web interface - Send (light)](docs/screenshots/web-send-light.png) |
 
-![Web Interface - Download](docs/screenshots/opendrop%20web%20ui%20download.png)
+**Download tab:**
+
+| Dark | Light |
+|---|---|
+| ![Web interface - Download (dark)](docs/screenshots/web-share-dark.png) | ![Web interface - Download (light)](docs/screenshots/web-share-light.png) |
 
 ---
 
@@ -166,7 +182,7 @@ The same app runs on both systems (Avalonia UI).
 
 ```powershell
 dotnet build desktop\OpenDrop\OpenDrop.csproj
-.\desktop\OpenDrop\bin\Debug\net8.0\OpenDrop.exe        # Windows
+.\desktop\OpenDrop\bin\Debug\net8.0-windows\OpenDrop.exe    # Windows
 ```
 
 ```bash
@@ -350,7 +366,7 @@ documented in [SECURITY.md](SECURITY.md). In short:
 | `desktop/OpenDrop/` | Avalonia desktop app (.NET 8, Windows + Linux) that drives the server |
 | `web/` | web interface (`index.html`, `app.js`, `style.css`) |
 | `packaging/` | Windows installer (Inno Setup) and Linux scripts (install/uninstall) |
-| `tools/` | dev utilities (icon generation) |
+| `tools/` | dev utilities (icon generation); `tools/screenshots/` is local-only and gitignored |
 | `tests/` | homegrown test suites |
 | `docs/` | project docs (screenshots) |
 | `.github/` | continuous integration, Dependabot, issue templates |
