@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [0.1.2] - 2026-09-27
+## [0.3.0] - 2026-09-27
 
 ### Added
 
@@ -36,9 +36,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - The update manifest now uses the real release asset name (`v` prefix) and
   embeds the SHA-256 of the setup; it is mirrored to a public repo so the app
   needs no token
-- Versions aligned on 0.1.2 (`pyproject.toml` was still 0.1.0)
+- Versions aligned on 0.3.0 (`pyproject.toml` was still 0.1.0)
 
-## [0.1.1] - 2026-09-27
+## [0.2.0] - 2026-09-27
 
 ### Added
 
@@ -58,9 +58,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
 ### Changed
 
-- `main.py` version string aligned with the release tag (`v0.1.1`)
+- `main.py` version string aligned with the release tag (`v0.2.0`)
 
-## [0.1.1] - 2026-09-27
+## [0.2.0] - 2026-09-27
 
 ### Added
 
