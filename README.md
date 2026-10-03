@@ -171,6 +171,24 @@ The app needs Python 3.10+ and the dependencies:
 pip install -r requirements.txt     # or reuse the venv from an install
 ```
 
+### Automatic updates
+
+OpenDrop checks the latest GitHub release when it starts and whenever you
+ask it to from *Settings > Updates*. Only releases tagged `vX.Y.Z` are
+offered, never a draft or a pre-release, and nothing is installed before
+you click *Update now*.
+
+- **Windows**: the `setup.exe` is downloaded, checked against the SHA-256
+  digest published with the asset, and run silently once OpenDrop has
+  closed. It replaces the previous installation in place — a single entry
+  in *Apps*, your settings kept.
+- **Linux**: the archive is verified the same way. Installed in `/opt`?
+  A polkit password dialog (`pkexec`) runs the bundled `install.sh`;
+  running from an unpacked folder? The files are replaced in place.
+  `~/.opendrop` and your receive/share folders are never touched.
+
+*Skip this version* is remembered for that release only.
+
 ---
 
 ## Getting started

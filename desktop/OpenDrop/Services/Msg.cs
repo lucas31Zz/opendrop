@@ -133,6 +133,113 @@ internal static class Msg
         return await tcs.Task;
     }
 
+    // Non-modal progress window for a job that takes long enough to be
+    // worth showing (an update download). The caller reports progress and
+    // closes it when done; the window never blocks anything.
+    public sealed class ProgressReporter
+    {
+        private readonly Window _window;
+        private readonly TextBlock _heading;
+        private readonly TextBlock _detail;
+        private readonly ProgressBar _bar;
+
+        internal ProgressReporter(Window window, TextBlock heading,
+                                  TextBlock detail, ProgressBar bar)
+        {
+            _window = window;
+            _heading = heading;
+            _detail = detail;
+            _bar = bar;
+        }
+
+        public void Title(string text) => Post(() => _heading.Text = text);
+
+        public void Report(long done, long total) => Post(() =>
+        {
+            if (total > 0)
+            {
+                var percent = 100.0 * done / total;
+                _bar.Value = Math.Clamp(percent, 0, 100);
+                _detail.Text = $"{Bytes(done)} / {Bytes(total)}";
+            }
+            else
+            {
+                _bar.IsIndeterminate = true;
+            }
+        });
+
+        public void Close() => Post(() =>
+        {
+            try { _window.Close(); } catch (Exception) { }
+        });
+
+        private static void Post(Action action)
+            => Dispatcher.UIThread.Post(action);
+
+        private static string Bytes(long value)
+        {
+            if (value >= 1024L * 1024 * 1024)
+                return $"{value / (1024d * 1024 * 1024):0.#} GB";
+            if (value >= 1024L * 1024)
+                return $"{value / (1024d * 1024):0.#} MB";
+            if (value >= 1024L)
+                return $"{value / 1024d:0.#} KB";
+            return $"{value} B";
+        }
+    }
+
+    public static ProgressReporter Progress(Window owner, string title, string text)
+    {
+        var heading = new TextBlock
+        {
+            Text = text,
+            FontSize = 13,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = FieldText,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 420,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+
+        var detail = new TextBlock
+        {
+            Text = "",
+            FontSize = 12,
+            Foreground = BodyText,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+
+        var bar = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 0,
+            Height = 6,
+            Width = 420
+        };
+
+        var window = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            MaxWidth = 520,
+            MinWidth = 320,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = WindowBg,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(20),
+                Children = { heading, detail, bar }
+            }
+        };
+
+        // Modal on purpose: the update is a one-shot job, the owner has
+        // nothing to gain from being usable while the file downloads.
+        _ = window.ShowDialog(owner);
+        return new ProgressReporter(window, heading, detail, bar);
+    }
+
     // Every button in visual order; -1 when dismissed without a choice.
     private static Task<int> BuildAsync(Window owner, string text, string title,
                                         string[] buttons, int primaryIndex)

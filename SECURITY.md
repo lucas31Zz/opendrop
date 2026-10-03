@@ -294,6 +294,35 @@ the same and the certificate stays valid until it expires (397 days).
 
 ---
 
+## Updates
+
+The desktop application can fetch and install its own updates from GitHub
+Releases. That code downloads a file and then executes it, so it is held
+to stricter rules than the rest of the application:
+
+- only `GET /repos/lucas31Zz/opendrop/releases/latest` is used — never a
+  branch, never a tag the client picks itself;
+- the release must carry a tag matching `vX.Y.Z`; a release without a
+  usable tag is ignored, whatever its title says;
+- drafts and pre-releases are rejected, checked twice (the endpoint
+  already filters them, the fields are read back anyway);
+- the downloaded file must match the SHA-256 digest GitHub publishes with
+  the asset when there is one; a mismatch deletes the file and aborts;
+- the transport is HTTPS with GitHub's certificate, and the metadata call
+  has a 20 second timeout so an unreachable network stays silent instead
+  of alarming;
+- the installer is run with the same `AppId` / prefix as the previous
+  installation and **never** through the uninstaller (which would delete
+  the configuration); user data lives outside the installation folder on
+  both platforms, so an update cannot reach it;
+- *Skip this version* is stored in `config.json` (`skip_version`), a key
+  the settings window carries over when it rewrites the file.
+
+An update is always opt-in: the startup check only opens the dialogue, it
+never installs anything on its own.
+
+---
+
 ## Verification
 
 Everything above is covered by automated tests (run from the repo root,

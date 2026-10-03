@@ -194,7 +194,7 @@
 
                 <!-- Appearance: light / dark only -->
                 <TextBlock Classes="section" Text="{DynamicResource Section.Appearance}"/>
-                <Border Classes="card" Margin="0,0,0,20">
+                <Border Classes="card" Margin="0,0,0,16">
                     <StackPanel>
                         <TextBlock Classes="field" Text="{DynamicResource Field.Theme}"/>
                         <ComboBox x:Name="ThemeCombo" FontSize="13" Margin="0,4,0,0"
@@ -202,6 +202,32 @@
                             <ComboBoxItem Content="{DynamicResource Theme.Light}"/>
                             <ComboBoxItem Content="{DynamicResource Theme.Dark}"/>
                         </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Updates -->
+                <TextBlock Classes="section" Text="{DynamicResource Section.Updates}"/>
+                <Border Classes="card" Margin="0,0,0,20">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Field.Version}"
+                                       FontSize="13" Foreground="{DynamicResource Brush.TextSecondary}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" x:Name="VersionText" Text=""
+                                       FontSize="13" Foreground="{DynamicResource Brush.TextMuted}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <Button x:Name="BtnCheckUpdates" Content="{DynamicResource Btn.CheckUpdates}"
+                                HorizontalAlignment="Stretch" Classes="browse"
+                                Margin="0,10,0,0" Padding="0,8"
+                                Click="BtnCheckUpdates_Click"/>
+                        <TextBlock x:Name="UpdateStatusText" Text="" FontSize="11"
+                                   Foreground="{DynamicResource Brush.TextFaint}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 

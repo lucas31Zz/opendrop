@@ -57,6 +57,8 @@ public partial class SettingsWindow : Window
         ThemeCombo.SelectedIndex = ThemeManager.Current == ThemeManager.Light ? 0 : 1;
         _loadingTheme = false;
 
+        VersionText.Text = UpdateService.CurrentVersion;
+
         UpdateQuotaUsage();
     }
 
@@ -198,6 +200,27 @@ public partial class SettingsWindow : Window
             timer.Start();
         }
         catch { }
+    }
+
+    // Same path as the check at startup, but interactive: the answer is
+    // always spelled out here, even when there is nothing to update.
+    private async void BtnCheckUpdates_Click(object? sender, RoutedEventArgs e)
+    {
+        BtnCheckUpdates.IsEnabled = false;
+        UpdateStatusText.Text = Lang.T("Up.Checking");
+        try
+        {
+            var message = await UpdateRunner.RunAsync(this, interactive: true);
+            UpdateStatusText.Text = message ?? "";
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = Lang.Format("Up.Error", ex.Message);
+        }
+        finally
+        {
+            BtnCheckUpdates.IsEnabled = true;
+        }
     }
 
     private void UpdateQuotaUsage()

@@ -54,9 +54,18 @@ fi
 # --- copy the application
 echo "  Installing into $PREFIX ..."
 mkdir -p "$PREFIX"
+# An executable that is currently running cannot be overwritten (ETXTBSY).
+# install.sh is also used to apply an update while the previous version is
+# still alive (the updater waits for it to quit), so the binary is moved
+# out of the way first; the running process keeps its own copy open.
+if [ -e "$PREFIX/OpenDrop" ]; then
+    rm -f "$PREFIX/OpenDrop.old"
+    mv "$PREFIX/OpenDrop" "$PREFIX/OpenDrop.old" 2>/dev/null || rm -f "$PREFIX/OpenDrop"
+fi
 for item in OpenDrop src web pyproject.toml requirements.txt; do
     cp -R "$SRC_DIR/$item" "$PREFIX/"
 done
+rm -f "$PREFIX/OpenDrop.old" 2>/dev/null || true
 cp "$SRC_DIR/install.sh" "$SRC_DIR/uninstall.sh" "$SRC_DIR/opendrop.desktop.in" \
    "$SRC_DIR/opendrop.png" "$PREFIX/" 2>/dev/null || true
 chmod +x "$PREFIX/OpenDrop" "$PREFIX/install.sh" "$PREFIX/uninstall.sh" 2>/dev/null || true

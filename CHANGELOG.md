@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.8] - 2026-10-04
+
+### Added
+
+- **Automatic updates**: OpenDrop now looks for a newer release when it
+  starts (three seconds after the window is up, never before, and
+  without a word if GitHub cannot be reached) and from
+  *Settings → Updates*, which also shows the running version and the
+  outcome of the check.
+  - Windows: the matching `setup.exe` is downloaded, checked against the
+    SHA-256 digest GitHub publishes with the asset, and handed to a
+    detached helper that waits for OpenDrop to exit and runs it with
+    `/VERYSILENT`. Same `AppId`, so the new version replaces the old one
+    in place: a single entry in *Programs and features*, the previous
+    installation is overwritten rather than uninstalled (an uninstaller
+    would delete the settings), and `%LOCALAPPDATA%\OpenDrop` is outside
+    `{app}` so the configuration survives untouched.
+  - Linux: the `tar.gz` is verified the same way, then applied either in
+    place (archive unpacked by hand: the running binary is renamed first
+    to dodge `ETXTBSY`, dependencies are refreshed from the bundled
+    wheels, no network needed) or through the bundled `install.sh` run
+    with `pkexec` when the installation lives in `/opt`.
+  - The new process starts only once the old one is gone, through a
+    helper waiting on its PID: the single-instance lock would otherwise
+    make it hand the signal back and quit.
+  - *Skip this version* is remembered in `config.json` (`skip_version`)
+    and silenced for that version only; *Later* keeps the offer for the
+    next start. Drafts, pre-releases and releases without a `vX.Y.Z` tag
+    are never offered.
+- The new dialogue, the progress bar and the *Updates* section are
+  translated in both languages (105 → 123 strings per language).
+
+### Fixed
+
+- **Installing over a running copy could fail with "Text file busy"**:
+  `install.sh` now moves the running binary aside before replacing it,
+  so an update can be applied while the previous version is still up.
+
 ## [0.1.7] - 2026-10-03
 
 ### Fixed

@@ -120,4 +120,24 @@
     <x:String x:Key="Theme.Light">Clair</x:String>
     <x:String x:Key="Theme.Dark">Sombre</x:String>
 
+    <!-- Mises à jour -->
+    <x:String x:Key="Section.Updates">MISES À JOUR</x:String>
+    <x:String x:Key="Field.Version">Version</x:String>
+    <x:String x:Key="Btn.CheckUpdates">Vérifier les mises à jour</x:String>
+    <x:String x:Key="Update.Title">Mises à jour</x:String>
+    <x:String x:Key="Up.Checking">Vérification des mises à jour...</x:String>
+    <x:String x:Key="Up.UpToDate">OpenDrop est à jour ({0}).</x:String>
+    <x:String x:Key="Up.Available">Une nouvelle version d'OpenDrop est disponible : {0} (vous avez {1}).</x:String>
+    <x:String x:Key="Up.Skip">Ignorer cette version</x:String>
+    <x:String x:Key="Up.Later">Plus tard</x:String>
+    <x:String x:Key="Up.Install">Mettre à jour</x:String>
+    <x:String x:Key="Up.Downloading">Téléchargement de {0}...</x:String>
+    <x:String x:Key="Up.Installing">Installation...</x:String>
+    <x:String x:Key="Up.Done">La mise à jour est en cours d'installation. OpenDrop va se fermer et redémarrer.</x:String>
+    <x:String x:Key="Up.Error">Impossible de vérifier les mises à jour : {0}</x:String>
+    <x:String x:Key="Up.InstallError">La mise à jour n'a pas pu être appliquée : {0}</x:String>
+    <x:String x:Key="Up.BadChecksum">le fichier téléchargé ne correspond pas à la somme de contrôle publiée</x:String>
+    <x:String x:Key="Up.BadArchive">l'archive téléchargée n'est pas un paquet OpenDrop</x:String>
+    <x:String x:Key="Up.NoPolkit">pkexec (polkit) est nécessaire pour installer dans /opt</x:String>
+
 </ResourceDictionary>

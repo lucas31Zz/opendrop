@@ -119,4 +119,24 @@
     <x:String x:Key="Field.Theme">Theme</x:String>
     <x:String x:Key="Theme.Light">Light</x:String>
     <x:String x:Key="Theme.Dark">Dark</x:String>
+
+    <!-- Updates -->
+    <x:String x:Key="Section.Updates">UPDATES</x:String>
+    <x:String x:Key="Field.Version">Version</x:String>
+    <x:String x:Key="Btn.CheckUpdates">Check for updates</x:String>
+    <x:String x:Key="Update.Title">Updates</x:String>
+    <x:String x:Key="Up.Checking">Checking for updates...</x:String>
+    <x:String x:Key="Up.UpToDate">OpenDrop is up to date ({0}).</x:String>
+    <x:String x:Key="Up.Available">A new version of OpenDrop is available: {0} (you are running {1}).</x:String>
+    <x:String x:Key="Up.Skip">Skip this version</x:String>
+    <x:String x:Key="Up.Later">Later</x:String>
+    <x:String x:Key="Up.Install">Update now</x:String>
+    <x:String x:Key="Up.Downloading">Downloading {0}...</x:String>
+    <x:String x:Key="Up.Installing">Installing...</x:String>
+    <x:String x:Key="Up.Done">The update is being installed. OpenDrop will close and restart.</x:String>
+    <x:String x:Key="Up.Error">Could not check for updates: {0}</x:String>
+    <x:String x:Key="Up.InstallError">The update could not be applied: {0}</x:String>
+    <x:String x:Key="Up.BadChecksum">the downloaded file does not match the published checksum</x:String>
+    <x:String x:Key="Up.BadArchive">the downloaded archive is not an OpenDrop bundle</x:String>
+    <x:String x:Key="Up.NoPolkit">pkexec (polkit) is needed to install into /opt</x:String>
 </ResourceDictionary>

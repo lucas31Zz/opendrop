@@ -133,7 +133,34 @@ public partial class MainWindow : Window
             {
                 UpdateUI("error", Lang.T("Err.CannotStart"));
             }
+
+            _ = CheckForUpdatesOnStartupAsync();
         };
+    }
+
+    // Update check, started once the window and the server have settled:
+    // a dialog popping up over a half-started application is worse than
+    // waiting three seconds. Anything unexpected (offline, API change,
+    // rate limit) stays silent here - Settings gives the feedback.
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        try
+        {
+            await UpdateRunner.RunAsync(this, interactive: false);
+        }
+        catch (Exception)
+        {
+            // The updater never gets in the way of the transfer itself.
+        }
+    }
+
+    // Used by the updater: quit for real, even with a tray icon where the
+    // close button would otherwise only hide the window.
+    public void ForceCloseForUpdate()
+    {
+        _forceClose = true;
+        Close();
     }
 
     #region Tray
