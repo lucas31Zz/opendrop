@@ -81,9 +81,7 @@ def main():
     session_code = server.sessions.code
     save_session_state(token, session_code)
     print(flush=True)
-    # Test marker for the 0.1.9 self-update release; removed once the
-    # update path has been verified on a real installation.
-    print("  OpenDrop v0.1.9", flush=True)
+    print("  OpenDrop v0.1.8", flush=True)
     print(flush=True)
     print(f"  {t('Server:', lang):<18}{ip}:{port}", flush=True)
     print(f"  {t('Web interface:', lang):<18}{url_upload}", flush=True)

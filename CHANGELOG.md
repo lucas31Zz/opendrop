@@ -5,15 +5,6 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [0.1.9] - 2026-10-04
-
-### Changed
-
-- Version bump and a marker comment in `src/opendrop/main.py`. This
-  release exists to exercise the automatic update end to end on a real
-  installation: 0.1.8 has to offer it, download it, install it and
-  restart into it. The release will be withdrawn once the test is done.
-
 ## [0.1.8] - 2026-10-04
 
 ### Added
