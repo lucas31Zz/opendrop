@@ -7,16 +7,27 @@ using Avalonia.Threading;
 
 namespace OpenDrop;
 
-// Avalonia has no MessageBox: minimal windows matching the app's dark
-// theme, same usage as System.Windows.MessageBox.
+// Avalonia has no MessageBox: minimal windows matching the app palette,
+// same usage as System.Windows.MessageBox. The brushes come from the theme
+// dictionaries in App.axaml, so dialogs follow the light/dark variant.
 internal static class Msg
 {
-    private static readonly SolidColorBrush WindowBg = new(Color.FromRgb(0x0f, 0x0f, 0x0f));
-    private static readonly SolidColorBrush BodyText = new(Color.FromRgb(0xcc, 0xcc, 0xcc));
-    private static readonly SolidColorBrush FieldText = new(Color.FromRgb(0xe0, 0xe0, 0xe0));
-    private static readonly SolidColorBrush AccentBg = new(Color.FromRgb(0x4a, 0x9e, 0xff));
-    private static readonly SolidColorBrush QuietBg = new(Color.FromRgb(0x2a, 0x2a, 0x2a));
-    private static readonly SolidColorBrush InputBg = new(Color.FromRgb(0x22, 0x22, 0x22));
+    private static IBrush Resolve(string key, Color fallback)
+    {
+        var app = Application.Current;
+        if (app != null &&
+            app.TryGetResource(key, app.ActualThemeVariant, out var value) &&
+            value is IBrush brush)
+            return brush;
+        return new SolidColorBrush(fallback);
+    }
+
+    private static IBrush WindowBg => Resolve("Brush.Window", Color.FromRgb(0x0f, 0x0f, 0x0f));
+    private static IBrush BodyText => Resolve("Brush.TextSecondary", Color.FromRgb(0xcc, 0xcc, 0xcc));
+    private static IBrush FieldText => Resolve("Brush.TextPrimary", Color.FromRgb(0xe0, 0xe0, 0xe0));
+    private static IBrush AccentBg => Resolve("Brush.Accent", Color.FromRgb(0x4a, 0x9e, 0xff));
+    private static IBrush QuietBg => Resolve("Brush.Control", Color.FromRgb(0x2a, 0x2a, 0x2a));
+    private static IBrush InputBg => Resolve("Brush.Input", Color.FromRgb(0x22, 0x22, 0x22));
 
     public static Task ShowAsync(Window owner, string text, string title = "OpenDrop")
         => BuildAsync(owner, text, title, new[] { "OK" }, primaryIndex: 0);
@@ -56,7 +67,7 @@ internal static class Msg
             Foreground = FieldText,
             Background = InputBg,
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x4a, 0x9e, 0xff)),
+            BorderBrush = AccentBg,
             Margin = new Thickness(0, 0, 0, 16),
             CaretBrush = Brushes.White
         };

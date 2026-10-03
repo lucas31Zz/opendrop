@@ -47,6 +47,9 @@ server running on your machine, nothing goes over the internet.
 - **English and French**: English is the default everywhere (installer,
   desktop app, web interface, server messages); switch the app to French
   in *Settings* (or pick it in the Windows installer)
+- **Light or dark**: one theme switch in *Settings* covers the desktop
+  window, the dialogs and the phone page; the web interface follows it and
+  keeps its own ☀/☾ button for this device
 
 ---
 
@@ -60,7 +63,7 @@ The main interface shows the QR code, server address, session code, and current 
 
 ### Settings
 
-Configure folders, port, storage quota, token rotation, and language.
+Configure folders, port, storage quota, token rotation, appearance (light/dark), and language.
 
 ![Settings - Part 1](docs/screenshots/screen%20opendrop%20setting%20part1.png)
 ![Settings - Part 2](docs/screenshots/opendrop%20setting%20part2.png)
@@ -180,8 +183,9 @@ generated. Buttons along the bottom:
 
 - **Start server / Stop server**
 - **Settings** (folders, port, quota, new token on start, language
-  English/French): once saved, the server restarts itself with the new
-  config; the language switch applies immediately
+  English/French, theme light/dark): once saved, the server restarts
+  itself with the new config; the language and theme switches apply
+  immediately
 
 ### 2. Server only (no desktop UI)
 
@@ -292,6 +296,7 @@ folders, though, stay in `~/Downloads/OpenDrop`).
 | `generate_new_token` | `false` | new token on every launch |
 | `trust_proxy` | `false` | trust `X-Forwarded-For` (known proxies only) |
 | `language` | `en` | interface language: server messages, web UI and desktop app (`en` or `fr`) |
+| `theme` | `dark` | desktop and web appearance (`light` or `dark`) |
 
 To regenerate the certificate: quit OpenDrop, delete the
 `%LOCALAPPDATA%\OpenDrop\certs\` folder, relaunch (see SECURITY.md).
@@ -319,28 +324,6 @@ Before building, close the desktop app: a running binary blocks
 
 The same suites (without `--large`) run in continuous integration on
 Windows and Linux, Python 3.10 and 3.12.
-
----
-
-## Automatic updates (Windows)
-
-At startup, the desktop app checks the public manifest of this repository
-(`update.xml`) for a newer release. If one is found, a dialog asks whether to
-download and install it:
-
-- the setup is downloaded to the temp folder and **verified against a SHA-256
-  digest** from the manifest before anything runs (aborted and deleted on
-  mismatch);
-- launching the installer replaces the application in `Program Files (x86)`
-  and detects the running app (closed automatically);
-- **your data is preserved**: `config.json`, `session.json` and the TLS
-  certificate live in `%LOCALAPPDATA%\OpenDrop` and are never touched by an
-  update;
-- the check is **Windows-only** and reads a public manifest — no GitHub token
-  is embedded in the application.
-
-To disable the check, add `"check_updates": false` to
-`%LOCALAPPDATA%\OpenDrop\config.json` and relaunch.
 
 ---
 

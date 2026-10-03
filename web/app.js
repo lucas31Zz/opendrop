@@ -46,6 +46,8 @@
             "camera.denied": "Camera access denied. Open the camera app and scan the QR " +
                 "code directly.",
             "quota.unlimited": "{0} received (unlimited)",
+            "quota.offline": "Server unreachable.",
+            "theme.toggle": "Switch theme",
             "upload.serverError": "Server error ({0})",
             "upload.unreachable": "Could not reach the server."
         },
@@ -88,6 +90,8 @@
                 "s'ouvre tout seul.",
             "camera.denied": "Acc\u00e8s cam\u00e9ra refus\u00e9. Ouvrez l'appareil photo et scannez le QR directement.",
             "quota.unlimited": "{0} re\u00e7us (illimit\u00e9)",
+            "quota.offline": "Serveur injoignable.",
+            "theme.toggle": "Changer de th\u00e8me",
             "upload.serverError": "Erreur serveur ({0})",
             "upload.unreachable": "Impossible de contacter le serveur."
         }
@@ -102,6 +106,68 @@
         return text;
     }
 
+    // --- theme -------------------------------------------------------
+    // The desktop app publishes its light/dark choice on /api/info. This
+    // page follows it by default; the button overrides it for this device
+    // only, and the override is dropped as soon as the PC theme changes
+    // (so following the PC again is never a manual chore).
+    var THEME_KEY = "opendrop_theme";
+    var THEME_BASE_KEY = "opendrop_theme_base";
+    var serverTheme = "dark";
+    var theme = "dark";
+
+    function storeRead(key) {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+    }
+
+    function storeWrite(key, value) {
+        try { localStorage.setItem(key, value); } catch (e) { /* private mode */ }
+    }
+
+    function storeForget(key) {
+        try { localStorage.removeItem(key); } catch (e) { /* private mode */ }
+    }
+
+    function normalizeTheme(value) {
+        return value === "light" ? "light" : "dark";
+    }
+
+    function resolveTheme() {
+        var base = normalizeTheme(serverTheme);
+        var override = storeRead(THEME_KEY);
+        if (override === "light" || override === "dark") {
+            if (storeRead(THEME_BASE_KEY) === base) return override;
+            storeForget(THEME_KEY);
+            storeForget(THEME_BASE_KEY);
+        }
+        return base;
+    }
+
+    function applyTheme() {
+        theme = resolveTheme();
+        document.documentElement.setAttribute("data-theme", theme);
+        var button = document.getElementById("theme-toggle");
+        if (button) {
+            // The icon shows the theme a tap switches to.
+            button.textContent = theme === "dark" ? "\u2600" : "\u263e";
+            var label = t("theme.toggle");
+            button.title = label;
+            button.setAttribute("aria-label", label);
+        }
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", theme === "dark" ? "#0f0f0f" : "#f4f5f7");
+    }
+
+    function toggleTheme() {
+        storeWrite(THEME_KEY, theme === "dark" ? "light" : "dark");
+        storeWrite(THEME_BASE_KEY, normalizeTheme(serverTheme));
+        applyTheme();
+    }
+
+    var themeButton = document.getElementById("theme-toggle");
+    if (themeButton) themeButton.addEventListener("click", toggleTheme);
+    applyTheme();
+
     function applyLang() {
         document.documentElement.lang = LANG;
         var nodes = document.querySelectorAll("[data-i18n]");
@@ -113,18 +179,36 @@
             var spec = attrs[j].getAttribute("data-i18n-attr").split(":");
             if (spec.length === 2) attrs[j].setAttribute(spec[0], t(spec[1]));
         }
+        applyTheme();
     }
 
-    // Ask the server which language it was configured with, then apply it.
-    fetch("/api/info")
+    // Every request carries a deadline. A server that accepts the TCP
+    // connection but never answers (frozen handler, Wi-Fi gone, phone
+    // locked mid-handshake) must surface as an error the user can act on
+    // instead of leaving the page stuck on a silent, near-black screen.
+    function fetchWithTimeout(url, options, ms) {
+        var opts = options || {};
+        if (typeof AbortController === "undefined") return fetch(url, opts);
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { ctrl.abort(); }, ms);
+        opts.signal = ctrl.signal;
+        return fetch(url, opts).finally(function () { clearTimeout(timer); });
+    }
+
+    // Ask the server which language and theme it was configured with.
+    fetchWithTimeout("/api/info", null, 10000)
         .then(function (r) { return r.json(); })
         .then(function (info) {
             if (info && info.lang === "fr" && LANG !== "fr") {
                 LANG = "fr";
                 applyLang();
             }
+            if (info && normalizeTheme(info.theme) !== serverTheme) {
+                serverTheme = normalizeTheme(info.theme);
+                applyTheme();
+            }
         })
-        .catch(function () { /* server unreachable: keep the default */ });
+        .catch(function () { /* server unreachable: keep the defaults */ });
 
     function storeToken(value) {
         try {
@@ -219,7 +303,8 @@
         }
         showUnlockError("");
         btnUnlock.disabled = true;
-        fetch("/api/session/unlock?code=" + encodeURIComponent(code), { method: "POST" })
+        fetchWithTimeout("/api/session/unlock?code=" + encodeURIComponent(code),
+            { method: "POST" }, 10000)
             .then(function (r) {
                 return r.json().then(function (data) { return { status: r.status, data: data }; });
             })
@@ -298,10 +383,16 @@
             scanner.style.display = "";
             scannerVideo.srcObject = stream;
             var detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+            var detecting = false;
             scanTimer = setInterval(function () {
+                // Never queue a second detect() while one is running: on a
+                // slow phone the promises would pile up and starve the UI.
+                if (detecting) return;
+                detecting = true;
                 detector.detect(scannerVideo).then(function (codes) {
                     if (codes && codes.length) handleScanned(codes[0].rawValue);
-                }).catch(function () { /* no QR in view */ });
+                }).catch(function () { /* no QR in view */ })
+                  .finally(function () { detecting = false; });
             }, 400);
         }).catch(function () {
             showUnlockError(t("camera.denied"));
@@ -396,15 +487,42 @@
         }
     }
 
+    // Polling: one request in flight at a time, a deadline, and a visible
+    // verdict. Silence is what made a stalled server look like a frozen,
+    // black page.
+    var quotaBusy = false;
+    var quotaFailures = 0;
+
     function refreshQuota() {
         if (appEl.style.display === "none") return;
-        fetch("/api/quota?token=" + encodeURIComponent(token))
-            .then(function (r) { return r.json(); })
+        if (quotaBusy) return;
+        quotaBusy = true;
+
+        fetchWithTimeout("/api/quota?token=" + encodeURIComponent(token), null, 8000)
+            .then(function (r) {
+                if (r.status === 401 || r.status === 403) {
+                    endSession(t("session.expired"));
+                    return null;
+                }
+                if (!r.ok) throw new Error("http " + r.status);
+                return r.json();
+            })
             .then(function (data) {
-                if (typeof data.usage_bytes !== "number") return;
+                if (!data || typeof data.usage_bytes !== "number") return;
+                quotaFailures = 0;
                 renderQuota(data.usage_bytes, data.limit_bytes || 0);
             })
-            .catch(function () { /* session expired or server offline */ });
+            .catch(function () {
+                quotaFailures++;
+                if (quotaFailures >= 3) {
+                    quotaBar.style.display = "block";
+                    quotaText.className = "quota-text offline";
+                    quotaText.textContent = t("quota.offline");
+                }
+            })
+            .finally(function () {
+                quotaBusy = false;
+            });
     }
 
     refreshQuota();
@@ -576,7 +694,7 @@
         emptyMsg.style.display = "none";
         fileList.style.display = "";
 
-        fetch("/api/files?token=" + encodeURIComponent(token))
+        fetchWithTimeout("/api/files?token=" + encodeURIComponent(token), null, 20000)
             .then(function (r) {
                 if (r.status === 429) {
                     throw new Error("rate limit");

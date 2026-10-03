@@ -5,19 +5,71 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [0.1.6] - 2026-09-28
+## [0.1.6] - 2026-10-03
 
 ### Added
 
-- **Theme engine**: 10 built-in themes (System, Light, Dark, Neon, Midnight, Forest, Sunset, Monochrome, Rose, Amber) with live preview in Settings. Each theme defines accent colour, backgrounds, surfaces, borders, text colours, and optional custom font.
-- **Extensible architecture**: `ThemeManager` service with `RegisterTheme()` for future plugins; CSS variable injection (`Theme.Accent`, `Theme.Background`, etc.) for custom XAML styling.
-- **Per-theme fonts**: Neon → Consolas/JetBrains Mono, Amber → VT323/Courier New, others → system UI.
-- **i18n**: all theme names and descriptions in English and French.
+- **Light / dark appearance**: *Settings → Appearance* now offers two
+  themes, Light and Dark, applied instantly and persisted in the `theme`
+  key of `config.json`. Default: dark.
+- **The phone page follows it too**: `style.css` was rewritten on CSS
+  variables with a light and a dark palette, `/api/info` reports the
+  desktop choice, and a ☀/☾ button in the corner switches this device
+  only. The local override is dropped on its own as soon as the PC theme
+  changes, so the page never stays out of sync.
 
 ### Changed
 
-- Settings window: new **Appearance** section with visual theme selector (accent swatch + description) that applies instantly.
-- Config schema: `"theme"` key persists choice across restarts.
+- The whole desktop palette moved to theme resources (`Brush.*` in
+  `App.axaml`), with a dedicated Light and Dark dictionary: the main
+  window, the settings dialog and the message boxes resolve the same keys,
+  so a surface can no longer keep a hard-coded colour that ignores the
+  theme.
+- The saved preference is applied before the main window is created, so
+  the first frame is already in the right theme.
+- The web page declares `color-scheme` and `theme-color` for both themes,
+  so native widgets and the browser chrome follow the palette.
+
+### Fixed
+
+- **Random black / frozen page on the phone**: the TLS handshake used to
+  run on the *listening* socket, i.e. inside the single accept loop. One
+  client frozen mid-handshake (browser pre-connect abandoned when the
+  phone locks, a Wi-Fi drop in the middle of the ClientHello, a port
+  probe) stopped the server from accepting anything else, and every other
+  client was left waiting on an unresponsive page. The handshake now
+  happens in the worker thread that owns the connection and is bounded to
+  10 s; the accept loop never waits on a client.
+- The receive-folder quota scan no longer runs while holding the quota
+  lock. The phone polls usage every 5 s, and a slow folder (large tree,
+  OneDrive placeholders, antivirus) could previously block uploads and
+  every other quota call for as long as the scan lasted.
+- Listen backlog raised from 5 (the `http.server` default) to 128: a cold
+  page load opens several connections at once and the default could drop
+  them, which looks like a blank page.
+- Idle connection timeout raised from 10 s to 30 s, so a short screen-off
+  hiccup no longer kills an upload mid-transfer.
+- Mobile page: every API request now carries a deadline (8–20 s) and
+  repeated failures display *Server unreachable* instead of leaving the
+  screen stuck on *Loading...*. A quota poll answered 401/403 (rotated
+  token) now locks the session instead of keeping a dead page alive.
+- Mobile page: the QR scanner no longer stacks `detect()` calls, which
+  could starve the UI on a slow phone.
+- Mobile page declares `color-scheme` and `theme-color`, so the
+  background is deterministic while loading or when the browser shows its
+  own error page.
+
+### Removed
+
+- **Update system**: startup check, *Settings → Updates → Check now*,
+  in-place installer, `update.xml` manifest, release-workflow entry and
+  the related documentation. The desktop application downloads and
+  installs nothing.
+- **9 fancy themes** (Neon, Midnight, Forest, Sunset, Monochrome, Rose,
+  Amber, …) and the *System* option: only Light and Dark remain, and both
+  language files dropped the unused names and descriptions.
+- Debug log files (`theme.log`, `crash.log`, and their `.err`
+  counterparts).
 
 ## [0.1.5] - 2026-09-28
 
@@ -89,6 +141,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - The startup check runs only once, even when the window is hidden to the
   tray and shown again later.
 
+## [0.1.2] - 2026-09-27
 
 ### Added
 
@@ -110,6 +163,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
     live and persisted, English on first launch
   - Windows installer: *Application language* task (English/French) that
     seeds `config.json` on first install only
+- Server: `format_size` and quota messages localized (`GB/MB` vs `Go/Mo`),
+  banner and status lines in the selected language
 
 ### Fixed
 
@@ -120,28 +175,6 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   embeds the SHA-256 of the setup; it is committed on `main` and served from
   this public repository, so the app needs no token
 - Versions aligned on 0.1.2 (`pyproject.toml` was still 0.1.0)
-
-## [0.1.1] - 2026-09-27
-
-### Added
-
-- **English/French language choice**, English everywhere by default:
-  - full English rewrite of the code, comments, web interface and
-    documentation; French kept as a second language
-  - new `language` setting in `config.json` (`en` by default, `fr`
-    optional); translated error messages on every API route, `/api/info`
-    reports the active language
-  - web interface picks the language from the server at startup
-  - desktop app: language selector in *Settings* (English/French), applied
-    live and persisted, English on first launch
-  - Windows installer: *Application language* task (English/French) that
-    seeds `config.json` on first install only
-- Server: `format_size` and quota messages localized (`GB/MB` vs `Go/Mo`),
-  banner and status lines in the selected language
-
-### Changed
-
-- `main.py` version string aligned with the release tag (`v0.1.1`)
 
 ## [0.1.1] - 2026-09-27
 
@@ -168,6 +201,10 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - README: *Linux (no desktop available)* section, *Downloads* section,
   cross-platform requirements, Linux badge
 - `Operating System :: POSIX :: Linux` classifier in pyproject
+
+### Changed
+
+- `main.py` version string aligned with the release tag (`v0.1.1`)
 
 ### Fixed
 

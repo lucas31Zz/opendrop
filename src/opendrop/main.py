@@ -25,6 +25,9 @@ def main():
 
     config = load_config()
     lang = normalize_lang(config.get("language", "en"))
+    # Desktop theme; published on /api/info so the phone page follows it.
+    theme = config.get("theme", "dark")
+    theme = theme if theme in ("light", "dark") else "dark"
     ip = get_local_ip()
     if args.port:
         port = args.port
@@ -67,7 +70,8 @@ def main():
                                trust_proxy=bool(config.get("trust_proxy", False)),
                                session_code=previous_code,
                                global_quota_bytes=global_quota_bytes,
-                               language=lang)
+                               language=lang,
+                               theme=theme)
     except PortInUseError as e:
         print(f"\n  {t('Error:', lang)} {e}", flush=True)
         print(f"  {t('An older server is probably still running: stop it,', lang)}",

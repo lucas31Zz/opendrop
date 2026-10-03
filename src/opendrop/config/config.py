@@ -36,6 +36,9 @@ def load_config() -> dict:
         "trust_proxy": False,
         # UI language: "en" (default) or "fr".
         "language": "en",
+        # Desktop UI theme: "dark" (default) or "light". Also published on
+        # /api/info so the phone page can follow it.
+        "theme": "dark",
     }
     if config_path.exists():
         try:

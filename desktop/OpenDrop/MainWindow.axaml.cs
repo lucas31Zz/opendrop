@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -87,13 +86,6 @@ public partial class MainWindow : Window
 
         SetupTray();
         Lang.Changed += ApplyTrayStrings;
-
-#if WINDOWS_TARGET
-        // Check for a newer release on GitHub at startup (Windows only). The
-        // new files are copied over the application folder; %LOCALAPPDATA%
-        // (config.json, session.json, certs, moves) is left untouched.
-        UpdateChecker.CheckAsync(this);
-#endif
 
         // With a tray icon the close button hides the window instead of
         // stopping the server; the server only stops when really quitting.
@@ -197,22 +189,6 @@ public partial class MainWindow : Window
     {
         _forceClose = true;
         Close();
-    }
-
-    // Used by the updater: the file copy must see a process that is really
-    // gone (the server included), so every window is closed instead of only
-    // hiding this one - a dialog left open would keep the process running.
-    internal void QuitForUpdate()
-    {
-        _forceClose = true;
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            foreach (var window in desktop.Windows.ToArray())
-            {
-                if (!ReferenceEquals(window, this)) window.Close();
-            }
-        }
-        try { Close(); } catch { }
     }
 
     // TrayIcon.TrayIcons is an attached property on the application.
@@ -531,7 +507,7 @@ public partial class MainWindow : Window
         if (sources.Count == 0) return;
 
         FilesHint.Text = Lang.T("Files.Adding");
-        FilesHint.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+        SetHint(FilesHint, "hint-muted");
         FilesHint.IsVisible = true;
         BtnAddFiles.IsEnabled = false;
 
@@ -545,7 +521,7 @@ public partial class MainWindow : Window
         {
             BtnAddFiles.IsEnabled = true;
             FilesHint.IsVisible = false;
-            FilesHint.Foreground = new SolidColorBrush(Color.FromRgb(0xc0, 0x39, 0x2b));
+            SetHint(FilesHint, "hint-danger");
         }
 
         // Remember where each moved file came from so it can be put back.
@@ -666,9 +642,9 @@ public partial class MainWindow : Window
         switch (state)
         {
             case "running":
-                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                SetState(StatusDot, "running");
                 StatusText.Text = Lang.T("Status.Running");
-                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                SetState(StatusText, "running");
                 AddressText.Text = address ?? "---";
                 DownloadDirText.Text = downloadDir ?? "---";
                 ShareDirText.Text = shareDir ?? "---";
@@ -680,9 +656,9 @@ public partial class MainWindow : Window
                 QrHint.IsVisible = false;
                 break;
             case "stopped":
-                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(136, 136, 136));
+                SetState(StatusDot, "stopped");
                 StatusText.Text = Lang.T("Status.Stopped");
-                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(170, 170, 170));
+                SetState(StatusText, "stopped");
                 AddressText.Text = "---";
                 SessionCodeText.Text = "---";
                 BtnToggleServer.Content = Lang.T("Btn.StartServer");
@@ -699,12 +675,32 @@ public partial class MainWindow : Window
                 RefreshFiles();
                 break;
             case "error":
-                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54));
+                SetState(StatusDot, "error");
                 StatusText.Text = message ?? Lang.T("Status.Error");
-                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(244, 67, 54));
+                SetState(StatusText, "error");
                 _isRunning = false;
                 break;
         }
+    }
+
+    // The colours live in MainWindow.axaml so they follow the light/dark
+    // variant: only the class changes here, never a brush.
+    private static readonly string[] StateClasses =
+        { "state-starting", "state-running", "state-stopped", "state-error" };
+
+    private static void SetState(Control control, string state)
+    {
+        foreach (var name in StateClasses) control.Classes.Remove(name);
+        control.Classes.Add("state-" + state);
+    }
+
+    private static readonly string[] HintClasses =
+        { "hint-muted", "hint-danger", "hint-error", "hint-success" };
+
+    private static void SetHint(TextBlock control, string hint)
+    {
+        foreach (var name in HintClasses) control.Classes.Remove(name);
+        control.Classes.Add(hint);
     }
 
     private void GenerateQrCode(string? url)
@@ -777,14 +773,12 @@ public partial class MainWindow : Window
             if (limit <= 0)
             {
                 QuotaStatusText.Text = Lang.Format("Quota.Unlimited", QuotaUsage.Format(usage));
-                QuotaStatusText.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136));
+                SetHint(QuotaStatusText, "hint-muted");
             }
             else
             {
                 QuotaStatusText.Text = QuotaUsage.Format(usage) + " / " + QuotaUsage.Format(limit);
-                QuotaStatusText.Foreground = usage >= limit
-                    ? new SolidColorBrush(Color.FromRgb(244, 67, 54))
-                    : new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                SetHint(QuotaStatusText, usage >= limit ? "hint-error" : "hint-success");
             }
         }
         catch

@@ -1,12 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Deterministic background while the page loads or the browser shows
+         its own error page, instead of whatever the phone theme is. -->
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#0f0f0f">
     <title>OpenDrop</title>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+    <!-- Light/dark. Follows the desktop app's choice unless this device
+         overrides it; the icon shows the theme a tap switches to. -->
+    <button id="theme-toggle" class="theme-toggle" type="button"
+            title="Switch theme" aria-label="Switch theme">&#9788;</button>
+
     <div class="container">
         <div class="logo">
             <span class="logo-icon">&#128229;</span>

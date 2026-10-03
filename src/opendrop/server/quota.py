@@ -69,15 +69,23 @@ class QuotaTracker:
         return self.limit_bytes > 0
 
     def usage(self) -> int:
-        """Bytes already in use (folder files + uploads in progress)."""
+        """Bytes already in use (folder files + uploads in progress).
+
+        The folder scan deliberately runs OUTSIDE the lock: the phone polls
+        this every 5 s, and a slow tree (large folder, OneDrive placeholders,
+        antivirus on the file just uploaded) would otherwise block every
+        reserve()/release() - and with them the uploads themselves.
+        """
+        used = directory_usage(self.directory)
         with self._lock:
-            return directory_usage(self.directory) + self._reserved
+            return used + self._reserved
 
     def remaining(self) -> int:
         if not self.enabled:
             return -1
+        used = directory_usage(self.directory)
         with self._lock:
-            return max(0, self.limit_bytes - directory_usage(self.directory) - self._reserved)
+            return max(0, self.limit_bytes - used - self._reserved)
 
     def reserve(self, additional: int) -> None:
         """Check the quota, then hold `additional` bytes in reserve.

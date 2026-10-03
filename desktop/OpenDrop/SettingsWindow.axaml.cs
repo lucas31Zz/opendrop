@@ -1,7 +1,4 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -11,22 +8,13 @@ using Avalonia.Threading;
 
 namespace OpenDrop;
 
-/// <summary>View-model for a single theme entry in the ComboBox.</summary>
-internal sealed class ThemeItem : INotifyPropertyChanged
-{
-    public string Id { get; init; } = "";
-    public string DisplayName { get; init; } = "";
-    public string Description { get; init; } = "";
-    public IBrush AccentBrush { get; init; } = Brushes.Transparent;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-    private void OnPropertyChanged([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-}
-
 public partial class SettingsWindow : Window
 {
     public bool SettingsChanged { get; private set; }
+
+    // Guards the theme combo while the saved value is being restored:
+    // SelectionChanged would otherwise rewrite config.json on open.
+    private bool _loadingTheme;
 
     public SettingsWindow()
     {
@@ -64,36 +52,10 @@ public partial class SettingsWindow : Window
 
         LanguageCombo.SelectedIndex = Lang.Current == "fr" ? 1 : 0;
 
-        // Theme combo
-        var items = new ObservableCollection<ThemeItem>();
-        foreach (var kv in ThemeManager.Themes)
-        {
-            var t = kv.Value;
-            IBrush accentBrush;
-            try
-            {
-                accentBrush = t.IsSystem
-                    ? new SolidColorBrush(Color.Parse("#4a9eff"))
-                    : new SolidColorBrush(Color.Parse(t.Accent ?? "#4a9eff"));
-            }
-            catch
-            {
-                accentBrush = new SolidColorBrush(Color.Parse("#4a9eff"));
-            }
-            items.Add(new ThemeItem
-            {
-                Id = t.Id,
-                DisplayName = t.DisplayName,
-                Description = t.Description,
-                AccentBrush = accentBrush
-            });
-        }
-        ThemeCombo.ItemsSource = items;
-
-        // Select current theme
-        var current = ThemeManager.CurrentThemeId;
-        var idx = items.ToList().FindIndex(x => x.Id == current);
-        ThemeCombo.SelectedIndex = idx >= 0 ? idx : 0;
+        // Theme combo: index 0 = light, 1 = dark (ThemeManager.Ids order).
+        _loadingTheme = true;
+        ThemeCombo.SelectedIndex = ThemeManager.Current == ThemeManager.Light ? 0 : 1;
+        _loadingTheme = false;
 
         UpdateQuotaUsage();
     }
@@ -112,36 +74,12 @@ public partial class SettingsWindow : Window
         catch { }
     }
 
+    // The theme is applied live: RequestedThemeVariant is the only thing
+    // that changes, so there is nothing to confirm and nothing to roll back.
     private void ThemeCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ThemeCombo.SelectedItem is ThemeItem item)
-        {
-            ThemeDescText.Text = item.Description;
-            // No live preview - only update description
-        }
-    }
-
-    private void BtnApplyTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (ThemeCombo.SelectedItem is ThemeItem item)
-        {
-            try
-            {
-                ThemeManager.SetTheme(item.Id);
-                BtnApplyTheme.Content = Lang.T("Btn.ApplyTheme") + " ✓";
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-                timer.Tick += (_, _) =>
-                {
-                    BtnApplyTheme.Content = Lang.T("Btn.ApplyTheme");
-                    timer.Stop();
-                };
-                timer.Start();
-            }
-            catch (Exception ex)
-            {
-                Msg.ShowAsync(this, $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Field.Theme"));
-            }
-        }
+        if (_loadingTheme) return;
+        ThemeManager.Set(ThemeCombo.SelectedIndex == 0 ? ThemeManager.Light : ThemeManager.Dark);
     }
 
     private async void BtnBrowseShare_Click(object? sender, RoutedEventArgs e)
@@ -198,9 +136,9 @@ public partial class SettingsWindow : Window
             config["share_directory"] = ShareDirText.Text ?? "";
             config["preferred_port"] = int.TryParse(PortBox.Text, out var p) ? p : 8080;
             config["generate_new_token"] = ToggleNewToken.IsChecked == true;
-            // Theme is written by ThemeManager.SetTheme on live preview,
-            // but we also store it here for consistency.
-            config["theme"] = ThemeManager.CurrentThemeId;
+            // The theme is written by ThemeManager.Set as soon as it
+            // changes; stored here too so a save never drops it.
+            config["theme"] = ThemeManager.Current;
 
             // Warn when the requested quota exceeds 20% of the disk's free
             // space: the user may still choose it, but knowingly.
@@ -243,6 +181,10 @@ public partial class SettingsWindow : Window
 
             SettingsChanged = true;
 
+            // The accent behind the button is the one the theme currently
+            // gives it: captured before turning green so the reset lands on
+            // the right colour in light and dark alike.
+            var accent = BtnSave.Background;
             BtnSave.Content = Lang.T("Btn.Saved");
             BtnSave.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
 
@@ -250,29 +192,12 @@ public partial class SettingsWindow : Window
             timer.Tick += (_, _) =>
             {
                 BtnSave.Content = Lang.T("Btn.Save");
-                BtnSave.Background = new SolidColorBrush(Color.FromRgb(74, 158, 255));
+                BtnSave.Background = accent;
                 timer.Stop();
             };
             timer.Start();
         }
         catch { }
-    }
-
-    // Manual update check: reports the outcome either way, and works even
-    // when the automatic startup check is disabled.
-    private async void BtnCheckUpdates_Click(object? sender, RoutedEventArgs e)
-    {
-        BtnCheckUpdates.IsEnabled = false;
-        UpdateStatusText.Text = Lang.T("Update.Checking");
-        try
-        {
-            await UpdateChecker.CheckManualAsync(this);
-        }
-        finally
-        {
-            UpdateStatusText.Text = "";
-            BtnCheckUpdates.IsEnabled = true;
-        }
     }
 
     private void UpdateQuotaUsage()

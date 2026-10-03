@@ -4,12 +4,12 @@
         Title="OpenDrop"
         Width="880" Height="720"
         MinWidth="760" MinHeight="600"
-        Background="#0f0f0f"
+        Background="{DynamicResource Brush.Window}"
         WindowStartupLocation="CenterScreen">
 
     <Window.Styles>
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="#1a1a1a"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}"/>
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Padding" Value="16,12"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
@@ -17,12 +17,12 @@
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#4a9eff"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
         <Style Selector="Button.subtle">
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Control}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="0,12"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -31,13 +31,13 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.subtle:pointerover">
-            <Setter Property="Background" Value="#3a3a3a"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.ControlHover}"/>
         </Style>
         <Style Selector="Button.subtle:disabled">
             <Setter Property="Opacity" Value="0.45"/>
         </Style>
         <Style Selector="Button.accent">
-            <Setter Property="Background" Value="#4a9eff"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Accent}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -48,13 +48,13 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.accent:pointerover">
-            <Setter Property="Background" Value="#3a8eef"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.AccentHover}"/>
         </Style>
         <Style Selector="Button.accent:pressed">
-            <Setter Property="Background" Value="#2a7edf"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.AccentPressed}"/>
         </Style>
         <Style Selector="Button.danger">
-            <Setter Property="Background" Value="#c0392b"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Danger}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -65,7 +65,7 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.danger:pointerover">
-            <Setter Property="Background" Value="#e74c3c"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.DangerHover}"/>
         </Style>
 
         <!-- Shared-files list -->
@@ -80,20 +80,20 @@
             <Setter Property="CornerRadius" Value="8"/>
         </Style>
         <Style Selector="ListBox.filelist ListBoxItem:selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="#264a75"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}"/>
         </Style>
         <Style Selector="TextBlock.filename">
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
         <Style Selector="TextBlock.filesize">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#888"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
         </Style>
         <Style Selector="Button.small">
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="Foreground" Value="#ccc"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Control}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="10,6"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -101,10 +101,48 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.small:pointerover">
-            <Setter Property="Background" Value="#3a3a3a"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.ControlHover}"/>
         </Style>
         <Style Selector="Button.small:disabled">
             <Setter Property="Opacity" Value="0.45"/>
+        </Style>
+        <!-- Status and hint colours: switched from code by class, so the
+             palette can follow the light/dark variant. -->
+        <Style Selector="Ellipse.state-starting">
+            <Setter Property="Fill" Value="{DynamicResource Brush.TextMuted}"/>
+        </Style>
+        <Style Selector="Ellipse.state-running">
+            <Setter Property="Fill" Value="#4caf50"/>
+        </Style>
+        <Style Selector="Ellipse.state-stopped">
+            <Setter Property="Fill" Value="{DynamicResource Brush.TextMuted}"/>
+        </Style>
+        <Style Selector="Ellipse.state-error">
+            <Setter Property="Fill" Value="#f44336"/>
+        </Style>
+        <Style Selector="TextBlock.state-starting">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
+        </Style>
+        <Style Selector="TextBlock.state-running">
+            <Setter Property="Foreground" Value="#4caf50"/>
+        </Style>
+        <Style Selector="TextBlock.state-stopped">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
+        </Style>
+        <Style Selector="TextBlock.state-error">
+            <Setter Property="Foreground" Value="#f44336"/>
+        </Style>
+        <Style Selector="TextBlock.hint-muted">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
+        </Style>
+        <Style Selector="TextBlock.hint-danger">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
+        </Style>
+        <Style Selector="TextBlock.hint-error">
+            <Setter Property="Foreground" Value="#f44336"/>
+        </Style>
+        <Style Selector="TextBlock.hint-success">
+            <Setter Property="Foreground" Value="#4caf50"/>
         </Style>
     </Window.Styles>
 
@@ -116,9 +154,9 @@
         </Grid.RowDefinitions>
 
         <!-- Title bar -->
-        <Border Grid.Row="0" Padding="20,12" Background="#0f0f0f">
+        <Border Grid.Row="0" Padding="20,12" Background="{DynamicResource Brush.Window}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="OpenDrop" FontSize="18" FontWeight="SemiBold" Foreground="White"/>
+                <TextBlock Text="OpenDrop" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextTitle}"/>
             </StackPanel>
         </Border>
 
@@ -139,8 +177,8 @@
                     <!-- Status -->
                     <Border Classes="card">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse x:Name="StatusDot" Width="12" Height="12" Fill="#888" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="StatusText" Text="{DynamicResource Status.Starting}" FontSize="14" Foreground="#aaa" VerticalAlignment="Center"/>
+                            <Ellipse x:Name="StatusDot" Width="12" Height="12" Classes="state-starting" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StatusText" Text="{DynamicResource Status.Starting}" FontSize="14" Classes="state-starting" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
@@ -149,7 +187,7 @@
                         <StackPanel>
                             <TextBlock Classes="label" Text="{DynamicResource Label.ServerAddress}"/>
                             <TextBlock x:Name="AddressText" Text="---" FontSize="18" FontWeight="SemiBold"
-                                       Foreground="#4a9eff" HorizontalAlignment="Center"/>
+                                       Foreground="{DynamicResource Brush.Accent}" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
@@ -157,12 +195,12 @@
                     <Border Classes="card">
                         <StackPanel>
                             <TextBlock Classes="label" Text="{DynamicResource Label.QrCode}"/>
-                            <Border x:Name="QrBorder" Background="White" CornerRadius="12" Padding="16"
+                            <Border x:Name="QrBorder" Background="{DynamicResource Brush.QrCard}" CornerRadius="12" Padding="16"
                                     HorizontalAlignment="Center" IsVisible="False">
                                 <Image x:Name="QrImage" Width="220" Height="220"/>
                             </Border>
                             <TextBlock x:Name="QrHint" Text="{DynamicResource Qr.HintStart}"
-                                       FontSize="12" Foreground="#666" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                       FontSize="12" Foreground="{DynamicResource Brush.TextFaint}" HorizontalAlignment="Center" Margin="0,8,0,0"
                                        TextWrapping="Wrap" TextAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -172,9 +210,9 @@
                         <StackPanel>
                             <TextBlock Classes="label" Text="{DynamicResource Label.SessionCode}"/>
                             <TextBlock x:Name="SessionCodeText" Text="---" FontSize="22" FontWeight="SemiBold"
-                                       Foreground="#e0e0e0" HorizontalAlignment="Center"/>
+                                       Foreground="{DynamicResource Brush.TextPrimary}" HorizontalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource Session.Hint}"
-                                       FontSize="11" Foreground="#666" HorizontalAlignment="Center"
+                                       FontSize="11" Foreground="{DynamicResource Brush.TextFaint}" HorizontalAlignment="Center"
                                        Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -200,7 +238,7 @@
                                         Classes="subtle" Padding="16,8" FontSize="12"
                                         Click="BtnRefreshToken_Click"/>
                             </Grid>
-                            <TextBlock x:Name="TokenCountdownText" Text="" FontSize="11" Foreground="#666"
+                            <TextBlock x:Name="TokenCountdownText" Text="" FontSize="11" Foreground="{DynamicResource Brush.TextFaint}"
                                        Margin="0,6,0,0"/>
                         </StackPanel>
                     </Border>
@@ -216,9 +254,9 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Received}" FontSize="12"
-                                           Foreground="#666" VerticalAlignment="Center"/>
+                                           Foreground="{DynamicResource Brush.TextFaint}" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="DownloadDirText" Grid.Column="1" Text="---" FontSize="12"
-                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource Brush.TextSecondary}" TextTrimming="CharacterEllipsis"
                                            Margin="8,0,8,0" VerticalAlignment="Center"/>
                                 <Button Grid.Column="2" Classes="small" FontSize="11" Padding="8,4"
                                         Content="{DynamicResource Btn.Open}"
@@ -231,9 +269,9 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="{DynamicResource Folders.Shared}" FontSize="12"
-                                           Foreground="#666" VerticalAlignment="Center"/>
+                                           Foreground="{DynamicResource Brush.TextFaint}" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="ShareDirText" Grid.Column="1" Text="---" FontSize="12"
-                                           Foreground="#ccc" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource Brush.TextSecondary}" TextTrimming="CharacterEllipsis"
                                            Margin="8,0,8,0" VerticalAlignment="Center"/>
                                 <Button Grid.Column="2" Classes="small" FontSize="11" Padding="8,4"
                                         Content="{DynamicResource Btn.Open}"
@@ -247,10 +285,10 @@
                         <StackPanel>
                             <TextBlock Classes="label" Text="{DynamicResource Label.ReceiveQuota}"/>
                             <TextBlock x:Name="QuotaStatusText" Text="{DynamicResource Quota.Analyzing}" FontSize="16"
-                                       FontWeight="SemiBold" Foreground="#666"
+                                       FontWeight="SemiBold" Classes="hint-muted"
                                        HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
                             <TextBlock Text="{DynamicResource Quota.Description}"
-                                       FontSize="11" Foreground="#666" HorizontalAlignment="Center"
+                                       FontSize="11" Foreground="{DynamicResource Brush.TextFaint}" HorizontalAlignment="Center"
                                        Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -277,13 +315,13 @@
 
                     <TextBlock DockPanel.Dock="Top" x:Name="FilesEmpty"
                                Text="{DynamicResource Files.Empty}" IsVisible="False"
-                               FontSize="12" Foreground="#666" TextWrapping="Wrap"
+                               FontSize="12" Foreground="{DynamicResource Brush.TextFaint}" TextWrapping="Wrap"
                                Margin="0,4,0,0" HorizontalAlignment="Center"/>
 
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                        <TextBlock x:Name="FilesPathText" Text="" FontSize="11" Foreground="#555"
+                        <TextBlock x:Name="FilesPathText" Text="" FontSize="11" Foreground="{DynamicResource Brush.TextDim}"
                                    TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="FilesHint" Text="" FontSize="11" Foreground="#c0392b"
+                        <TextBlock x:Name="FilesHint" Text="" FontSize="11" Classes="hint-danger"
                                    TextWrapping="Wrap" IsVisible="False" Margin="0,2,0,0"/>
                     </StackPanel>
 

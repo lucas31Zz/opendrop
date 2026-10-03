@@ -50,6 +50,17 @@ MAX_DRAIN_SECONDS = 2.0
 _TLS_NOISE = (ssl.SSLError, ConnectionResetError, ConnectionAbortedError,
               BrokenPipeError, TimeoutError)
 
+# Handshake budget. The handshake runs in the worker thread (see
+# OpenDropHandler.setup), never in accept(): a client that connects and then
+# stops talking - a browser pre-connect abandoned when the phone locks, a
+# Wi-Fi drop in the middle of the ClientHello - must not park the accept
+# loop, otherwise nobody gets an answer and the phone sits on a black page.
+TLS_HANDSHAKE_TIMEOUT = 10.0
+
+# Idle budget for an established connection. Long enough for a screen-off
+# hiccup during an upload, short enough to release a dead client quickly.
+REQUEST_TIMEOUT = 30.0
+
 
 class PortInUseError(RuntimeError):
     """The port is already taken (often by an older OpenDrop server)."""
@@ -93,6 +104,10 @@ def _probe_listener(port: int) -> str | None:
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
+    # A cold page load opens ~5 connections at once (document, css, js,
+    # /api/info, /api/quota) while the desktop polls every 2 s: the default
+    # backlog of 5 drops SYNs and the browser retries on a blank page.
+    request_queue_size = 128
 
     def server_bind(self):
         # HTTPServer.server_bind resolves the FQDN (reverse DNS): on some
@@ -196,8 +211,24 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             safe = line.encode("ascii", errors="replace").decode("ascii")
             print(f"[OpenDrop] {self.address_string()} - {safe}")
 
+    def setup(self):
+        # TLS is terminated here, inside the worker thread. Wrapping the
+        # listening socket instead would run the handshake inside accept()
+        # (ssl.SSLSocket.accept), i.e. in the single serve_forever thread:
+        # one client frozen mid-handshake would then freeze the whole
+        # server for everyone. The handshake is bounded so a silent client
+        # only costs this thread, never the accept loop.
+        context = getattr(self.server, "ssl_context", None)
+        if context is not None and not isinstance(self.request, ssl.SSLSocket):
+            self.request.settimeout(TLS_HANDSHAKE_TIMEOUT)
+            # wrap_socket detaches the raw socket: the SSLSocket owns the
+            # file descriptor from here on, shutdown_request stays harmless.
+            self.request = context.wrap_socket(self.request, server_side=True)
+            self.request.settimeout(REQUEST_TIMEOUT)
+        super().setup()
+
     def handle(self):
-        self.connection.settimeout(10)
+        self.connection.settimeout(REQUEST_TIMEOUT)
         self.close_connection = True
         self.handle_one_request()
 
@@ -406,6 +437,9 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             "ip": self.server.local_ip,
             "port": self.server.port,
             "lang": getattr(self.server, "language", "en"),
+            # Desktop light/dark choice: the phone page follows it unless
+            # the device overrides it locally.
+            "theme": getattr(self.server, "theme", "dark"),
         }
         if "token" in query:
             self._check_token(query)
@@ -628,8 +662,10 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
                   session_code: str | None = None,
                   tls_cert_dir: str | Path | None = None,
                   global_quota_bytes: int = 0,
-                  language: str = "en") -> ThreadedHTTPServer:
+                  language: str = "en",
+                  theme: str = "dark") -> ThreadedHTTPServer:
     language = normalize_lang(language)
+    theme = theme if theme in ("light", "dark") else "dark"
     sessions = SessionManager(expires_in=session_expires_in, code=session_code)
     sessions.register(token)
     sessions.start_cleanup()
@@ -661,6 +697,8 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     server.trust_proxy = trust_proxy
     server.scheme = SCHEME
     server.language = language
+    # Desktop light/dark choice, mirrored to the phone page.
+    server.theme = theme
     # Global receive-folder quota (0 = unlimited). The folder is scanned on
     # every upload; the reservation is thread-safe.
     server.quota = QuotaTracker(download_dir, global_quota_bytes, lang=language)
@@ -668,9 +706,13 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     # TLS: local self-signed certificate (regenerated when the IP changes).
     # Clients probing the port in plain text fail the handshake, which
     # handle_error swallows silently.
+    #
+    # The listening socket stays plain TCP on purpose: the context is handed
+    # to each handler, which wraps its own connection in setup() (worker
+    # thread). See the comment there for why.
     cert_path, key_path = ensure_certificate(ip, directory=tls_cert_dir)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(str(cert_path), str(key_path))
-    server.socket = context.wrap_socket(server.socket, server_side=True)
+    server.ssl_context = context
     return server

@@ -1,7 +1,6 @@
 <Application x:Class="OpenDrop.App"
              xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             RequestedThemeVariant="Dark">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Application.Styles>
         <FluentTheme />
@@ -9,9 +8,57 @@
 
     <!-- String tables are injected at runtime by Lang (see Lang.cs): the
          active language is loaded into Resources before any window is
-         built, so every DynamicResource resolves in that language. -->
+         built, so every DynamicResource resolves in that language.
+
+         The palette lives in ThemeDictionaries: only the requested variant
+         changes (see ThemeManager), no brush is ever rewritten at runtime. -->
     <Application.Resources>
-        <ResourceDictionary />
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="Brush.Window">#0f0f0f</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Card">#1a1a1a</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Input">#222222</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Control">#2a2a2a</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.ControlHover">#3a3a3a</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Accent">#4a9eff</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.AccentHover">#3a8eef</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.AccentPressed">#2a7edf</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.AccentSoft">#264a75</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextTitle">White</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextPrimary">#e0e0e0</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextSecondary">#cccccc</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextMuted">#888888</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextFaint">#666666</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextDim">#555555</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Danger">#c0392b</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.DangerHover">#e74c3c</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Success">#4caf50</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.QrCard">White</SolidColorBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="Brush.Window">#f4f5f7</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Card">White</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Input">#eceef1</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Control">#e6e8ec</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.ControlHover">#d8dbe0</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Accent">#0a66d6</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.AccentHover">#0857bb</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.AccentPressed">#064a9e</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.AccentSoft">#d6e6ff</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextTitle">#16181c</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextPrimary">#1b1d21</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextSecondary">#3f434a</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextMuted">#5f646c</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextFaint">#71767e</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.TextDim">#7c818a</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Danger">#c0392b</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.DangerHover">#e74c3c</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Success">#2e7d32</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.QrCard">White</SolidColorBrush>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 
 </Application>

@@ -84,7 +84,6 @@
     <x:String x:Key="Btn.Rename">Rename</x:String>
     <x:String x:Key="Btn.Delete">Delete</x:String>
     <x:String x:Key="Btn.Refresh">Refresh</x:String>
-    <x:String x:Key="Btn.Check">Check</x:String>
     <x:String x:Key="Btn.Open">Open</x:String>
     <x:String x:Key="Btn.PutBack">Put back</x:String>
     <x:String x:Key="Files.Empty">The share folder is empty.</x:String>
@@ -115,41 +114,9 @@
     <x:String x:Key="Sm.Timeout">Timeout: the server did not respond.</x:String>
     <x:String x:Key="Sm.Exited">The Python server exited immediately.</x:String>
 
-    <!-- Auto-updater -->
-    <x:String x:Key="Update.Title">Update available</x:String>
-    <x:String x:Key="Update.Available">Version {1} is available (you have {0}). Update now?</x:String>
-    <x:String x:Key="Update.Failed">Could not download the update. Try again later or download it manually.</x:String>
-    <x:String x:Key="Update.NeedsPermission">Windows must allow OpenDrop to replace its files. The update was cancelled.</x:String>
-    <x:String x:Key="Update.UpToDate">You are up to date (version {0}).</x:String>
-    <x:String x:Key="Update.Checking">Checking for a new version...</x:String>
-    <x:String x:Key="Update.Downloading">Downloading version {0}...</x:String>
-    <x:String x:Key="Update.Verifying">Verifying the download...</x:String>
-    <x:String x:Key="Update.Applying">Applying the update, OpenDrop will restart...</x:String>
-    <x:String x:Key="Section.Updates">UPDATES</x:String>
-    <x:String x:Key="Field.CheckUpdates">Automatic update check</x:String>
-
-    <!-- Themes -->
+    <!-- Appearance -->
     <x:String x:Key="Section.Appearance">APPEARANCE</x:String>
     <x:String x:Key="Field.Theme">Theme</x:String>
-    <x:String x:Key="Btn.ApplyTheme">Apply Theme</x:String>
-    <x:String x:Key="Theme.System">System</x:String>
-    <x:String x:Key="Theme.SystemDesc">Follows the operating system light/dark setting.</x:String>
     <x:String x:Key="Theme.Light">Light</x:String>
-    <x:String x:Key="Theme.LightDesc">Classic light theme — clean and bright.</x:String>
     <x:String x:Key="Theme.Dark">Dark</x:String>
-    <x:String x:Key="Theme.DarkDesc">Classic dark theme — easy on the eyes.</x:String>
-    <x:String x:Key="Theme.Neon">Neon</x:String>
-    <x:String x:Key="Theme.NeonDesc">Cyberpunk cyan glow — high contrast, futuristic.</x:String>
-    <x:String x:Key="Theme.Midnight">Midnight</x:String>
-    <x:String x:Key="Theme.MidnightDesc">Deep professional blue — focused and calm.</x:String>
-    <x:String x:Key="Theme.Forest">Forest</x:String>
-    <x:String x:Key="Theme.ForestDesc">Nature-inspired green — fresh and organic.</x:String>
-    <x:String x:Key="Theme.Sunset">Sunset</x:String>
-    <x:String x:Key="Theme.SunsetDesc">Warm coral glow — cozy evenings.</x:String>
-    <x:String x:Key="Theme.Monochrome">Monochrome</x:String>
-    <x:String x:Key="Theme.MonochromeDesc">Pure grayscale — minimalist, distraction-free.</x:String>
-    <x:String x:Key="Theme.Rose">Rose</x:String>
-    <x:String x:Key="Theme.RoseDesc">Elegant pink — soft and refined.</x:String>
-    <x:String x:Key="Theme.Amber">Amber</x:String>
-    <x:String x:Key="Theme.AmberDesc">Retro terminal amber — nostalgic hacker vibe.</x:String>
 </ResourceDictionary>
