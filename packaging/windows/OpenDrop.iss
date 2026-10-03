@@ -8,10 +8,10 @@
 ;   de partage (les "data" de l'utilisateur restent sur le disque)
 ;
 ; Compilation (la CI le fait automatiquement) :
-;   iscc packaging\windows\OpenDrop.iss /DMyAppVersion=0.1.1
+;   iscc packaging\windows\OpenDrop.iss /DMyAppVersion=0.2.0
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.1"
+  #define MyAppVersion "0.2.0"
 #endif
 #define MyAppName "OpenDrop"
 #define MyAppPublisher "lucas31Zz"

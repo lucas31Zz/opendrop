@@ -74,7 +74,7 @@ def main():
     session_code = server.sessions.code
     save_session_state(token, session_code)
     print(flush=True)
-    print("  OpenDrop v0.1.0", flush=True)
+    print("  OpenDrop v0.2.0", flush=True)
     print(flush=True)
     print(f"  Serveur:         {ip}:{port}", flush=True)
     print(f"  Interface web:   {url_upload}", flush=True)
