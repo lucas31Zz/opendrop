@@ -74,11 +74,12 @@ session code, token refresh, folders, quota):
 ### Settings
 
 Configure folders, port, storage quota, token rotation, appearance
-(light/dark) and language. The form scrolls too, so here it is whole:
+(light/dark) and language. The form scrolls, so here it is from top to
+bottom, in both themes:
 
-![Settings - window](docs/screenshots/settings.png)
-
-![Settings - full form](docs/screenshots/settings-scroll.png)
+| Dark | Light |
+|---|---|
+| ![Settings - dark](docs/screenshots/settings-scroll.png) | ![Settings - light](docs/screenshots/settings-light-scroll.png) |
 
 ### Web interface
 

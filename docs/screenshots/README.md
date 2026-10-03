@@ -9,8 +9,8 @@ points at these exact files.
 | `desktop.png` | Desktop app: QR code, server address, session code, quota, folders | dark |
 | `desktop-light.png` | Same window, light theme | light |
 | `desktop-scroll.png` | Left column of the main window, top to bottom (the column scrolls) | dark |
-| `settings.png` | Settings window: top of the form | dark |
 | `settings-scroll.png` | Whole settings form, top to bottom (the form scrolls) | dark |
+| `settings-light-scroll.png` | Same settings form, light theme | light |
 | `web-send-dark.png` | Web interface, *Send* tab | dark |
 | `web-share-dark.png` | Web interface, *Download* tab | dark |
 | `web-send-light.png` | Web interface, *Send* tab | light |
