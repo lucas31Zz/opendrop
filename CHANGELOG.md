@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [0.1.8] - 2026-10-04
+## [0.7.0] - 2026-10-04
 
 ### Added
 
@@ -43,7 +43,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   `install.sh` now moves the running binary aside before replacing it,
   so an update can be applied while the previous version is still up.
 
-## [0.1.7] - 2026-10-03
+## [0.6.1] - 2026-10-03
 
 ### Fixed
 
@@ -67,7 +67,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   leftovers do not hide a port, the preferred port survives a restart,
   a live listener is still reported as busy.
 
-## [0.1.6] - 2026-10-03
+## [0.6.0] - 2026-10-03
 
 ### Added
 
@@ -149,7 +149,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - Debug log files (`theme.log`, `crash.log`, and their `.err`
   counterparts).
 
-## [0.1.5] - 2026-09-28
+## [0.5.1] - 2026-09-28
 
 ### Changed
 
@@ -157,7 +157,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - **Elevation only when needed**: if the application folder is writable (typical user install), the update runs without UAC. For Program Files installs the worker requests elevation once; the restarted application drops back to standard rights.
 - **Specific UAC decline message**: if the elevation prompt is dismissed, a clear message is shown and the current version keeps running.
 
-## [0.1.4] - 2026-09-28
+## [0.5.0] - 2026-09-28
 
 ### Added
 
@@ -173,7 +173,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   the *Rename* button). A file that disappeared in the meantime is reported
   instead of failing silently.
 
-## [0.1.3] - 2026-09-28
+## [0.4.0] - 2026-09-28
 
 ### Added
 
@@ -199,7 +199,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   "you are up to date" or offers the newer version, without restarting the
   app.
 - `"check_updates": false` in `config.json` is now actually honoured
-  (documented since 0.1.2 but not read yet).
+  (documented since 0.3.0 but not read yet).
 
 ### Changed
 
@@ -212,14 +212,14 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
 - The update check follows HTTP redirects again: GitHub serves release assets
   with a `302`, so without redirects every download failed right away.
-- The desktop app reads `update.xml` from this repository; the 0.1.2 build
+- The desktop app reads `update.xml` from this repository; the 0.3.0 build
   still pointed at the retired updates mirror and could not see newer
   releases.
 - The left column no longer jumps down when the QR code appears at startup.
 - The startup check runs only once, even when the window is hidden to the
   tray and shown again later.
 
-## [0.1.2] - 2026-09-27
+## [0.3.0] - 2026-09-27
 
 ### Added
 
@@ -252,9 +252,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - The update manifest now uses the real release asset name (`v` prefix) and
   embeds the SHA-256 of the setup; it is committed on `main` and served from
   this public repository, so the app needs no token
-- Versions aligned on 0.1.2 (`pyproject.toml` was still 0.1.0)
+- Versions aligned on 0.3.0 (`pyproject.toml` was still 0.1.0)
 
-## [0.1.1] - 2026-09-27
+## [0.2.0] - 2026-09-27
 
 ### Added
 
@@ -282,7 +282,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
 ### Changed
 
-- `main.py` version string aligned with the release tag (`v0.1.1`)
+- `main.py` version string aligned with the release tag (`v0.2.0`)
 
 ### Fixed
 
