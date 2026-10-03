@@ -331,7 +331,7 @@ python -m tests.test_paths        # 43/43 - no absolute paths in responses
 python -m tests.test_quota        # 40/40 - quota, simultaneous reservations, 507
 python -m tests.test_sessions     # 34/34 - sessions, expiration, code rotation
 python -m tests.test_tls          # 15/15 - self-signed certificate, forced HTTPS
-python -m tests.test_server       # 11/11 - general routes, port in use
+python -m tests.test_server       # 14/14 - general routes, port in use, TIME_WAIT probe
 python -m tests.test_beta         # 64/64 - full run-through
 python -m tests.test_beta --large # 76/76 - file batches, traversal attempts
 ```

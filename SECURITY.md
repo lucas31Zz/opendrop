@@ -307,7 +307,7 @@ Python 3.12, no external framework):
 | `python -m tests.test_quota` | global quota, simultaneous reservations, exact fill, 507 | 40/40 |
 | `python -m tests.test_sessions` | sessions, expiration, session code, rotation through `opendrop.main` | 34/34 |
 | `python -m tests.test_tls` | self-signed certificate, key/cert, EKU, renewal, forced HTTPS | 15/15 |
-| `python -m tests.test_server` | general routes, port already in use, fast startup | 11/11 |
+| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup | 14/14 |
 | `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 64/64 and 76/76 |
 
 ---

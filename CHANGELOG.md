@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.7] - 2026-10-03
+
+### Fixed
+
+- **The port crept up on every reset (Linux)**: restarting the server
+  moved it from 8080 to 8081, then 8082 and so on, while `config.json`
+  still said 8080 — a manually entered port never stayed either. The
+  server closes every response, so its own connections linger in
+  `TIME_WAIT` on that port for ~60 s after a restart; the "is this port
+  free?" probe bound *without* `SO_REUSEADDR` and read those leftovers as
+  another program holding the port, so `find_available_port` stepped to
+  the next one. Windows was unaffected, because a plain bind succeeds
+  over `TIME_WAIT` there. The probe now sets `SO_REUSEADDR` on POSIX: it
+  ignores the leftovers but still refuses to bind while a socket is
+  really listening (that needs `SO_REUSEPORT`), which is the case it has
+  to detect — and it now matches what the real server does
+  (`allow_reuse_address`), so probe and server finally agree.
+
+### Added
+
+- Three port-probe checks in `tests.test_server` (11 → 14): `TIME_WAIT`
+  leftovers do not hide a port, the preferred port survives a restart,
+  a live listener is still reported as busy.
+
 ## [0.1.6] - 2026-10-03
 
 ### Added

@@ -3,9 +3,11 @@ import json
 import os
 import socket
 import sys
+import time
 import urllib.request
 import urllib.error
 
+from opendrop.network.interfaces import _port_is_free, find_available_port
 from opendrop.server.server import PortInUseError, create_server
 from tests.conftest import (_start_server, _url, _upload, TestResult, cert_dir,
                             dd, ip, sd, urlopen)
@@ -97,6 +99,55 @@ def test_server():
         r.check("Port occupied by another program rejected", False, str(e))
     finally:
         busy.close()
+
+    # Port probe: the server closes every response, so right after a
+    # restart its own connections are still in TIME_WAIT on that port for
+    # ~60 s. The probe must not read those leftovers as "busy", otherwise
+    # find_available_port walks to port+1 and the server silently changes
+    # port on every reset (Linux: 8080 -> 8081 -> 8082 while config.json
+    # still says 8080). The listener is built the same way as the real one
+    # (SO_REUSEADDR set), because that is what accepted sockets inherit.
+    leftover = socket.socket()
+    leftover.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    leftover.bind(("127.0.0.1", 0))
+    leftover.listen(5)
+    leftover_port = leftover.getsockname()[1]
+    peer = socket.socket()
+    try:
+        peer.connect(("127.0.0.1", leftover_port))
+        first, _ = leftover.accept()
+        leftover.close()
+        # The server side closes first: it is the one that ends up in
+        # TIME_WAIT on 127.0.0.1:<port>.
+        first.close()
+        time.sleep(0.05)
+        peer.close()
+        time.sleep(0.3)
+        r.check("TIME_WAIT leftovers do not hide the port",
+                _port_is_free(leftover_port) is True)
+        r.check("Preferred port kept across a restart",
+                find_available_port(leftover_port) == leftover_port)
+    except Exception as e:
+        r.check("TIME_WAIT leftovers do not hide the port", False, str(e))
+    finally:
+        for s in (leftover, peer):
+            try:
+                s.close()
+            except OSError:
+                pass
+
+    # ...while a socket that is really listening must still be reported as
+    # busy: the double-bind protection above depends on it.
+    live = socket.socket()
+    try:
+        live.bind(("0.0.0.0", 0))
+        live.listen(5)
+        r.check("Live listener still reported as busy",
+                _port_is_free(live.getsockname()[1]) is False)
+    except Exception as e:
+        r.check("Live listener still reported as busy", False, str(e))
+    finally:
+        live.close()
 
     server.shutdown()
 
