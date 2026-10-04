@@ -5,6 +5,49 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.8.0] - 2026-10-04
+
+### Added
+
+- **Discord button** in the desktop title bar: it opens the OpenDrop
+  server invite (`https://discord.gg/vREBPZuvhV`) in the default browser,
+  with a tooltip translated in both languages (123 → 126 strings per
+  language). The README gained a Discord badge and a *Community* section,
+  and `CONTRIBUTING.md` sends questions there.
+- **Updates can be cancelled and resumed**: the progress window has a
+  *Cancel* button (closing the window cancels as well), and an interrupted
+  download picks up where it stopped with an HTTP `Range: bytes=N-`
+  request instead of starting over — a `416`, or a response that ignores
+  the range, purges the cached file and downloads it again from scratch.
+- **A release without a published `sha256:` digest is refused** before any
+  transfer (`Up.NoDigest`): the updater never falls back to an unverified
+  download, whatever the GitHub response looks like.
+- The Windows setup helper reports its exit code back to the app, so a
+  failed installation is surfaced at the next start (`Up.InstallFailed`)
+  instead of staying silent.
+- README: *FAQ*, *Troubleshooting*, *Known limitations* and *Release
+  process* sections.
+
+### Fixed
+
+- **An older setup could be installed over a newer version**: the Windows
+  installer now compares the installed release and refuses to downgrade,
+  instead of silently replacing a newer build by an older one.
+- The token countdown was still in English and clipped on its left edge
+  in French.
+
+### Changed
+
+- Installer message boxes are skipped in silent mode (they used to block
+  `/VERYSILENT` forever) and the setup reports `1`/`2`/`3` instead of a
+  uniform `0`, which made every failure look like a success.
+- Dead `Console.WriteLine` output removed from the desktop entry point and
+  the Python server; test identifiers renamed to English.
+- Dependabot watches the desktop project (NuGet) alongside Python, and the
+  private checklist is now ignored.
+- Release numbers follow semantic versioning (the `0.1.x` line became
+  `0.2.0` … `0.7.0`).
+
 ## [0.7.0] - 2026-10-04
 
 ### Added

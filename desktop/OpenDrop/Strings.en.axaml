@@ -12,6 +12,7 @@
     <x:String x:Key="Btn.Save">Save</x:String>
     <x:String x:Key="Btn.Saved">Saved!</x:String>
     <x:String x:Key="Btn.Reset">Reset</x:String>
+    <x:String x:Key="Btn.Discord">Join the OpenDrop Discord</x:String>
     <x:String x:Key="Label.ServerAddress">SERVER ADDRESS</x:String>
     <x:String x:Key="Label.QrCode">QR CODE</x:String>
     <x:String x:Key="Qr.HintStart">Start the server to generate the QR code</x:String>

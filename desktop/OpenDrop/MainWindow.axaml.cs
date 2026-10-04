@@ -46,6 +46,8 @@ public partial class MainWindow : Window
     private int _tokenSecondsLeft;
     private int _tokenIntervalSeconds;
 
+    private const string DiscordInviteUrl = "https://discord.gg/vREBPZuvhV";
+
     // Tray (Windows): closing the window hides it, the server keeps running.
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _trayShow;
@@ -405,6 +407,19 @@ public partial class MainWindow : Window
         {
             await Msg.ShowAsync(this,
                 $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Label.Folders"));
+        }
+    }
+
+    private async void BtnDiscord_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(DiscordInviteUrl) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            await Msg.ShowAsync(this,
+                $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Btn.Discord"));
         }
     }
 

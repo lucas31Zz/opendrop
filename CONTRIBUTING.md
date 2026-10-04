@@ -63,6 +63,12 @@ python -m tests.test_beta         # 64
 - UI (web/desktop): attach a before/after screenshot.
 - The CI suites (tests + desktop build) must pass.
 
+## Community
+
+Questions, setup help, and design discussion happen on the
+[OpenDrop Discord](https://discord.gg/vREBPZuvhV). Issues stay reserved for
+bugs and features.
+
 ## Issues
 
 - **Bug**: OS, Python version, steps to reproduce, expected vs. observed

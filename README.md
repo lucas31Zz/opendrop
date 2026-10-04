@@ -9,6 +9,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Windows](https://img.shields.io/badge/bureau-Windows%20%2B%20Linux-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
 [![Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](.github/workflows/tests.yml)
+[![Discord](https://img.shields.io/badge/Discord-server-5865F2?logo=discord&logoColor=white)](https://discord.gg/vREBPZuvhV)
 
 
 ```text
@@ -543,6 +544,14 @@ Rolling back or re-releasing: never move a published tag — publish a new
 patch release instead. To repair assets, re-run the workflow (`gh run
 rerun`) or let the next tag recreate them; a release created without
 assets can be deleted and rebuilt by re-running the tag's workflow.
+
+---
+
+## Community
+
+Questions, setup help, and ideas are discussed on the
+[OpenDrop Discord](https://discord.gg/vREBPZuvhV). The desktop app opens it
+from the Discord button in the title bar.
 
 ---
 
