@@ -4,6 +4,7 @@
 > QR code, send. No account, no cloud, no install on your phone.
 
 [![Tests](https://github.com/lucas31Zz/opendrop/actions/workflows/tests.yml/badge.svg)](https://github.com/lucas31Zz/opendrop/actions/workflows/tests.yml)
+[![Latest release](https://img.shields.io/github/v/release/lucas31Zz/opendrop)](https://github.com/lucas31Zz/opendrop/releases/latest)
 [![MIT License](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![Windows](https://img.shields.io/badge/bureau-Windows%20%2B%20Linux-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
@@ -118,7 +119,8 @@ pip install -e .            # qrcode[pil] + cryptography, installs the "opendrop
 ## Downloads
 
 Every GitHub release (the *Releases* tab) includes, generated automatically
-on each tag:
+on each tag (`v0.2.0` onwards - `v0.1.0` predates the release workflow and
+ships no file):
 
 | File | Platform | Contents |
 |---|---|---|
@@ -338,6 +340,89 @@ To regenerate the certificate: quit OpenDrop, delete the
 
 ---
 
+## Troubleshooting
+
+| Symptom | What to do |
+|---|---|
+| The phone won't open the address | Same Wi-Fi/network as the PC, no guest network (they are usually isolated); then allow the port through the firewall: `sudo ufw allow 8080` (Linux). Re-scan the QR code: the address changes when the PC's IP or port changes |
+| The browser says *Not secure* / certificate warning | Expected: the certificate is self-signed. Continue to the OpenDrop address only, never another site. To start fresh, delete `certs\` (see above) |
+| *Session locked* on the phone | Type the 6-character code shown in the desktop app. The code rotates when the token does |
+| *Port already in use* at start | An older server is still running: stop it (Stop server, or close the app), then start again. Otherwise OpenDrop moves to the next free port automatically |
+| Upload rejected with **507** (quota bar red) | The receive folder is full against the quota: raise it or set `0` (unlimited) in *Settings > Storage* |
+| *File too large (max 10 GB)* | Hard cap per file; split the file |
+| No update is offered | Only releases tagged `vX.Y.Z` are offered (never a draft or pre-release), GitHub must be reachable, and *Skip this version* silences that version only |
+| A second window opens instead of the running one | The single-instance signal failed; the second instance runs anyway as a fallback. Close one of them |
+| The QR code never opens | Open the printed `https://<ip>:<port>` URL by hand (`xdg-open`/`startfile` may be missing) |
+| The installer says Python is missing | Install Python 3.10+ from python.org, check *Add python.exe to PATH*, run the setup again |
+| A file you expected is not listed | The *Download* tab lists the **Share** folder only: drop the file into it (or use *Add* in the desktop app) |
+
+---
+
+## FAQ
+
+**Do I need an account or the internet?**
+No. OpenDrop is a local HTTP(S) server on your PC; the transfer stays on
+your LAN, nothing is uploaded anywhere.
+
+**Does my phone need an app?**
+No. Scan the QR code and use the browser.
+
+**Does it work over the internet?**
+No, by design: everything is bound to your local network. Do not expose
+the port to the internet.
+
+**Is it encrypted?**
+Traffic is HTTPS with a self-signed certificate. Files on disk are *not*
+encrypted - see [SECURITY.md](SECURITY.md) and *Security* above.
+
+**How long does a session last?**
+`session_expires_in` seconds (3600 by default). The token can also be
+rotated on demand (Reset / `--rotate-token`) or on every launch.
+
+**Where do files go?**
+Received files land in the *Receive folder*, files to share are read from
+the *Share folder*. Both are changed in *Settings*.
+
+**How large can a file be?**
+10 GB per file, plus the optional global receive quota.
+
+**Can I run it on macOS?**
+The server only (`opendrop`): the desktop app targets Windows and Linux.
+
+**How do I update?**
+*Settings > Updates* (or automatically at start); the app downloads the
+release, checks its SHA-256, and installs it after it closes. See
+*Automatic updates* above.
+
+**How do I run it without a window (scripts, VM)?**
+`opendrop --headless` prints a JSON line with the URL, token and session
+code.
+
+---
+
+## Known limitations
+
+- **LAN only**: no discovery across networks, no internet mode, no NAT
+  traversal.
+- **No encryption at rest**, and the transfer SHA-256 is not compared
+  automatically (*Security* above).
+- **The token lives in the URL**: it can end up in your browser history;
+  anyone holding the token or the session code can send and receive.
+- **One file per request** in the web interface, and the phone's file list
+  refreshes manually (*Refresh* button).
+- **Phone to phone**: a phone can send to the PC, but the *Download* tab
+  only offers the *Share* folder, so one phone cannot pull what another
+  phone just sent.
+- **The update download** cannot be cancelled and does not resume: an
+  interrupted download starts over.
+- **No transfer resume**: an interrupted upload or download must be started
+  again.
+- **Windows installer**: Python 3.10+ must already be installed (the
+  installer only ships the wheels).
+- **10 GB per file** and per-IP rate limits (5 unlock attempts/minute).
+
+---
+
 ## Tests
 
 Homegrown test suites (no external framework), run from the repo root:
@@ -392,6 +477,72 @@ documented in [SECURITY.md](SECURITY.md). In short:
 | `SECURITY.md` | threat model |
 | `CONTRIBUTING.md` | how to contribute |
 | `LICENSE` | MIT license |
+
+### How the pieces talk to each other
+
+```text
+                       starts / stops (process, pid file)
+ desktop app  ────────────────────────────────────────────►  python -m opendrop.main --headless
+ (Avalonia)    ◄──── polls https://127.0.0.1:<port>/api/info ────┐
+       │                                                        │
+       │ GET /releases/latest (update check)                    │ HTTPS + token
+       ▼                                                        ▼
+   GitHub Releases ◄─── SHA-256 of asset ──── UpdateService   phone browser
+   (setup.exe/tar.gz)                          UpdateRunner   (web interface)
+```
+
+| Component | Role |
+|---|---|
+| `src/opendrop/main.py` | entry point: config, IP/port, token, QR, headless JSON |
+| `src/opendrop/server/` | HTTPS server: routes (`server.py`), multipart parsing (`multipart.py`), quota (`quota.py`), sessions (`session.py`), rate limits (`rate_limit.py`), typed errors (`errors.py`) |
+| `src/opendrop/security/` | tokens, session state, path/file-name validation, TLS certificate |
+| `src/opendrop/config/`, `network/`, `qr/`, `i18n.py` | configuration, local IP and free port, QR rendering, translations |
+| `web/` | the phone UI: one `fetch` per API route (`/api/info`, `/api/upload`, `/api/files`, `/api/quota`, `/api/download/<name>`, `/api/session/unlock`); `/api/progress` exists server-side but no client calls it yet |
+| `desktop/OpenDrop/Services/ServerManager.cs` | spawns and supervises the Python server, resolves the interpreter (installer `venv` first, then PATH), kills the tree on exit |
+| `desktop/OpenDrop/Services/UpdateService.cs` | queries `api.github.com/.../releases/latest`, accepts only `vX.Y.Z`, verifies the published `sha256:` digest |
+| `desktop/OpenDrop/Services/UpdateRunner.cs` | downloads, then runs the installer (`/VERYSILENT`) or `install.sh` after the app has exited |
+| `.github/workflows/` | `tests.yml` (suites), `desktop.yml` (build), `release.yml` (assets attached to the release on a `v*` tag) |
+
+The desktop app never parses the server's stdout: it reads the running
+configuration back through `/api/info` (address, port, quota, language,
+theme). Everything else the UI shows comes from the same API the phone
+uses.
+
+---
+
+## Release process
+
+Maintainers only; contributors never need this.
+
+1. **Choose the version** (semantic): patch for fixes, minor for features,
+   major for breaking changes.
+2. **Bump it in four files** so they all agree — `pyproject.toml`,
+   `packaging/windows/OpenDrop.iss`, `src/opendrop/main.py`,
+   `desktop/OpenDrop/OpenDrop.csproj` (the `.iss` comment on line 13 too).
+3. **Update `CHANGELOG.md`**: new `## [X.Y.Z] - YYYY-MM-DD` section at the
+   top, following Keep a Changelog.
+4. **Run everything** (all suites, `--large`, `dotnet build`) — CI must be
+   green on the commit you tag.
+5. **Tag and push**:
+
+   ```powershell
+   git tag -a vX.Y.Z -m "OpenDrop vX.Y.Z"
+   git push origin main vX.Y.Z
+   ```
+
+   The `v` prefix is mandatory: the desktop app only offers releases whose
+   tag matches `vX.Y.Z`.
+6. **The `release` workflow does the rest**: on every `v*` tag it builds
+   the Windows setup + portable zip and the Linux tarball, creates the
+   release (title + generated notes) if it does not exist, and attaches
+   the three assets with `--clobber`. Nothing is pushed by hand.
+7. **Verify**: the three assets are present, digest published, tests
+   badge green, and *Latest* points at the new tag.
+
+Rolling back or re-releasing: never move a published tag — publish a new
+patch release instead. To repair assets, re-run the workflow (`gh run
+rerun`) or let the next tag recreate them; a release created without
+assets can be deleted and rebuilt by re-running the tag's workflow.
 
 ---
 
