@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -160,30 +161,116 @@ internal static class UpdateService
     }
 
     // Downloads the asset to %TEMP%\opendrop-update and verifies it.
+    //
+    // An interrupted transfer leaves the partial file behind and the next
+    // attempt picks it up with an HTTP Range request instead of starting
+    // over (the checksum is only ever computed on the complete file, so a
+    // resumed download cannot smuggle anything in).
     public static async Task<string> DownloadAsync(
         UpdateInfo info,
         Action<long, long>? onProgress = null,
         CancellationToken ct = default)
     {
+        // This file is executed as the installer: a release that does not
+        // publish a digest it can be checked against is refused outright.
+        if (string.IsNullOrWhiteSpace(info.Digest) ||
+            !info.Digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(Lang.T("Up.NoDigest"));
+        }
+
         var dir = Path.Combine(Path.GetTempPath(), "opendrop-update");
         Directory.CreateDirectory(dir);
+        RemoveStaleDownloads(dir, info.AssetName);
         var path = Path.Combine(dir, info.AssetName);
 
+        var offset = ExistingSize(path, info.AssetSize);
+        return await DownloadToAsync(info, path, offset, onProgress, ct);
+    }
+
+    // Files left over from another release (a different asset name) are
+    // useless: only the partial file for the asset being fetched now is
+    // worth keeping for a resume. Directories (the Linux extract
+    // workspace) are left alone.
+    private static void RemoveStaleDownloads(string dir, string keepName)
+    {
+        try
+        {
+            foreach (var file in Directory.GetFiles(dir))
+            {
+                if (!string.Equals(Path.GetFileName(file), keepName,
+                        StringComparison.OrdinalIgnoreCase))
+                    File.Delete(file);
+            }
+        }
+        catch (Exception)
+        {
+            // A leftover file is not worth failing the download over.
+        }
+    }
+
+    // Size to resume from: 0 when there is nothing to resume, or when the
+    // partial file cannot possibly be the asset any more (it is as big as
+    // the whole thing, so it is either complete or a different release).
+    private static long ExistingSize(string path, long assetSize)
+    {
+        try
+        {
+            var size = new FileInfo(path).Length;
+            if (size > 0 && (assetSize <= 0 || size < assetSize))
+                return size;
+            if (size > 0)
+                File.Delete(path);
+        }
+        catch (Exception) { }
+        return 0;
+    }
+
+    private static async Task<string> DownloadToAsync(
+        UpdateInfo info, string path, long offset,
+        Action<long, long>? onProgress, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, info.AssetUrl);
         // GitHub answers with the file itself when the asset is requested
         // with this Accept header.
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
+        if (offset > 0)
+            request.Headers.Range = new RangeHeaderValue(offset, null);
 
         using var response = await DownloadHttp.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+        // The local file does not line up with the asset any more (it is
+        // already whole, or it belongs to a release that was replaced):
+        // throw it away and fetch everything.
+        if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+        {
+            try { File.Delete(path); } catch (Exception) { }
+            if (offset > 0)
+                return await DownloadToAsync(info, path, 0, onProgress, ct);
+            throw new InvalidDataException(Lang.T("Up.BadChecksum"));
+        }
+
         response.EnsureSuccessStatusCode();
 
-        var total = response.Content.Headers.ContentLength ?? info.AssetSize;
+        // A 200 to a Range request means the server ignored it: restart
+        // from scratch rather than appending a second copy of the file.
+        var resumed = offset > 0 && response.StatusCode == HttpStatusCode.PartialContent;
+        if (!resumed) offset = 0;
+
+        var total = resumed
+            ? response.Content.Headers.ContentRange?.Length ?? info.AssetSize
+            : response.Content.Headers.ContentLength ?? info.AssetSize;
+
+        onProgress?.Invoke(offset, total);
+
         await using (var source = await response.Content.ReadAsStreamAsync(ct))
-        await using (var target = File.Create(path))
+        await using (var target = new FileStream(path,
+            resumed ? FileMode.Append : FileMode.Create,
+            FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
             var buffer = new byte[81920];
-            long done = 0;
+            long done = offset;
             int read;
             while ((read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
             {
@@ -201,14 +288,15 @@ internal static class UpdateService
         return path;
     }
 
+    // The digest is mandatory: DownloadAsync refuses a release that
+    // publishes none, so a missing or malformed one here is a failure to
+    // report, never a reason to trust the file.
     private static bool VerifyDigest(string path, string? digest)
     {
-        // No digest published (older releases): nothing to compare against,
-        // the transport is still HTTPS with GitHub's certificate.
-        if (string.IsNullOrWhiteSpace(digest)) return true;
-        if (!digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.IsNullOrWhiteSpace(digest)) return false;
+        if (!digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)) return false;
         var expected = digest["sha256:".Length..].Trim();
-        if (expected.Length != 64) return true;
+        if (expected.Length != 64) return false;
 
         using var sha = SHA256.Create();
         using var stream = File.OpenRead(path);
@@ -227,16 +315,27 @@ internal static class UpdateService
     // helper waits for this process to exit (which also stops the Python
     // server through the Closed handler), runs the setup, then relaunches
     // the application from the very same path it was started from.
+    // The detached helper records what the setup returned before it
+    // relaunches the application: by the time that exit code exists this
+    // process is already gone, so it is handed back through a file and
+    // read once on the next start (ConsumeInstallStatus).
+    private static string InstallStatusPath =>
+        Path.Combine(Path.GetTempPath(), "opendrop-update", "last-setup-exit.txt");
+
     public static void ApplyWindows(string installerPath)
     {
         var exe = Environment.ProcessPath
                   ?? Path.Combine(AppContext.BaseDirectory, "OpenDrop.exe");
         var pid = Environment.ProcessId;
+        var status = InstallStatusPath;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(status)!); }
+        catch (Exception) { }
 
         var script =
             $"Wait-Process -Id {pid} -Timeout 120; " +
-            $"Start-Process -FilePath '{installerPath}' " +
-            "-ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait; " +
+            $"$setup = Start-Process -FilePath '{installerPath}' " +
+            "-ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru; " +
+            $"Set-Content -LiteralPath '{status}' -Value $setup.ExitCode -Encoding ascii; " +
             $"if (Test-Path -LiteralPath '{exe}') {{ Start-Process -FilePath '{exe}' }}";
 
         if (Process.Start(new ProcessStartInfo
@@ -249,6 +348,32 @@ internal static class UpdateService
         {
             throw new InvalidOperationException("powershell.exe not found");
         }
+    }
+
+    // Reads (and clears) the exit code the helper recorded. Returns the
+    // localized failure text, or null when the setup succeeded, when it
+    // never ran, or when nothing was written - a missing file is the
+    // common case and must stay silent.
+    public static string? ConsumeInstallStatus()
+    {
+        var path = InstallStatusPath;
+
+        string? raw;
+        try
+        {
+            if (!File.Exists(path)) return null;
+            raw = File.ReadAllText(path);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        try { File.Delete(path); } catch (Exception) { }
+
+        if (!int.TryParse(raw.Trim(), out var code) || code == 0)
+            return null;
+        return Lang.Format("Up.InstallFailed", code);
     }
 
     // ---- Linux --------------------------------------------------------

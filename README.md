@@ -413,8 +413,8 @@ code.
 - **Phone to phone**: a phone can send to the PC, but the *Download* tab
   only offers the *Share* folder, so one phone cannot pull what another
   phone just sent.
-- **The update download** cannot be cancelled and does not resume: an
-  interrupted download starts over.
+- **A cancelled or interrupted update** leaves a partial file in
+  `%TEMP%\opendrop-update` until the next attempt reuses or drops it.
 - **No transfer resume**: an interrupted upload or download must be started
   again.
 - **Windows installer**: Python 3.10+ must already be installed (the

@@ -65,7 +65,8 @@ internal static class UpdateRunner
                                     Lang.Format("Up.Downloading", info.AssetName));
         try
         {
-            var file = await UpdateService.DownloadAsync(info, progress.Report);
+            var file = await UpdateService.DownloadAsync(
+                info, progress.Report, progress.Token);
             progress.Title(Lang.T("Up.Installing"));
 
             if (OperatingSystem.IsWindows())
@@ -76,6 +77,14 @@ internal static class UpdateRunner
             progress.Close();
             await Msg.ShowAsync(owner, Lang.T("Up.Done"), Lang.T("Update.Title"));
             Shutdown();
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            // The user dismissed the progress window. Nothing is reported:
+            // the partial file stays in %TEMP% and the next attempt
+            // resumes it from where it stopped.
+            progress.Close();
             return null;
         }
         catch (Exception ex)

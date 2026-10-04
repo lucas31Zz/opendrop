@@ -147,6 +147,16 @@ public partial class MainWindow : Window
         await Task.Delay(TimeSpan.FromSeconds(3));
         try
         {
+            // A silent install runs after this process is gone, so its
+            // outcome can only be reported here. The update itself is not
+            // offered again right away: the message says where to retry.
+            var failure = UpdateService.ConsumeInstallStatus();
+            if (failure != null)
+            {
+                await Msg.ShowAsync(this, failure, Lang.T("Update.Title"));
+                return;
+            }
+
             await UpdateRunner.RunAsync(this, interactive: false);
         }
         catch (Exception)

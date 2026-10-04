@@ -69,6 +69,17 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\OpenDrop.exe"; Tasks: deskt
 Filename: "{app}\OpenDrop.exe"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// Setup exit codes, read by the updater after a silent install
+// (UpdateService.ApplyWindows records them, the app reports them on its
+// next start). In silent mode they are the ONLY signal: MsgBox is skipped
+// there because an unattended setup has nowhere to show it and would
+// simply stall, and Abort would return 0 and look like a success.
+//   1 = Python missing or too old
+//   2 = the dependencies could not be installed
+//   3 = the dependency script could not be launched at all
+function ExitProcess(uExitCode: UINT): BOOL;
+  external 'ExitProcess@kernel32.dll stdcall';
+
 // Downgrade guard: refuse to install an older version over a newer one
 // (DisplayVersion comes from AppVersion, i.e. "v0.7.0" from CI or "0.7.0"
 // from a local build). Equal versions reinstall normally.
@@ -142,7 +153,7 @@ begin
 end;
 
 // Installs the dependencies into {app}\venv (offline, from the bundled wheels).
-// Exit codes: 1 = Python missing or too old, 2 = venv/pip failure.
+// Reports the failure through the setup exit code (see ExitProcess above).
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -173,28 +184,31 @@ begin
     begin
       if ResultCode = 1 then
       begin
-        MsgBox('Python 3.10+ is required to run OpenDrop.'#13#10#13#10 +
-               '1. Install Python from https://www.python.org/downloads/'#13#10 +
-               '   (check "Add python.exe to PATH").'#13#10 +
-               '2. Run this setup again.'#13#10#13#10 +
-               'The installation will now be cancelled.', mbError, MB_OK);
-        Abort;
+        if not WizardSilent then
+          MsgBox('Python 3.10+ is required to run OpenDrop.'#13#10#13#10 +
+                 '1. Install Python from https://www.python.org/downloads/'#13#10 +
+                 '   (check "Add python.exe to PATH").'#13#10 +
+                 '2. Run this setup again.'#13#10#13#10 +
+                 'The installation will now be cancelled.', mbError, MB_OK);
+        ExitProcess(1);
       end
       else if ResultCode <> 0 then
       begin
-        MsgBox('Failed to install the Python dependencies (code ' +
-               IntToStr(ResultCode) + ').'#13#10#13#10 +
-               'Run this setup again; if the problem persists, check that'#13#10 +
-               'python.exe -m pip works.'#13#10#13#10 +
-               'The installation will now be cancelled.', mbError, MB_OK);
-        Abort;
+        if not WizardSilent then
+          MsgBox('Failed to install the Python dependencies (code ' +
+                 IntToStr(ResultCode) + ').'#13#10#13#10 +
+                 'Run this setup again; if the problem persists, check that'#13#10 +
+                 'python.exe -m pip works.'#13#10#13#10 +
+                 'The installation will now be cancelled.', mbError, MB_OK);
+        ExitProcess(2);
       end;
     end
     else
     begin
-      MsgBox('Could not launch the dependency installation script.',
-             mbError, MB_OK);
-      Abort;
+      if not WizardSilent then
+        MsgBox('Could not launch the dependency installation script.',
+               mbError, MB_OK);
+      ExitProcess(3);
     end;
   end;
 end;

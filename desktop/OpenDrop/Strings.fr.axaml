@@ -136,7 +136,9 @@
     <x:String x:Key="Up.Done">La mise à jour est en cours d'installation. OpenDrop va se fermer et redémarrer.</x:String>
     <x:String x:Key="Up.Error">Impossible de vérifier les mises à jour : {0}</x:String>
     <x:String x:Key="Up.InstallError">La mise à jour n'a pas pu être appliquée : {0}</x:String>
+    <x:String x:Key="Up.InstallFailed">La mise à jour a échoué : le programme d'installation s'est arrêté avec le code {0}. OpenDrop n'a pas été mis à jour - vous pouvez réessayer depuis les Paramètres.</x:String>
     <x:String x:Key="Up.BadChecksum">le fichier téléchargé ne correspond pas à la somme de contrôle publiée</x:String>
+    <x:String x:Key="Up.NoDigest">cette version ne publie aucune somme SHA-256 à vérifier pour le fichier</x:String>
     <x:String x:Key="Up.BadArchive">l'archive téléchargée n'est pas un paquet OpenDrop</x:String>
     <x:String x:Key="Up.NoPolkit">pkexec (polkit) est nécessaire pour installer dans /opt</x:String>
 

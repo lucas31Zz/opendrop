@@ -1,3 +1,4 @@
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -135,13 +136,17 @@ internal static class Msg
 
     // Non-modal progress window for a job that takes long enough to be
     // worth showing (an update download). The caller reports progress and
-    // closes it when done; the window never blocks anything.
+    // closes it when done; the window never blocks anything. Dismissing
+    // it (button or title-bar close) cancels the job through Token, so
+    // the download stops and the partial file survives for a later resume.
     public sealed class ProgressReporter
     {
         private readonly Window _window;
         private readonly TextBlock _heading;
         private readonly TextBlock _detail;
         private readonly ProgressBar _bar;
+        private readonly CancellationTokenSource _cancel = new();
+        private bool _finished;
 
         internal ProgressReporter(Window window, TextBlock heading,
                                   TextBlock detail, ProgressBar bar)
@@ -151,6 +156,10 @@ internal static class Msg
             _detail = detail;
             _bar = bar;
         }
+
+        // Cancels the job; null-checked by the caller. The token stays
+        // usable after Close(), which must not count as a cancellation.
+        public CancellationToken Token => _cancel.Token;
 
         public void Title(string text) => Post(() => _heading.Text = text);
 
@@ -170,7 +179,18 @@ internal static class Msg
 
         public void Close() => Post(() =>
         {
+            _finished = true;
             try { _window.Close(); } catch (Exception) { }
+        });
+
+        // Called by the progress window itself when it goes away (button
+        // or title-bar close) before the caller had a chance to Close():
+        // that is a cancellation, not a completion.
+        internal void Dismiss() => Post(() =>
+        {
+            if (_finished) return;
+            _finished = true;
+            try { _cancel.Cancel(); } catch (ObjectDisposedException) { }
         });
 
         private static void Post(Action action)
@@ -226,18 +246,29 @@ internal static class Msg
             MaxWidth = 520,
             MinWidth = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = WindowBg,
-            Content = new StackPanel
-            {
-                Margin = new Thickness(20),
-                Children = { heading, detail, bar }
-            }
+            Background = WindowBg
         };
+
+        var reporter = new ProgressReporter(window, heading, detail, bar);
+
+        var cancel = MakeButton(Lang.T("Msg.Cancel"), accent: false, () =>
+        {
+            reporter.Dismiss();
+            reporter.Close();
+        });
+        cancel.Margin = new Thickness(0, 16, 0, 0);
+
+        window.Content = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Children = { heading, detail, bar, cancel }
+        };
+        window.Closed += (_, _) => reporter.Dismiss();
 
         // Modal on purpose: the update is a one-shot job, the owner has
         // nothing to gain from being usable while the file downloads.
         _ = window.ShowDialog(owner);
-        return new ProgressReporter(window, heading, detail, bar);
+        return reporter;
     }
 
     // Every button in visual order; -1 when dismissed without a choice.

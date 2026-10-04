@@ -136,7 +136,9 @@
     <x:String x:Key="Up.Done">The update is being installed. OpenDrop will close and restart.</x:String>
     <x:String x:Key="Up.Error">Could not check for updates: {0}</x:String>
     <x:String x:Key="Up.InstallError">The update could not be applied: {0}</x:String>
+    <x:String x:Key="Up.InstallFailed">The update failed: the installer exited with code {0}. OpenDrop was not updated - you can try again from Settings.</x:String>
     <x:String x:Key="Up.BadChecksum">the downloaded file does not match the published checksum</x:String>
+    <x:String x:Key="Up.NoDigest">this release publishes no SHA-256 checksum for the file to verify</x:String>
     <x:String x:Key="Up.BadArchive">the downloaded archive is not an OpenDrop bundle</x:String>
     <x:String x:Key="Up.NoPolkit">pkexec (polkit) is needed to install into /opt</x:String>
 </ResourceDictionary>
