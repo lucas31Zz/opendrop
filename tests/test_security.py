@@ -234,40 +234,40 @@ def test_security():
     head = (f"--{boundary}\r\n"
             'Content-Disposition: form-data; name="file"; filename="tronque.bin"\r\n'
             "Content-Type: text/plain\r\n\r\n").encode()
-    corps_sans_fin = head + b"X" * 4096
+    truncated_body = head + b"X" * 4096
     try:
         conn = http.client.HTTPSConnection(ip, port, context=SSL_CONTEXT, timeout=20)
-        conn.request("POST", f"/api/upload?token={token}", body=corps_sans_fin,
+        conn.request("POST", f"/api/upload?token={token}", body=truncated_body,
                      headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
-                              "Content-Length": str(len(corps_sans_fin))})
+                              "Content-Length": str(len(truncated_body))})
         resp = conn.getresponse()
-        texte = resp.read().decode("utf-8", "replace")
+        text = resp.read().decode("utf-8", "replace")
         conn.close()
         r.check("Body without final boundary rejected (400)", resp.status == 400,
-                f"{resp.status} {texte}")
-        r.check("Incomplete body: no SHA-256 returned", "sha256" not in texte,
-                texte[:200])
-        restants = [f for f in os.listdir(dd) if f.startswith("tronque")]
-        r.check("Incomplete body: no partial file", not restants, restants)
+                f"{resp.status} {text}")
+        r.check("Incomplete body: no SHA-256 returned", "sha256" not in text,
+                text[:200])
+        leftovers = [f for f in os.listdir(dd) if f.startswith("tronque")]
+        r.check("Incomplete body: no partial file", not leftovers, leftovers)
     except Exception as e:
         r.check("Body without final boundary rejected (400)", False, str(e))
 
     # Unit case: cut in the middle of the body (reader EOF)
-    coupure_dir = os.path.join(dd, "coupure")
-    shutil.rmtree(coupure_dir, ignore_errors=True)
-    os.makedirs(coupure_dir, exist_ok=True)
-    corps_complet = (head + b"Y" * 2048 + b"\r\n--" + boundary.encode() + b"--\r\n")
+    cut_dir = os.path.join(dd, "coupure")
+    shutil.rmtree(cut_dir, ignore_errors=True)
+    os.makedirs(cut_dir, exist_ok=True)
+    full_body = (head + b"Y" * 2048 + b"\r\n--" + boundary.encode() + b"--\r\n")
     try:
-        lecteur = io.BytesIO(corps_complet[:len(head) + 512])
-        nom, erreur, digest = multipart_mod.parse_multipart_upload(
-            lecteur, f"multipart/form-data; boundary={boundary}",
-            len(corps_complet), coupure_dir)
+        reader = io.BytesIO(full_body[:len(head) + 512])
+        name, error, digest = multipart_mod.parse_multipart_upload(
+            reader, f"multipart/form-data; boundary={boundary}",
+            len(full_body), cut_dir)
         r.check("Reader cut mid-stream: error returned",
-                nom is None and bool(erreur), (nom, erreur))
+                name is None and bool(error), (name, error))
         r.check("Reader cut mid-stream: no hash returned",
                 digest is None, digest)
         r.check("Reader cut mid-stream: no file",
-                os.listdir(coupure_dir) == [], os.listdir(coupure_dir))
+                os.listdir(cut_dir) == [], os.listdir(cut_dir))
     except Exception as e:
         r.check("Reader cut mid-stream", False, repr(e))
 
@@ -305,13 +305,13 @@ def test_security():
             _upload(port, token, "flush_fail.bin", b"Z" * 2048)
             r.check("Final flush failure -> 507", False, "upload accepted")
         except urllib.error.HTTPError as e:
-            texte = e.read().decode("utf-8", "replace")
-            r.check("Final flush failure -> 507", e.code == 507, f"{e.code} {texte}")
+            text = e.read().decode("utf-8", "replace")
+            r.check("Final flush failure -> 507", e.code == 507, f"{e.code} {text}")
             r.check("Final flush failure: no server path in the response",
-                    "flush_fail" not in texte and ".bin" not in texte, texte)
-            restants = [f for f in os.listdir(dd) if f.startswith("flush_fail")]
+                    "flush_fail" not in text and ".bin" not in text, text)
+            leftovers = [f for f in os.listdir(dd) if f.startswith("flush_fail")]
             r.check("Final flush failure: partial file deleted",
-                    not restants, restants)
+                    not leftovers, leftovers)
         except Exception as e:
             r.check("Final flush failure -> 507", False, str(e))
     finally:

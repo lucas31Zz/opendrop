@@ -1,7 +1,8 @@
 import secrets
-import string
 import threading
 import time
+
+from opendrop.security.tokens import generate_token
 
 
 class Session:
@@ -146,8 +147,3 @@ def normalize_session_code(code: str | None) -> str:
     if not code:
         return ""
     return "".join(c for c in code.upper() if c in SESSION_CODE_ALPHABET)
-
-
-def generate_token(length: int = 32) -> str:
-    alphabet = string.ascii_letters + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(length))

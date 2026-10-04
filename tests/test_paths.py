@@ -155,11 +155,11 @@ def _error_tests(r, port, token):
                  "Content-Length": str(len(evil))})
     _check_clean(r, "Traversing upload", status, headers, body, 200)
     try:
-        nom = json.loads(body).get("filename")
+        name = json.loads(body).get("filename")
     except ValueError:
-        nom = None
+        name = None
     r.check("Traversing upload: name reduced to the file alone",
-            nom == "passwd", f"filename={nom!r}")
+            name == "passwd", f"filename={name!r}")
 
     # Upload without token -> 403
     status, headers, body = _request(

@@ -264,19 +264,19 @@ def _server_tests():
     # go through, and the next upload must be rejected.
     server, port, token, dl = _start_quota(50000, "srv_exact")
     try:
-        entete = (b"--" + b"----TEST" + b"\r\n"
+        header = (b"--" + b"----TEST" + b"\r\n"
                   b'Content-Disposition: form-data; name="file"; filename="plein.bin"\r\n'
                   b"Content-Type: text/plain\r\n\r\n")
-        pied = b"\r\n--" + b"----TEST" + b"--\r\n"
-        corps = entete + b"x" * (50000 - len(entete) - len(pied)) + pied
-        statut, corps_reponse = _post_body(port, token, corps)
+        trailer = b"\r\n--" + b"----TEST" + b"--\r\n"
+        body = header + b"x" * (50000 - len(header) - len(trailer)) + trailer
+        status, response_body = _post_body(port, token, body)
         r.check("Exact quota fill (50,000 bytes)",
-                statut == 200 and len(corps) == 50000,
-                f"{statut} len={len(corps)} {corps_reponse[:120]}")
+                status == 200 and len(body) == 50000,
+                f"{status} len={len(body)} {response_body[:120]}")
         # The folder only contains the file content (the multipart headers
         # are not written): "framing" bytes of quota remain.
         r.check("Usage after exact fill = file size",
-                server.quota.usage() == 50000 - len(entete) - len(pied),
+                server.quota.usage() == 50000 - len(header) - len(trailer),
                 server.quota.usage())
 
         # The remaining quota no longer even covers an upload's header
@@ -300,26 +300,26 @@ def _server_tests():
     # one of the two is rejected with 507 and that the total stays <= quota.
     server, port, token, dl = _start_quota(30000, "srv_conc")
     try:
-        resultats = [None, None]
+        results = [None, None]
 
-        def _lance(index):
+        def _run_one(index):
             try:
                 resp = _upload(port, token, f"sim_{index}.bin", b"c" * 20000)
-                resultats[index] = ("ok", resp.status)
+                results[index] = ("ok", resp.status)
             except urllib.error.HTTPError as e:
-                resultats[index] = ("err", e.code)
+                results[index] = ("err", e.code)
             except Exception as e:
-                resultats[index] = ("exc", repr(e))
+                results[index] = ("exc", repr(e))
 
-        threads = [threading.Thread(target=_lance, args=(i,)) for i in (0, 1)]
+        threads = [threading.Thread(target=_run_one, args=(i,)) for i in (0, 1)]
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=30)
 
-        codes = sorted(x[1] for x in resultats)
+        codes = sorted(x[1] for x in results)
         r.check("Simultaneous uploads: one 200 and one 507", codes == [200, 507],
-                resultats)
+                results)
         r.check("Simultaneous uploads: total <= quota",
                 directory_usage(dl) <= 30000, directory_usage(dl))
         r.check("Simultaneous uploads: no partial file",

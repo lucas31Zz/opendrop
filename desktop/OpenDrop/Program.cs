@@ -28,7 +28,6 @@ internal static class Program
             if (TrySignalExistingInstance())
                 return 0;
             // If signaling failed, fall through and run anyway (fallback)
-            Console.WriteLine("[Main] Another instance exists but signaling failed, continuing anyway");
         }
 
         // We're the first instance: start pipe server and run the app
@@ -51,24 +50,19 @@ internal static class Program
     {
         try
         {
-            Console.WriteLine("[PipeClient] Connecting to pipe...");
             using var client = new NamedPipeClientStream(".", "OpenDrop.SingleInstance", PipeDirection.InOut);
             client.Connect(1000);
-            Console.WriteLine("[PipeClient] Connected, sending SHOW...");
             var msg = Encoding.UTF8.GetBytes("SHOW\n");
             client.Write(msg, 0, msg.Length);
             client.Flush();
-            Console.WriteLine("[PipeClient] Sent SHOW, waiting for ACK...");
-            
+
             var buffer = new byte[256];
             int bytesRead = client.Read(buffer, 0, buffer.Length);
             var response = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-            Console.WriteLine($"[PipeClient] Received: '{response}'");
             return response == "OK";
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[PipeClient] Failed: {ex.Message}");
             return false;
         }
     }
@@ -89,14 +83,11 @@ internal static class Program
                         PipeTransmissionMode.Byte,
                         PipeOptions.Asynchronous);
 
-                    Console.WriteLine("[PipeServer] Waiting for connection...");
                     await server.WaitForConnectionAsync(_pipeCts.Token);
-                    Console.WriteLine("[PipeServer] Client connected");
 
                     var buffer = new byte[256];
                     int bytesRead = await server.ReadAsync(buffer, 0, buffer.Length, _pipeCts.Token);
                     var request = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-                    Console.WriteLine($"[PipeServer] Received: '{request}'");
 
                     if (request == "SHOW")
                     {
@@ -122,22 +113,18 @@ internal static class Program
                         var response = Encoding.UTF8.GetBytes("OK\n");
                         await server.WriteAsync(response, 0, response.Length, _pipeCts.Token);
                         await server.FlushAsync(_pipeCts.Token);
-                        Console.WriteLine("[PipeServer] Sent OK");
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    Console.WriteLine("[PipeServer] Cancelled");
                     break;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    Console.WriteLine($"[PipeServer] Error: {ex.Message}");
                 }
                 finally
                 {
                     server?.Dispose();
-                    Console.WriteLine("[PipeServer] Disposed, looping...");
                 }
             }
         }, _pipeCts.Token);

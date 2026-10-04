@@ -1,6 +1,6 @@
 """
-OpenDrop v0.1.0 - Beta test campaign
-====================================
+OpenDrop - Beta test campaign
+=============================
 Covers: large files, collisions, rate limiting, failure cases,
         multiple transfers, cancellation, SHA-256, various types.
 
@@ -689,7 +689,7 @@ def main():
     r = R()
 
     print(f"{'='*50}")
-    print("  OpenDrop v0.1.0 - Beta Tests")
+    print("  OpenDrop - Beta Tests")
     print(f"{'='*50}")
 
     # Tests always run

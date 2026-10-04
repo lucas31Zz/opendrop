@@ -35,35 +35,35 @@ def _spawn_main(args, config_dir, timeout=30):
     # in the real profile. Everything must stay in the test's temporary folder.
     env["USERPROFILE"] = config_dir
     env["PYTHONUNBUFFERED"] = "1"
-    chemins = [p for p in sys.path if p]
-    if _SRC not in chemins:
-        chemins.insert(0, _SRC)
-    env["PYTHONPATH"] = os.pathsep.join(chemins)
+    paths = [p for p in sys.path if p]
+    if _SRC not in paths:
+        paths.insert(0, _SRC)
+    env["PYTHONPATH"] = os.pathsep.join(paths)
 
     proc = subprocess.Popen(
         [sys.executable, "-u", "-m", "opendrop.main", *args],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
         cwd=os.path.dirname(_SRC))
-    lignes = queue.Queue()
+    lines = queue.Queue()
 
-    def _lire():
+    def _pump():
         for line in proc.stdout:
-            lignes.put(line)
+            lines.put(line)
 
-    threading.Thread(target=_lire, daemon=True).start()
+    threading.Thread(target=_pump, daemon=True).start()
 
     info = None
-    fin = time.time() + timeout
-    while time.time() < fin and info is None:
+    deadline = time.time() + timeout
+    while time.time() < deadline and info is None:
         try:
-            brut = lignes.get(timeout=1)
+            raw = lines.get(timeout=1)
         except queue.Empty:
             if proc.poll() is not None:
                 break
             continue
-        texte = brut.decode("utf-8", "replace").strip()
-        if texte.startswith("{") and "__opendrop_info__" in texte:
-            info = json.loads(texte)
+        text = raw.decode("utf-8", "replace").strip()
+        if text.startswith("{") and "__opendrop_info__" in text:
+            info = json.loads(text)
     return proc, info
 
 
@@ -288,21 +288,21 @@ def test_sessions():
     proc1 = proc2 = proc3 = None
     try:
         cfg = os.path.join(work, "OpenDrop")
-        recus = os.path.join(work, "recus")
-        partage = os.path.join(work, "partage")
+        receive_dir = os.path.join(work, "recus")
+        share_dir = os.path.join(work, "partage")
         os.makedirs(cfg, exist_ok=True)
-        os.makedirs(recus, exist_ok=True)
-        os.makedirs(partage, exist_ok=True)
+        os.makedirs(receive_dir, exist_ok=True)
+        os.makedirs(share_dir, exist_ok=True)
         with open(os.path.join(cfg, "config.json"), "w", encoding="utf-8") as fh:
-            json.dump({"download_directory": recus, "share_directory": partage,
+            json.dump({"download_directory": receive_dir, "share_directory": share_dir,
                        "generate_new_token": False, "global_quota_bytes": 0}, fh)
 
-        def _lance(*extra):
+        def _spawn(*extra):
             port = find_available_port(20000 + int(time.time() * 1000) % 10000)
             proc, info = _spawn_main(["--headless", "--port", str(port), *extra], work)
             return proc, info, port
 
-        proc1, info1, _ = _lance()
+        proc1, info1, _ = _spawn()
         r.check("opendrop.main headless publishes token and code",
                 info1 is not None and bool(info1.get("token"))
                 and bool(info1.get("session_code")),
@@ -310,7 +310,7 @@ def test_sessions():
         _stop(proc1)
 
         if info1:
-            proc2, info2, _ = _lance()
+            proc2, info2, _ = _spawn()
             r.check("Without rotation, token and code preserved",
                     info2 is not None
                     and info2.get("token") == info1.get("token")
@@ -319,7 +319,7 @@ def test_sessions():
                                "code": info2.get("session_code")})
             _stop(proc2)
 
-            proc3, info3, port3 = _lance("--rotate-token")
+            proc3, info3, port3 = _spawn("--rotate-token")
             if info3:
                 r.check("--rotate-token changes the token",
                         info3.get("token") != info1.get("token"))
