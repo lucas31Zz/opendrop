@@ -3,6 +3,7 @@
 ; - admin elevation required, installs into Program Files (x86)
 ; - Python dependencies installed into a local venv from the bundled wheels
 ;   (no network access needed at install time)
+; - refuses to downgrade an existing newer installation (see InitializeSetup)
 ; - language task: seeds %LOCALAPPDATA%\OpenDrop\config.json with the
 ;   chosen application language (English default, French optional)
 ; - uninstall: cleans the application AND its data (config, session,
@@ -68,6 +69,78 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\OpenDrop.exe"; Tasks: deskt
 Filename: "{app}\OpenDrop.exe"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// Downgrade guard: refuse to install an older version over a newer one
+// (DisplayVersion comes from AppVersion, i.e. "v0.7.0" from CI or "0.7.0"
+// from a local build). Equal versions reinstall normally.
+function CompareDottedVersions(const V1, V2: String): Integer;
+var
+  Left, Right, Piece1, Piece2: String;
+  N1, N2, P: Integer;
+begin
+  Result := 0;
+  Left := V1;
+  Right := V2;
+  if (Length(Left) > 0) and ((Left[1] = 'v') or (Left[1] = 'V')) then
+    Delete(Left, 1, 1);
+  if (Length(Right) > 0) and ((Right[1] = 'v') or (Right[1] = 'V')) then
+    Delete(Right, 1, 1);
+  while (Result = 0) and ((Left <> '') or (Right <> '')) do
+  begin
+    P := Pos('.', Left);
+    if P > 0 then
+    begin
+      Piece1 := Copy(Left, 1, P - 1);
+      Delete(Left, 1, P);
+    end
+    else
+    begin
+      Piece1 := Left;
+      Left := '';
+    end;
+    P := Pos('.', Right);
+    if P > 0 then
+    begin
+      Piece2 := Copy(Right, 1, P - 1);
+      Delete(Right, 1, P);
+    end
+    else
+    begin
+      Piece2 := Right;
+      Right := '';
+    end;
+    N1 := StrToIntDef(Trim(Piece1), 0);
+    N2 := StrToIntDef(Trim(Piece2), 0);
+    if N1 > N2 then
+      Result := 1
+    else if N1 < N2 then
+      Result := -1;
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  Installed: String;
+begin
+  Result := True;
+  if RegQueryStringValue(HKLM,
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1',
+    'DisplayVersion', Installed) then
+  begin
+    if (Installed <> '') and (CompareDottedVersions(Installed, '{#MyAppVersion}') > 0) then
+    begin
+      // No dialog when running silently (the updater only ever installs a
+      // newer release, but a manual /VERYSILENT downgrade must not block).
+      if not WizardSilent then
+        MsgBox('OpenDrop ' + Installed + ' is already installed, but this setup installs ' +
+               '{#MyAppVersion}.'#13#10#13#10 +
+               'Downgrading is not supported: nothing was changed. Uninstall OpenDrop ' +
+               Installed + ' first, or use the release matching it.',
+               mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
 // Installs the dependencies into {app}\venv (offline, from the bundled wheels).
 // Exit codes: 1 = Python missing or too old, 2 = venv/pip failure.
 procedure CurStepChanged(CurStep: TSetupStep);
