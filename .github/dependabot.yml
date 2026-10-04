@@ -11,3 +11,9 @@ updates:
     schedule:
       interval: weekly
     labels: ["dependencies"]
+
+  - package-ecosystem: nuget
+    directory: "/desktop/OpenDrop"
+    schedule:
+      interval: weekly
+    labels: ["dependencies"]

@@ -31,3 +31,7 @@ wheels/
 # Screenshot automation: local only, never published
 tools/screenshots/
 tests screen/
+
+# Private docs: local only, never published
+OpenDrop_Checklist_*.pdf
+CHECKLIST_v1.0.0.md
