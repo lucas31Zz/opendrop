@@ -26,7 +26,7 @@
     <x:String x:Key="Token.15m">15 minutes</x:String>
     <x:String x:Key="Token.30m">30 minutes</x:String>
     <x:String x:Key="Token.1h">1 heure</x:String>
-    <x:String x:Key="Token.NextRefresh">Prochain refresh dans</x:String>
+    <x:String x:Key="Token.NextRefresh">Prochain rafraîchissement dans</x:String>
     <x:String x:Key="Label.Folders">DOSSIERS</x:String>
     <x:String x:Key="Folders.Received">Reçus :</x:String>
     <x:String x:Key="Folders.Shared">Partagés :</x:String>

@@ -239,7 +239,7 @@
                                         Click="BtnRefreshToken_Click"/>
                             </Grid>
                             <TextBlock x:Name="TokenCountdownText" Text="" FontSize="11" Foreground="{DynamicResource Brush.TextFaint}"
-                                       Margin="0,6,0,0"/>
+                                       Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
 
