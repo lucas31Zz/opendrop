@@ -6,6 +6,7 @@ points at these exact files.
 
 | File | Subject | Theme |
 |---|---|---|
+| `OpenDrop_Logo.webp` | Project logo, under the README title | — |
 | `desktop.png` | Desktop app: QR code, server address, session code, quota, folders | dark |
 | `desktop-light.png` | Same window, light theme | light |
 | `desktop-scroll.png` | Left column of the main window, top to bottom (the column scrolls) | dark |
