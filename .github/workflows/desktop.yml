@@ -36,7 +36,7 @@ jobs:
           cp -R src publish/OpenDrop/src
           test -f publish/OpenDrop/web/index.html
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: opendrop-${{ matrix.rid }}
           path: publish/OpenDrop
