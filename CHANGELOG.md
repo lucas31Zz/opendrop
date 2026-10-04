@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.8.1] - 2026-10-04
+
+### Changed
+
+- **New app icon**: the window, tray and installer icon on Windows and the
+  menu icon on Linux now use the project logo instead of a generated QR
+  code pointing at the repository. `tools/make_icon.py` reads
+  `docs/screenshots/OpenDrop_Logo.webp` and writes `app.ico` (seven sizes,
+  16 → 256) plus `packaging/linux/opendrop.png`; the unused
+  `desktop/OpenDrop/app.png` by-product is dropped.
+- Dependencies: `QRCoder` 1.4.3 → 1.8.0 (desktop),
+  `actions/upload-artifact` 4 → 7 (workflow).
+
 ## [0.8.0] - 2026-10-04
 
 ### Added
