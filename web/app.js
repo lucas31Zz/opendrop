@@ -113,6 +113,9 @@
     // (so following the PC again is never a manual chore).
     var THEME_KEY = "opendrop_theme";
     var THEME_BASE_KEY = "opendrop_theme_base";
+    // Theme ids the server can publish: the same list as
+    // src/opendrop/themes.py. Anything else falls back to "dark".
+    var VALID_THEMES = ["light", "dark"];
     var serverTheme = "dark";
     var theme = "dark";
 
@@ -128,14 +131,18 @@
         try { localStorage.removeItem(key); } catch (e) { /* private mode */ }
     }
 
+    function isValidTheme(value) {
+        return VALID_THEMES.indexOf(value) >= 0;
+    }
+
     function normalizeTheme(value) {
-        return value === "light" ? "light" : "dark";
+        return isValidTheme(value) ? value : "dark";
     }
 
     function resolveTheme() {
         var base = normalizeTheme(serverTheme);
         var override = storeRead(THEME_KEY);
-        if (override === "light" || override === "dark") {
+        if (isValidTheme(override)) {
             if (storeRead(THEME_BASE_KEY) === base) return override;
             storeForget(THEME_KEY);
             storeForget(THEME_BASE_KEY);

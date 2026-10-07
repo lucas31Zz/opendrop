@@ -52,14 +52,55 @@ public partial class SettingsWindow : Window
 
         LanguageCombo.SelectedIndex = Lang.Current == "fr" ? 1 : 0;
 
-        // Theme combo: index 0 = light, 1 = dark (ThemeManager.Ids order).
-        _loadingTheme = true;
-        ThemeCombo.SelectedIndex = ThemeManager.Current == ThemeManager.Light ? 0 : 1;
-        _loadingTheme = false;
+        // Theme combo: items come from ThemeManager, index = list order.
+        PopulateThemeCombo();
 
         VersionText.Text = UpdateService.CurrentVersion;
 
         UpdateQuotaUsage();
+    }
+
+    // One page at a time: the RadioButtons share a group, so exactly one
+    // of them is checked and this only mirrors its Tag on the panels.
+    // Pages are null while the XAML is still being parsed (the first
+    // IsChecked="True" can fire before the later panels exist).
+    private void Tab_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton tab || tab.Tag is not string id)
+            return;
+        ShowPage(TabGeneral, id, "general");
+        ShowPage(TabStorage, id, "storage");
+        ShowPage(TabSecurity, id, "security");
+        ShowPage(TabNetwork, id, "network");
+        ShowPage(TabAppearance, id, "appearance");
+        ShowPage(TabUpdates, id, "updates");
+    }
+
+    private static void ShowPage(Control? page, string id, string pageId)
+    {
+        if (page != null)
+            page.IsVisible = id == pageId;
+    }
+
+    // Fills the theme ComboBox from ThemeManager: the list of themes is
+    // defined once there (and mirrored by src/opendrop/themes.py), never
+    // written by hand in the XAML. Rebuilt on language switch too, since
+    // the names are translated.
+    private void PopulateThemeCombo()
+    {
+        _loadingTheme = true;
+        ThemeCombo.Items.Clear();
+        var selected = ThemeManager.Current;
+        var index = 0;
+        for (var i = 0; i < ThemeManager.Themes.Count; i++)
+        {
+            var id = ThemeManager.Themes[i].Id;
+            ThemeCombo.Items.Add(new ComboBoxItem { Content = ThemeManager.NameOf(id) });
+            if (id == selected)
+                index = i;
+        }
+        ThemeCombo.SelectedIndex = index;
+        _loadingTheme = false;
     }
 
     private async void BtnBrowseDownload_Click(object? sender, RoutedEventArgs e)
@@ -81,7 +122,9 @@ public partial class SettingsWindow : Window
     private void ThemeCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loadingTheme) return;
-        ThemeManager.Set(ThemeCombo.SelectedIndex == 0 ? ThemeManager.Light : ThemeManager.Dark);
+        var index = ThemeCombo.SelectedIndex;
+        if (index < 0 || index >= ThemeManager.Themes.Count) return;
+        ThemeManager.Set(ThemeManager.Themes[index].Id);
     }
 
     private async void BtnBrowseShare_Click(object? sender, RoutedEventArgs e)
@@ -179,7 +222,12 @@ public partial class SettingsWindow : Window
             // afterwards, so the console banner follows the choice too.
             var newLang = LanguageCombo.SelectedIndex == 1 ? "fr" : "en";
             if (newLang != Lang.Current)
+            {
                 Lang.Set(newLang);
+                // The theme names are translated: refresh the combo so it
+                // does not keep the previous language until the next open.
+                PopulateThemeCombo();
+            }
 
             SettingsChanged = true;
 

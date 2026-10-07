@@ -78,8 +78,10 @@ session code, token refresh, folders, quota):
 ### Settings
 
 Configure folders, port, storage quota, token rotation, appearance
-(light/dark) and language. The form scrolls, so here it is from top to
-bottom, in both themes:
+(light/dark) and language. A sidebar lists the six tabs (General,
+Storage, Security, Network, Appearance, Updates) and only the selected
+page is shown, so the window keeps a fixed height and each tab scrolls
+on its own:
 
 | Dark | Light |
 |---|---|
@@ -437,7 +439,7 @@ python -m tests.test_paths        # 43/43 - no absolute paths in responses
 python -m tests.test_quota        # 40/40 - quota, simultaneous reservations, 507
 python -m tests.test_sessions     # 34/34 - sessions, expiration, code rotation
 python -m tests.test_tls          # 15/15 - self-signed certificate, forced HTTPS
-python -m tests.test_server       # 14/14 - general routes, port in use, TIME_WAIT probe
+python -m tests.test_server       # 16/16 - general routes, theme fallback, port in use, TIME_WAIT probe
 python -m tests.test_beta         # 64/64 - full run-through
 python -m tests.test_beta --large # 76/76 - file batches, traversal attempts
 ```

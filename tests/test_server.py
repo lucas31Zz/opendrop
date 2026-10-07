@@ -9,6 +9,7 @@ import urllib.error
 
 from opendrop.network.interfaces import _port_is_free, find_available_port
 from opendrop.server.server import PortInUseError, create_server
+from opendrop.themes import THEMES
 from tests.conftest import (_start_server, _url, _upload, TestResult, cert_dir,
                             dd, ip, sd, urlopen)
 
@@ -58,6 +59,24 @@ def test_server():
         r.check("Info", "ip" in data and "session" in data, data)
     except Exception as e:
         r.check("Info", False, str(e))
+
+    # /api/info always publishes a known theme id (opendrop.themes.THEMES
+    # is the single list, mirrored by ThemeManager.cs and app.js).
+    try:
+        resp = urlopen(_url(port, "/api/info", token))
+        data = json.loads(resp.read())
+        r.check("Info theme is valid", data.get("theme") in THEMES, data.get("theme"))
+    except Exception as e:
+        r.check("Info theme is valid", False, str(e))
+
+    # ...and a theme written by hand in config.json falls back to "dark"
+    # instead of reaching the phone page as an unknown id.
+    try:
+        other, _, _ = _start_server(theme="solarized")
+        r.check("Unknown theme falls back to dark", other.theme == "dark", other.theme)
+        other.shutdown()
+    except Exception as e:
+        r.check("Unknown theme falls back to dark", False, str(e))
 
     # QR code
     try:

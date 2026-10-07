@@ -52,6 +52,14 @@
     <x:String x:Key="Section.Storage">STORAGE</x:String>
     <x:String x:Key="Section.Security">SECURITY</x:String>
     <x:String x:Key="Section.Network">NETWORK</x:String>
+
+    <!-- Settings sidebar tabs -->
+    <x:String x:Key="Tab.General">General</x:String>
+    <x:String x:Key="Tab.Storage">Storage</x:String>
+    <x:String x:Key="Tab.Security">Security</x:String>
+    <x:String x:Key="Tab.Network">Network</x:String>
+    <x:String x:Key="Tab.Appearance">Appearance</x:String>
+    <x:String x:Key="Tab.Updates">Updates</x:String>
     <x:String x:Key="Field.Language">Language</x:String>
     <x:String x:Key="Field.ReceiveFolder">Receive folder</x:String>
     <x:String x:Key="Field.ShareFolder">Share folder</x:String>

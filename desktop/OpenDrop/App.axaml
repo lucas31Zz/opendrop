@@ -35,6 +35,17 @@
                     <SolidColorBrush x:Key="Brush.DangerHover">#e74c3c</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.Success">#4caf50</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.QrCard">White</SolidColorBrush>
+                    <!-- Depth / proximity palette: nothing reads these yet
+                         (steps that use them come later), the values stay
+                         deliberately quiet so switching themes never shows
+                         a jump. -->
+                    <SolidColorBrush x:Key="Brush.Surface2">#212121</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.ShadowColor">#000000</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Glow">#4a9eff</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.GlowSoft">#334a9eff</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.IconFar">#888888</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.IconNear">#cccccc</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.IconHover">#4a9eff</SolidColorBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Brush.Window">#f4f5f7</SolidColorBrush>
@@ -56,6 +67,16 @@
                     <SolidColorBrush x:Key="Brush.DangerHover">#e74c3c</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.Success">#2e7d32</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.QrCard">White</SolidColorBrush>
+                    <!-- Same keys as Dark (see above): the depth and
+                         proximity brushes exist in every theme so a
+                         component never has to special-case one. -->
+                    <SolidColorBrush x:Key="Brush.Surface2">#f7f8fa</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.ShadowColor">#1c2430</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.Glow">#0a66d6</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.GlowSoft">#1f0a66d6</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.IconFar">#5f646c</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.IconNear">#3f434a</SolidColorBrush>
+                    <SolidColorBrush x:Key="Brush.IconHover">#0a66d6</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

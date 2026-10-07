@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.9.0] - 2026-10-07
+
+### Added
+
+- **Tabbed Settings window**: the single scrolling form is replaced by a
+  sidebar of six tabs (General, Storage, Security, Network, Appearance,
+  Updates) built from styled `RadioButton`s plus a content area that
+  shows only the selected page. The window keeps its fixed height, every
+  page scrolls on its own, and the controls and save logic are exactly
+  the ones the old form used.
+- **Reserved palette keys** in both themes: `Brush.Surface2`,
+  `Brush.ShadowColor`, `Brush.Glow`, `Brush.GlowSoft`, `Brush.IconFar`,
+  `Brush.IconNear` and `Brush.IconHover`. Nothing reads them yet - they
+  are the hooks the depth and proximity effects will use, so they exist
+  (with quiet values) before anything depends on them.
+- `src/opendrop/themes.py`: the theme catalogue (`THEMES`, plus
+  `normalize_theme`) now has a single home on the server side.
+
+### Changed
+
+- `ThemeManager` exposes the themes as an extensible list of
+  `ThemeDefinition` (config id + translation key) instead of two
+  constants, and the settings combo box is built from that list in the
+  current language instead of hardcoded `ComboBoxItem`s.
+- `main.py` and `server.py` validate the theme through `opendrop.themes`
+  instead of a hardcoded `("light", "dark")`; `config.py` takes its
+  default from the same module.
+- The web page validates `data-theme` against the same list
+  (`VALID_THEMES` in `app.js`); `style.css` still ships only the light
+  and dark blocks.
+- `tests/test_server.py`: `/api/info` must publish a known theme and an
+  unknown theme in the config falls back to `dark` (16/16).
+
 ## [0.8.1] - 2026-10-04
 
 ### Changed

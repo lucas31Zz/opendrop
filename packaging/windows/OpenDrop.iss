@@ -11,10 +11,10 @@
 ;   (user "data" stays on disk)
 ;
 ; Compilation (done automatically by CI):
-;   iscc packaging\windows\OpenDrop.iss /DMyAppVersion=0.8.1
+;   iscc packaging\windows\OpenDrop.iss /DMyAppVersion=0.9.0
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.8.1"
+  #define MyAppVersion "0.9.0"
 #endif
 #define MyAppName "OpenDrop"
 #define MyAppPublisher "lucas31Zz"

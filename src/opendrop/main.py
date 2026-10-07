@@ -11,6 +11,7 @@ from opendrop.security.session_state import load_session_state, save_session_sta
 from opendrop.config.config import load_config
 from opendrop.i18n import t, normalize_lang
 from opendrop.server.server import create_server, PortInUseError
+from opendrop.themes import DEFAULT_THEME, normalize_theme
 
 
 def main():
@@ -26,8 +27,7 @@ def main():
     config = load_config()
     lang = normalize_lang(config.get("language", "en"))
     # Desktop theme; published on /api/info so the phone page follows it.
-    theme = config.get("theme", "dark")
-    theme = theme if theme in ("light", "dark") else "dark"
+    theme = normalize_theme(config.get("theme", DEFAULT_THEME))
     ip = get_local_ip()
     if args.port:
         port = args.port
@@ -81,7 +81,7 @@ def main():
     session_code = server.sessions.code
     save_session_state(token, session_code)
     print(flush=True)
-    print("  OpenDrop v0.8.1", flush=True)
+    print("  OpenDrop v0.9.0", flush=True)
     print(flush=True)
     print(f"  {t('Server:', lang):<18}{ip}:{port}", flush=True)
     print(f"  {t('Web interface:', lang):<18}{url_upload}", flush=True)

@@ -52,6 +52,14 @@
     <x:String x:Key="Section.Storage">STOCKAGE</x:String>
     <x:String x:Key="Section.Security">SÉCURITÉ</x:String>
     <x:String x:Key="Section.Network">RÉSEAU</x:String>
+
+    <!-- Onglets latéraux des paramètres -->
+    <x:String x:Key="Tab.General">Général</x:String>
+    <x:String x:Key="Tab.Storage">Stockage</x:String>
+    <x:String x:Key="Tab.Security">Sécurité</x:String>
+    <x:String x:Key="Tab.Network">Réseau</x:String>
+    <x:String x:Key="Tab.Appearance">Apparence</x:String>
+    <x:String x:Key="Tab.Updates">Mises à jour</x:String>
     <x:String x:Key="Field.Language">Langue</x:String>
     <x:String x:Key="Field.ReceiveFolder">Dossier de réception</x:String>
     <x:String x:Key="Field.ShareFolder">Dossier de partage</x:String>

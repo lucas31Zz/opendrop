@@ -22,6 +22,7 @@ from opendrop.server.multipart import parse_multipart_upload, CHUNK_SIZE
 from opendrop.server.quota import QuotaTracker
 from opendrop.server.rate_limit import limiter_general, limiter_upload, limiter_download, limiter_session
 from opendrop.server.session import SessionManager
+from opendrop.themes import DEFAULT_THEME, normalize_theme
 from opendrop.server.errors import (
     OpenDropError, TokenInvalidError, TokenExpiredError, OriginForbiddenError,
     RateLimitError,
@@ -505,9 +506,9 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             "ip": self.server.local_ip,
             "port": self.server.port,
             "lang": getattr(self.server, "language", "en"),
-            # Desktop light/dark choice: the phone page follows it unless
+            # Desktop theme choice: the phone page follows it unless
             # the device overrides it locally.
-            "theme": getattr(self.server, "theme", "dark"),
+            "theme": getattr(self.server, "theme", DEFAULT_THEME),
         }
         if "token" in query:
             self._check_token(query)
@@ -729,9 +730,9 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
                   tls_cert_dir: str | Path | None = None,
                   global_quota_bytes: int = 0,
                   language: str = "en",
-                  theme: str = "dark") -> ThreadedHTTPServer:
+                  theme: str = DEFAULT_THEME) -> ThreadedHTTPServer:
     language = normalize_lang(language)
-    theme = theme if theme in ("light", "dark") else "dark"
+    theme = normalize_theme(theme)
     sessions = SessionManager(expires_in=session_expires_in, code=session_code)
     sessions.register(token)
     sessions.start_cleanup()

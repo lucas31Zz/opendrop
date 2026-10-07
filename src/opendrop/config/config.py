@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 
+from opendrop.themes import DEFAULT_THEME
+
 
 def get_config_dir() -> Path:
     appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
@@ -36,9 +38,10 @@ def load_config() -> dict:
         "trust_proxy": False,
         # UI language: "en" (default) or "fr".
         "language": "en",
-        # Desktop UI theme: "dark" (default) or "light". Also published on
-        # /api/info so the phone page can follow it.
-        "theme": "dark",
+        # Desktop UI theme: one id from opendrop.themes.THEMES (default
+        # "dark"). Also published on /api/info so the phone page can
+        # follow it.
+        "theme": DEFAULT_THEME,
     }
     if config_path.exists():
         try:
