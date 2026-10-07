@@ -62,6 +62,55 @@
                     <BoxShadows x:Key="Shadow.Recessed">inset 0 2 5 0 #40000000, inset 0 -1 0 0 #10ffffff</BoxShadows>
                     <SolidColorBrush x:Key="Brush.Rim">#14ffffff</SolidColorBrush>
                     <DropShadowEffect x:Key="Shadow.Accent" OffsetX="0" OffsetY="4" BlurRadius="16" Color="#4a9eff" Opacity="0.35"/>
+                    <!-- Wordmark halo: no offset, so the shadow reads as
+                         light coming off the letters, not as elevation. -->
+                    <DropShadowEffect x:Key="Shadow.Brand" OffsetX="0" OffsetY="0" BlurRadius="12" Color="#4a9eff" Opacity="0.55"/>
+
+                    <!-- Scrollbar: the Fluent keys re-pointed at a gradient
+                         pill (dim at rest, bright while scrolling, brighter
+                         under the pointer) on a track that only appears on
+                         demand. The small-scroll transforms keep the thumb
+                         full size instead of collapsing it to a sliver. -->
+                    <SolidColorBrush x:Key="ScrollBarBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="ScrollBarTrackStroke" Color="Transparent"/>
+                    <SolidColorBrush x:Key="ScrollBarTrackFill">#14ffffff</SolidColorBrush>
+                    <LinearGradientBrush x:Key="ScrollBarPanningThumbBackground" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#8c4a9eff" Offset="0"/>
+                        <GradientStop Color="#8c7c5cff" Offset="1"/>
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="ScrollBarThumbBackgroundColor" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#f04a9eff" Offset="0"/>
+                        <GradientStop Color="#f07c5cff" Offset="1"/>
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="ScrollBarThumbFillPointerOver" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#ff8ec0ff" Offset="0"/>
+                        <GradientStop Color="#ffab98ff" Offset="1"/>
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="ScrollBarThumbFillPressed" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#ff3a8eef" Offset="0"/>
+                        <GradientStop Color="#ff6a4cff" Offset="1"/>
+                    </LinearGradientBrush>
+                    <ScaleTransform x:Key="VerticalSmallScrollThumbScaleTransform" ScaleX="1" ScaleY="1"/>
+                    <ScaleTransform x:Key="HorizontalSmallScrollThumbScaleTransform" ScaleX="1" ScaleY="1"/>
+                    <DropShadowEffect x:Key="Shadow.Thumb" OffsetX="0" OffsetY="0" BlurRadius="9" Color="#4a9eff" Opacity="0.6"/>
+                    <DropShadowEffect x:Key="Shadow.ThumbHot" OffsetX="0" OffsetY="0" BlurRadius="14" Color="#7c5cff" Opacity="0.9"/>
+
+                    <!-- Aurora: soft blobs drifting behind the window
+                         content. Alpha lives in the stops, so the same
+                         blobs can be reused with the light palette
+                         below. -->
+                    <RadialGradientBrush x:Key="Brush.Aurora1">
+                        <GradientStop Color="#304a9eff" Offset="0"/>
+                        <GradientStop Color="#004a9eff" Offset="1"/>
+                    </RadialGradientBrush>
+                    <RadialGradientBrush x:Key="Brush.Aurora2">
+                        <GradientStop Color="#287c5cff" Offset="0"/>
+                        <GradientStop Color="#007c5cff" Offset="1"/>
+                    </RadialGradientBrush>
+                    <RadialGradientBrush x:Key="Brush.Aurora3">
+                        <GradientStop Color="#2434bea5" Offset="0"/>
+                        <GradientStop Color="#0034bea5" Offset="1"/>
+                    </RadialGradientBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Brush.Window">#f4f5f7</SolidColorBrush>
@@ -105,6 +154,50 @@
                     <BoxShadows x:Key="Shadow.Recessed">inset 0 2 5 0 #1a000000, inset 0 -1 0 0 #ffffff</BoxShadows>
                     <SolidColorBrush x:Key="Brush.Rim">#0f000000</SolidColorBrush>
                     <DropShadowEffect x:Key="Shadow.Accent" OffsetX="0" OffsetY="4" BlurRadius="16" Color="#0a66d6" Opacity="0.3"/>
+                    <!-- Same key as Dark (see above): the halo uses the
+                         deeper blue so it does not wash out on paper. -->
+                    <DropShadowEffect x:Key="Shadow.Brand" OffsetX="0" OffsetY="0" BlurRadius="12" Color="#0a66d6" Opacity="0.5"/>
+
+                    <!-- Same keys as Dark (see above): on paper the pill
+                         leans on the deeper accent so it stays legible. -->
+                    <SolidColorBrush x:Key="ScrollBarBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="ScrollBarTrackStroke" Color="Transparent"/>
+                    <SolidColorBrush x:Key="ScrollBarTrackFill">#14000000</SolidColorBrush>
+                    <LinearGradientBrush x:Key="ScrollBarPanningThumbBackground" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#700a66d6" Offset="0"/>
+                        <GradientStop Color="#706c54d6" Offset="1"/>
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="ScrollBarThumbBackgroundColor" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#e60a66d6" Offset="0"/>
+                        <GradientStop Color="#e66c54d6" Offset="1"/>
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="ScrollBarThumbFillPointerOver" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#ff1f7fe0" Offset="0"/>
+                        <GradientStop Color="#ff8666ea" Offset="1"/>
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="ScrollBarThumbFillPressed" StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#ff0857bb" Offset="0"/>
+                        <GradientStop Color="#ff5544c4" Offset="1"/>
+                    </LinearGradientBrush>
+                    <ScaleTransform x:Key="VerticalSmallScrollThumbScaleTransform" ScaleX="1" ScaleY="1"/>
+                    <ScaleTransform x:Key="HorizontalSmallScrollThumbScaleTransform" ScaleX="1" ScaleY="1"/>
+                    <DropShadowEffect x:Key="Shadow.Thumb" OffsetX="0" OffsetY="0" BlurRadius="9" Color="#0a66d6" Opacity="0.45"/>
+                    <DropShadowEffect x:Key="Shadow.ThumbHot" OffsetX="0" OffsetY="0" BlurRadius="14" Color="#6c54d6" Opacity="0.7"/>
+
+                    <!-- Same keys as Dark (see above): the light surface
+                         is paper, so the blobs are almost transparent. -->
+                    <RadialGradientBrush x:Key="Brush.Aurora1">
+                        <GradientStop Color="#1e0a66d6" Offset="0"/>
+                        <GradientStop Color="#000a66d6" Offset="1"/>
+                    </RadialGradientBrush>
+                    <RadialGradientBrush x:Key="Brush.Aurora2">
+                        <GradientStop Color="#1a6c54d6" Offset="0"/>
+                        <GradientStop Color="#006c54d6" Offset="1"/>
+                    </RadialGradientBrush>
+                    <RadialGradientBrush x:Key="Brush.Aurora3">
+                        <GradientStop Color="#1a2e8b4f" Offset="0"/>
+                        <GradientStop Color="#002e8b4f" Offset="1"/>
+                    </RadialGradientBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

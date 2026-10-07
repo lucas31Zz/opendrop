@@ -59,6 +59,11 @@ server running on your machine, nothing goes over the internet.
 - **Light or dark**: one theme switch in *Settings* covers the desktop
   window, the dialogs and the phone page; the web interface follows it and
   keeps its own ☀/☾ button for this device
+- **Motion**: buttons catch a light that follows the pointer, tab
+  indicators slide on a spring, cards settle into place, the desktop
+  window breathes behind a slow aurora and scrolls on a glowing pill -
+  everything switches off when the OS asks for reduced motion (and the
+  sheen never shows on touch screens)
 
 ---
 

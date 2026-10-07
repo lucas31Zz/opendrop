@@ -1,6 +1,7 @@
 <Window x:Class="OpenDrop.SettingsWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:anim="using:Avalonia.Animation.Easings"
         Title="{DynamicResource Settings.Title}"
         Width="420" Height="560"
         Background="{DynamicResource Surface.Window}"
@@ -56,11 +57,21 @@
         <Style Selector="RadioButton.tab:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Brush.Control}"/>
         </Style>
+        <!-- The highlight itself lives on the pill that springs from tab
+             to tab (see TabPill), so the checked background is left
+             transparent instead of jumping there on its own. -->
         <Style Selector="RadioButton.tab:checked /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="RadioButton.tab:checked:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
         </Style>
         <Style Selector="RadioButton.tab:checked">
             <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}"/>
+        </Style>
+        <Style Selector="Border.tab-pill">
+            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}"/>
+            <Setter Property="CornerRadius" Value="8"/>
         </Style>
 
         <Style Selector="Button.save">
@@ -114,26 +125,55 @@
 
         <!-- Content: tab list on the left, one visible page on the right.
              The window height is fixed, each page scrolls on its own. -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" x:Name="SettingsContent">
+            <Grid.RenderTransform>
+                <TranslateTransform X="0" Y="0"/>
+            </Grid.RenderTransform>
+            <Grid.Styles>
+                <!-- The dialog settles in as it opens. -->
+                <Style Selector="Grid#SettingsContent">
+                    <Style.Animations>
+                        <Animation Duration="0:0:0.45" Easing="QuinticEaseOut" FillMode="Forward">
+                            <KeyFrame Cue="0%">
+                                <Setter Property="Opacity" Value="0"/>
+                                <Setter Property="TranslateTransform.Y" Value="12"/>
+                            </KeyFrame>
+                            <KeyFrame Cue="100%">
+                                <Setter Property="Opacity" Value="1"/>
+                                <Setter Property="TranslateTransform.Y" Value="0"/>
+                            </KeyFrame>
+                        </Animation>
+                    </Style.Animations>
+                </Style>
+            </Grid.Styles>
+
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Margin="0,0,14,0">
-                <RadioButton Classes="tab" GroupName="settings-tabs" Tag="general" IsChecked="True"
-                             Content="{DynamicResource Tab.General}" Click="Tab_Click"/>
-                <RadioButton Classes="tab" GroupName="settings-tabs" Tag="storage"
-                             Content="{DynamicResource Tab.Storage}" Click="Tab_Click"/>
-                <RadioButton Classes="tab" GroupName="settings-tabs" Tag="security"
-                             Content="{DynamicResource Tab.Security}" Click="Tab_Click"/>
-                <RadioButton Classes="tab" GroupName="settings-tabs" Tag="network"
-                             Content="{DynamicResource Tab.Network}" Click="Tab_Click"/>
-                <RadioButton Classes="tab" GroupName="settings-tabs" Tag="appearance"
-                             Content="{DynamicResource Tab.Appearance}" Click="Tab_Click"/>
-                <RadioButton Classes="tab" GroupName="settings-tabs" Tag="updates"
-                             Content="{DynamicResource Tab.Updates}" Click="Tab_Click"/>
-            </StackPanel>
+            <Grid Grid.Column="0" Margin="0,0,14,0">
+                <!-- Highlight that springs from tab to tab (see
+                     MoveTabPill in the code-behind). -->
+                <Border x:Name="TabPill" Classes="tab-pill" IsHitTestVisible="False"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                        Height="0" Margin="0,0,0,0"/>
+
+                <StackPanel x:Name="TabList">
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="general" IsChecked="True"
+                                 Content="{DynamicResource Tab.General}" Click="Tab_Click"/>
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="storage"
+                                 Content="{DynamicResource Tab.Storage}" Click="Tab_Click"/>
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="security"
+                                 Content="{DynamicResource Tab.Security}" Click="Tab_Click"/>
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="network"
+                                 Content="{DynamicResource Tab.Network}" Click="Tab_Click"/>
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="appearance"
+                                 Content="{DynamicResource Tab.Appearance}" Click="Tab_Click"/>
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="updates"
+                                 Content="{DynamicResource Tab.Updates}" Click="Tab_Click"/>
+                </StackPanel>
+            </Grid>
 
             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                 <Panel>

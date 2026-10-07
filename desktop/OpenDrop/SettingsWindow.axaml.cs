@@ -1,9 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
+using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace OpenDrop;
@@ -16,10 +20,18 @@ public partial class SettingsWindow : Window
     // SelectionChanged would otherwise rewrite config.json on open.
     private bool _loadingTheme;
 
+    // The highlight that springs between the tabs: one run at a time.
+    private CancellationTokenSource? _pillCts;
+
     public SettingsWindow()
     {
         InitializeComponent();
+        // Same pointer-following sheen as the main window.
+        Shine.Attach(this);
         LoadSettings();
+
+        // The pill needs a real layout pass before its position is known.
+        Opened += (_, _) => MoveTabPill(animate: false);
     }
 
     private void LoadSettings()
@@ -74,6 +86,80 @@ public partial class SettingsWindow : Window
         ShowPage(TabNetwork, id, "network");
         ShowPage(TabAppearance, id, "appearance");
         ShowPage(TabUpdates, id, "updates");
+        MoveTabPill(animate: true);
+    }
+
+    // Puts the highlight over the checked tab; on a switch it is driven
+    // by a spring, so the pill overshoots a little and settles (the
+    // reactbits "Tabs" behaviour, translated to Avalonia).
+    private void MoveTabPill(bool animate)
+    {
+        var checkedTab = TabList.Children.OfType<RadioButton>()
+            .FirstOrDefault(button => button.IsChecked == true);
+        if (checkedTab == null || checkedTab.Bounds.Height <= 0) return;
+
+        var top = checkedTab.Bounds.Top;
+        var height = checkedTab.Bounds.Height;
+
+        if (!animate)
+        {
+            TabPill.Margin = new Thickness(0, top, 0, 0);
+            TabPill.Height = height;
+            return;
+        }
+
+        // Start from wherever the pill actually is right now, which may
+        // be in the middle of the previous spring.
+        var fromTop = TabPill.Margin.Top;
+        var fromHeight = TabPill.Height;
+        if (Math.Abs(top - fromTop) < 0.5 && Math.Abs(height - fromHeight) < 0.5)
+            return;
+
+        _pillCts?.Cancel();
+        _pillCts = new CancellationTokenSource();
+        _ = AnimateTabPillAsync(fromTop, fromHeight, top, height, _pillCts.Token);
+    }
+
+    private async Task AnimateTabPillAsync(double fromTop, double fromHeight,
+        double toTop, double toHeight, CancellationToken token)
+    {
+        var animation = new Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(520),
+            Easing = new SpringEasing { Mass = 1, Stiffness = 170, Damping = 17 },
+            FillMode = FillMode.Forward,
+            Children =
+            {
+                new KeyFrame
+                {
+                    Cue = new Cue(0.0),
+                    Setters =
+                    {
+                        new Setter(Border.MarginProperty, new Thickness(0, fromTop, 0, 0)),
+                        new Setter(Border.HeightProperty, fromHeight),
+                    },
+                },
+                new KeyFrame
+                {
+                    Cue = new Cue(1.0),
+                    Setters =
+                    {
+                        new Setter(Border.MarginProperty, new Thickness(0, toTop, 0, 0)),
+                        new Setter(Border.HeightProperty, toHeight),
+                    },
+                },
+            },
+        };
+
+        try
+        {
+            await animation.RunAsync(TabPill, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Another click took over: the new spring carries on from the
+            // interrupted position, nothing else to do.
+        }
     }
 
     private static void ShowPage(Control? page, string id, string pageId)

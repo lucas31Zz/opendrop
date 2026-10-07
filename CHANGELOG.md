@@ -5,6 +5,75 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.12.0] - 2026-10-07
+
+### Added
+
+- **Motion layer** (reactbits-inspired) across the desktop window and the
+  web interface, in both themes, all of it switching itself off when the
+  system asks for reduced motion:
+  - **Specular sheen**: buttons and tabs catch a light that follows the
+    pointer and fades with the distance (`Shine.cs` on every desktop
+    window - the shared-files list is rewired after each refresh - and a
+    CSS-variable twin on the web). Phones and tablets get no sheen at
+    all: a tap is a one-shot pointermove, so the white glow would freeze
+    on the button you just pressed.
+  - **Spring tab indicators**: the web Send/Download pill slides with a
+    spring (slight overshoot, then settle), and the Settings sidebar
+    highlight does the same in Avalonia.
+  - **Entry animations** on the web: content settles in when a tab
+    changes and file cards slide in, removed ones slide out.
+  - **Aurora background** in the desktop window: three soft ellipses
+    drifting on a slow margin cycle behind the content, light and dark
+    alike.
+  - **OPENDROP wordmark** replacing the header's download glyph: every
+    letter springs up and glows when the pointer comes over it.
+- **Scrollbar pill**: the web page hides its native bar and rides a
+  12 px gradient pill (fade in while scrolling or when the pointer nears
+  the right edge, bloom on hover, draggable); the desktop scrollbar is
+  restyled to match (gradient thumb, rounded track, hover scale and
+  glow) instead of the stock Fluent one.
+- **Theme toggle in the main window**: a sun/moon button flips
+  light/dark in one click, the choice is written to config.json, and the
+  glyph refreshes when Settings changed the theme meanwhile. The web
+  button keeps its own per-device switch.
+- **Copy the session code**: one click puts the code on the clipboard
+  (Avalonia 12 `DataTransfer` API) and the button confirms with
+  *Copied ✓* for a second and a half.
+- **Quota bar on the web**: a real fill with eased width transitions,
+  plus the same indeterminate sweep as the desktop app when the server
+  sends no numbers.
+
+### Changed
+
+- The desktop quota fill glides to its value instead of jumping, and
+  shows the sweeping placeholder rather than a blank track while quota
+  is unknown.
+- The web theme toggle no longer slides halfway off the corner
+  (positioning context fixed).
+
+### Fixed
+
+- **Desktop quota bar over-reported the usage**: the fill measured the
+  status text above it (centred and narrower than the track), so a full
+  quota rendered as about four fifths of the bar. It now measures the
+  track itself, with one layout-pass retry, and keeps the `full` state
+  in sync.
+- **Web build failed on Avalonia 12**: `IClipboard.SetTextAsync` no
+  longer exists; the copy button now goes through
+  `SetDataAsync(DataTransfer)`.
+- **White glow stuck on buttons on phones**: the sheen's frozen light is
+  gone (CSS `(pointer: coarse)` guard plus a `pointer: fine` check in
+  app.js).
+
+### Removed
+
+- **The coloured aurora background on the web** (PC and phone): the page
+  sits on its flat background again. It was introduced this session,
+  sized in `vw` but offset in `vh` (invisible on portrait screens even
+  after the geometry was corrected to `%`), and is dropped on request;
+  the desktop window keeps its own animated version.
+
 ## [0.11.0] - 2026-10-07
 
 ### Added

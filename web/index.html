@@ -24,10 +24,16 @@
 
         <div id="app">
             <div class="quota-bar" id="quota-bar" style="display:none;">
+                <div class="quota-track" id="quota-track" style="display:none;">
+                    <div class="quota-fill" id="quota-fill"></div>
+                </div>
                 <span class="quota-text" id="quota-text"></span>
             </div>
 
-            <div class="tabs">
+            <div class="tabs" id="tabs">
+                <!-- Slides between the two tabs on a spring, instead of
+                     the background jumping from one side to the other. -->
+                <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
                 <button class="tab active" data-tab="send" data-i18n="tab.send">Send</button>
                 <button class="tab" data-tab="receive" data-i18n="tab.receive">Download</button>
             </div>

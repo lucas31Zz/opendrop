@@ -61,7 +61,14 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Pointer-following sheen on every button of this window; the
+        // shared-files list is wired again after each refresh because it
+        // creates buttons of its own (Put back).
+        Shine.Attach(this);
+        UpdateThemeGlyph();
+
         var handler = new HttpClientHandler();
+
         // OpenDrop self-signed certificate: accepted only on the local
         // loopback (info poll), never for LAN traffic.
         handler.ServerCertificateCustomValidationCallback = (message, _, _, _) =>
@@ -119,7 +126,13 @@ public partial class MainWindow : Window
         // The share folder can change outside the app (another tool): a
         // refresh when the window regains focus is enough and keeps the
         // current selection untouched while working.
-        Activated += (_, _) => RefreshFiles();
+        // The theme glyph follows too: Settings can have changed it while
+        // this window was in the background.
+        Activated += (_, _) =>
+        {
+            RefreshFiles();
+            UpdateThemeGlyph();
+        };
 
         Opened += async (_, _) =>
         {
@@ -303,6 +316,7 @@ public partial class MainWindow : Window
             _shareFiles = files;
             FileList.ItemsSource = _shareFiles;
             FilesEmpty.IsVisible = files.Count == 0;
+            Shine.Attach(this);
         }
         catch { }
     }
@@ -422,6 +436,50 @@ public partial class MainWindow : Window
         {
             await Msg.ShowAsync(this,
                 $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Btn.Discord"));
+        }
+    }
+
+    // Light/dark from the main window (the web page has the same button):
+    // one click flips the variant, ThemeManager writes it to config.json
+    // so the choice survives a restart.
+    private void BtnTheme_Click(object? sender, RoutedEventArgs e)
+    {
+        ThemeManager.Set(ThemeManager.Current == ThemeManager.Dark
+            ? ThemeManager.Light
+            : ThemeManager.Dark);
+        UpdateThemeGlyph();
+    }
+
+    // The glyph shows what a click switches *to*: a sun while dark, a
+    // moon while light (same as the web page).
+    private void UpdateThemeGlyph()
+    {
+        ThemeGlyph.Text = ThemeManager.Current == ThemeManager.Dark ? "☀" : "☾";
+    }
+
+    // One click and the session code is in the clipboard, ready to be
+    // typed on the phone. The button says so, then goes back to "Copy".
+    private async void BtnCopyCode_Click(object? sender, RoutedEventArgs e)
+    {
+        var code = SessionCodeText.Text?.Trim() ?? "";
+        if (code.Length == 0 || code == "---") return;
+
+        try
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            // Avalonia 12: IClipboard takes an IAsyncDataTransfer, not a raw string.
+            var payload = new DataTransfer();
+            payload.Add(DataTransferItem.CreateText(code));
+            await clipboard.SetDataAsync(payload);
+
+            BtnCopyCode.Content = Lang.T("Btn.Copied");
+            await Task.Delay(1500);
+            BtnCopyCode.Content = Lang.T("Btn.Copy");
+        }
+        catch (Exception ex)
+        {
+            await Msg.ShowAsync(this,
+                $"{Lang.T("Err.Prefix")} {ex.Message}", Lang.T("Btn.Copy"));
         }
     }
 
@@ -1117,11 +1175,25 @@ public partial class MainWindow : Window
             {
                 QuotaStatusText.Text = Lang.Format("Quota.Unlimited", QuotaUsage.Format(usage));
                 SetHint(QuotaStatusText, "hint-muted");
+
+                // No percentage to show: the bar sweeps instead of hiding,
+                // so the card never looks unfinished.
+                QuotaTrack.IsVisible = true;
+                QuotaFill.Classes.Set("indeterminate", true);
+                QuotaFill.Classes.Set("full", false);
+                QuotaFill.Width = 70;
             }
             else
             {
                 QuotaStatusText.Text = QuotaUsage.Format(usage) + " / " + QuotaUsage.Format(limit);
                 SetHint(QuotaStatusText, usage >= limit ? "hint-error" : "hint-success");
+
+                // The fill follows through a width transition (see
+                // .quota-fill): it glides to its new value instead of
+                // jumping there.
+                QuotaTrack.IsVisible = true;
+                QuotaFill.Classes.Set("indeterminate", false);
+                UpdateQuotaFill(usage, limit);
             }
         }
         catch
@@ -1131,6 +1203,28 @@ public partial class MainWindow : Window
         {
             _quotaBusy = false;
         }
+    }
+
+    // Fills the bar to the real usage share. The denominator comes from
+    // the track itself: the first version measured the status text above
+    // it, which is centred and much narrower, so a full quota rendered
+    // as four fifths of the bar.
+    private void UpdateQuotaFill(long usage, long limit, bool retry = true)
+    {
+        var track = QuotaTrack.Bounds.Width;
+        if (track <= 0)
+        {
+            // IsVisible = true was just set: the track only gets its size
+            // in the layout pass, and Loaded runs behind Render, so this
+            // callback sees the finished bounds.
+            if (retry)
+                Dispatcher.UIThread.Post(() => UpdateQuotaFill(usage, limit, false),
+                    DispatcherPriority.Loaded);
+            return;
+        }
+
+        QuotaFill.Width = Math.Round(track * Math.Clamp((double)usage / limit, 0, 1), 1);
+        QuotaFill.Classes.Set("full", usage >= limit);
     }
 
     private void OnTokenIntervalChanged()

@@ -414,6 +414,91 @@
         btnScan.style.display = "";
     }
 
+    // --- Overlay scrollbar: the native bar is hidden in style.css and a
+    // pill thumb (same gradient and glow as the desktop app) rides the
+    // right edge. It shows while the page moves or the pointer comes
+    // near, hides again once you stop, and can be dragged. It lives
+    // above the no-token guard: the session screen must scroll too.
+    var scrollThumb = document.createElement("div");
+    scrollThumb.className = "scroll-thumb";
+    scrollThumb.setAttribute("aria-hidden", "true");
+    document.body.appendChild(scrollThumb);
+
+    var scrollHideTimer = 0;
+
+    function scrollMetrics() {
+        var root = document.documentElement;
+        return {
+            scrollable: Math.max(0, root.scrollHeight - window.innerHeight),
+            track: window.innerHeight,
+            total: root.scrollHeight
+        };
+    }
+
+    function paintScrollThumb() {
+        var m = scrollMetrics();
+        if (m.scrollable < 8) {
+            // Nothing to scroll: the pill must not float around.
+            scrollThumb.classList.remove("visible");
+            scrollThumb.style.pointerEvents = "";
+            return;
+        }
+        // Short pages get a longer thumb, exactly like a native bar.
+        var h = Math.max(34, m.track * (m.track / m.total));
+        var travel = m.track - h;
+        var y = travel > 0 ? (window.scrollY / m.scrollable) * travel : 0;
+        scrollThumb.style.height = h + "px";
+        scrollThumb.style.setProperty("--y", y.toFixed(1) + "px");
+        scrollThumb.style.pointerEvents = "auto";
+    }
+
+    function showScrollThumb() {
+        paintScrollThumb();
+        scrollThumb.classList.add("visible");
+        window.clearTimeout(scrollHideTimer);
+        scrollHideTimer = window.setTimeout(function () {
+            // Stays up while it is hovered or dragged.
+            if (!scrollThumb.matches(":hover, :active")) {
+                scrollThumb.classList.remove("visible");
+            }
+        }, 900);
+    }
+
+    window.addEventListener("scroll", showScrollThumb, { passive: true });
+    window.addEventListener("resize", paintScrollThumb);
+    window.addEventListener("pointermove", function (e) {
+        if (e.clientX > window.innerWidth - 48) showScrollThumb();
+    }, { passive: true });
+
+    var scrollDragging = false;
+    var scrollGrab = 0;
+
+    scrollThumb.addEventListener("pointerdown", function (e) {
+        scrollDragging = true;
+        scrollGrab = e.clientY - scrollThumb.getBoundingClientRect().top;
+        scrollThumb.classList.add("dragging");
+        scrollThumb.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+
+    scrollThumb.addEventListener("pointermove", function (e) {
+        if (!scrollDragging) return;
+        var m = scrollMetrics();
+        var travel = m.track - scrollThumb.offsetHeight;
+        if (travel <= 0 || m.scrollable <= 0) return;
+        var y = Math.min(travel, Math.max(0, e.clientY - scrollGrab));
+        window.scrollTo(0, (y / travel) * m.scrollable);
+    });
+
+    ["pointerup", "pointercancel"].forEach(function (type) {
+        scrollThumb.addEventListener(type, function () {
+            scrollDragging = false;
+            scrollThumb.classList.remove("dragging");
+        });
+    });
+
+    showScrollThumb();
+
     if (!token) {
         showSessionScreen("");
         return;
@@ -440,6 +525,150 @@
         return m + "min " + s + "s";
     }
 
+    // --- EFFECTS ----------------------------------------------------
+    // Pointer-driven bits of the motion layer (specular sheen, spring
+    // tab indicator). Everything else lives in the CSS. Nothing here
+    // runs when the OS asks for reduced motion.
+    var reducedMotion = !!(window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+    // --- Specular sheen: every interactive element gets its light
+    // steered by the pointer, fading out with the distance.
+    var shineEls = [];
+    function collectShine() {
+        shineEls = Array.prototype.slice.call(document.querySelectorAll(
+            ".btn-new, .btn-unlock, .btn-download, .btn-cancel, " +
+            ".btn-refresh, .btn-scan, .theme-toggle, .tab"));
+    }
+
+    var pointerX = -1e4;
+    var pointerY = -1e4;
+    var shineFrame = 0;
+
+    function paintShine() {
+        shineFrame = 0;
+        for (var i = 0; i < shineEls.length; i++) {
+            var el = shineEls[i];
+            var rect = el.getBoundingClientRect();
+            if (rect.width === 0) continue;
+
+            // Distance to the nearest edge: 0 inside the element.
+            var dx = Math.max(rect.left - pointerX, 0, pointerX - rect.right);
+            var dy = Math.max(rect.top - pointerY, 0, pointerY - rect.bottom);
+            var dist = Math.sqrt(dx * dx + dy * dy);
+
+            var strength = dist === 0
+                ? 1
+                : Math.max(0, 1 - dist / 250);
+            // Smoothstep, so the light does not pop in at the border.
+            strength = strength * strength * (3 - 2 * strength);
+            el.style.setProperty("--shine-strength", strength.toFixed(3));
+
+            if (dist === 0) {
+                el.style.setProperty("--shine-x",
+                    (((pointerX - rect.left) / rect.width) * 100).toFixed(1) + "%");
+                el.style.setProperty("--shine-y",
+                    (((pointerY - rect.top) / rect.height) * 100).toFixed(1) + "%");
+            }
+        }
+    }
+
+    // Coarse pointers (phones, tablets) get no sheen at all: a tap is a
+    // one-shot pointermove, so the light would freeze white on the
+    // button you just pressed. style.css mirrors this with a
+    // (pointer: coarse) guard on the overlay.
+    var finePointer = !window.matchMedia ||
+        window.matchMedia("(pointer: fine)").matches;
+
+    if (!reducedMotion && finePointer) {
+        collectShine();
+        window.addEventListener("pointermove", function (e) {
+            pointerX = e.clientX;
+            pointerY = e.clientY;
+            if (!shineFrame) shineFrame = requestAnimationFrame(paintShine);
+        }, { passive: true });
+    }
+
+    // --- Spring-driven indicator under the active tab.
+    var tabIndicator = document.getElementById("tab-indicator");
+    var tabsWrap = document.getElementById("tabs");
+    var indicator = { x: 0, w: 0, vx: 0, vw: 0, tx: 0, tw: 0, running: false };
+
+    function indicatorTarget() {
+        var active = document.querySelector(".tab.active");
+        if (!active || !tabsWrap) return;
+        // Offset by the wrapper border: the indicator lives inside the
+        // padding box, the tabs are laid out from it too.
+        var border = tabsWrap.clientLeft;
+        indicator.tx = active.offsetLeft - border;
+        indicator.tw = active.offsetWidth;
+    }
+
+    function indicatorPaint() {
+        tabIndicator.style.width = indicator.w + "px";
+        tabIndicator.style.transform = "translateX(" + indicator.x + "px)";
+    }
+
+    function indicatorTick() {
+        var stiff = 210;
+        var damp = 17;
+        var dt = 1 / 60;
+
+        indicator.vx += (indicator.tx - indicator.x) * stiff * dt;
+        indicator.vx -= indicator.vx * damp * dt;
+        indicator.x += indicator.vx * dt;
+
+        indicator.vw += (indicator.tw - indicator.w) * stiff * dt;
+        indicator.vw -= indicator.vw * damp * dt;
+        indicator.w += indicator.vw * dt;
+
+        var done = Math.abs(indicator.tx - indicator.x) < 0.2 &&
+            Math.abs(indicator.vx) < 0.4 &&
+            Math.abs(indicator.tw - indicator.w) < 0.2 &&
+            Math.abs(indicator.vw) < 0.4;
+        if (done) {
+            indicator.x = indicator.tx;
+            indicator.w = indicator.tw;
+            indicator.vx = indicator.vw = 0;
+            indicatorPaint();
+            indicator.running = false;
+            return;
+        }
+        indicatorPaint();
+        requestAnimationFrame(indicatorTick);
+    }
+
+    function moveTabIndicator(animate) {
+        if (!tabIndicator) return;
+        var prevTx = indicator.tx;
+        var prevTw = indicator.tw;
+        indicatorTarget();
+        if (!animate || reducedMotion) {
+            indicator.x = indicator.tx;
+            indicator.w = indicator.tw;
+            indicator.vx = indicator.vw = 0;
+            indicatorPaint();
+            return;
+        }
+        // Coming back to where we already are: nothing to spring.
+        if (prevTx === indicator.tx && prevTw === indicator.tw) return;
+        if (!indicator.running) {
+            indicator.running = true;
+            requestAnimationFrame(indicatorTick);
+        }
+    }
+
+    if (tabIndicator) {
+        moveTabIndicator(false);
+        window.addEventListener("resize", function () {
+            moveTabIndicator(false);
+        });
+        // Fonts and the theme switch can change widths after load.
+        window.addEventListener("load", function () {
+            moveTabIndicator(false);
+        });
+    }
+
     // --- TABS ---
     var tabs = document.querySelectorAll(".tab");
     var tabSend = document.getElementById("tab-send");
@@ -449,6 +678,7 @@
         tab.addEventListener("click", function () {
             tabs.forEach(function (t2) { t2.classList.remove("active"); });
             tab.classList.add("active");
+            moveTabIndicator(true);
             if (tab.dataset.tab === "send") {
                 tabSend.style.display = "";
                 tabReceive.style.display = "none";
@@ -464,6 +694,8 @@
     // --- QUOTA ---
     var quotaBar = document.getElementById("quota-bar");
     var quotaText = document.getElementById("quota-text");
+    var quotaTrack = document.getElementById("quota-track");
+    var quotaFill = document.getElementById("quota-fill");
 
     function formatQuota(bytes) {
         var fr = LANG === "fr";
@@ -489,8 +721,21 @@
         if (limit > 0) {
             quotaText.textContent = formatQuota(usage) + " / " + formatQuota(limit);
             quotaText.classList.add(usage >= limit ? "full" : "ok");
+            // The fill eases to its new value (see .quota-fill in the
+            // CSS); a first paint at 0 keeps it from jumping.
+            quotaTrack.style.display = "";
+            quotaFill.classList.remove("indeterminate");
+            quotaFill.classList.toggle("full", usage >= limit);
+            quotaFill.style.width =
+                Math.min(100, (usage / limit) * 100).toFixed(1) + "%";
         } else {
             quotaText.textContent = t("quota.unlimited", formatQuota(usage));
+            // No percentage to show: the fill sweeps instead, so the
+            // panel never looks unfinished.
+            quotaTrack.style.display = "";
+            quotaFill.style.width = "";
+            quotaFill.classList.add("indeterminate");
+            quotaFill.classList.remove("full");
         }
     }
 
@@ -525,6 +770,7 @@
                     quotaBar.style.display = "block";
                     quotaText.className = "quota-text offline";
                     quotaText.textContent = t("quota.offline");
+                    quotaTrack.style.display = "none";
                 }
             })
             .finally(function () {
@@ -692,14 +938,99 @@
     var emptyMsg = document.getElementById("empty-msg");
     var btnRefresh = document.getElementById("btn-refresh");
 
-    function loadFiles() {
-        fileList.innerHTML = "";
-        var loading = document.createElement("p");
-        loading.className = "loading";
-        loading.textContent = t("files.loading");
-        fileList.appendChild(loading);
+    // Rendering the shared list. Coming back to this tab refetches it,
+    // so the list is only rebuilt when its content actually changed:
+    // rows that disappear slide out, rows that appear slide in with a
+    // small stagger (see .file-card in the CSS).
+    var filesKey = null;
+    var filesToken = 0;
+
+    function buildFileCard(file, index) {
+        var card = document.createElement("div");
+        card.className = "file-card";
+        card.dataset.name = file.name;
+        card.style.setProperty("--i", index);
+
+        var info = document.createElement("div");
+        info.className = "file-info";
+
+        var name = document.createElement("p");
+        name.className = "file-name";
+        name.textContent = file.name;
+
+        var size = document.createElement("p");
+        size.className = "file-size";
+        size.textContent = formatSize(file.size);
+
+        info.appendChild(name);
+        info.appendChild(size);
+
+        var btn = document.createElement("a");
+        btn.className = "btn-download";
+        btn.textContent = t("files.download");
+        btn.href = "/api/download/" + encodeURIComponent(file.name) + "?token=" + encodeURIComponent(token);
+
+        card.appendChild(info);
+        card.appendChild(btn);
+        return card;
+    }
+
+    function renderFileCards(files) {
+        var key = files.map(function (f) {
+            return f.name + "\u0000" + f.size;
+        }).join("\n");
+        if (key === filesKey) return; // unchanged: leave the list alone
+        filesKey = key;
+
+        if (files.length === 0) {
+            fileList.innerHTML = "";
+            emptyMsg.style.display = "";
+            fileList.style.display = "none";
+            return;
+        }
+
         emptyMsg.style.display = "none";
         fileList.style.display = "";
+
+        var names = files.map(function (f) { return f.name; });
+        var leaving = Array.prototype.slice.call(
+            fileList.querySelectorAll(".file-card")).filter(function (el) {
+                return names.indexOf(el.dataset.name) < 0;
+            });
+
+        var rebuild = function () {
+            fileList.innerHTML = "";
+            files.forEach(function (file, i) {
+                fileList.appendChild(buildFileCard(file, i));
+            });
+        };
+
+        if (leaving.length === 0) {
+            rebuild();
+            return;
+        }
+
+        leaving.forEach(function (el) { el.classList.add("leaving"); });
+        var pending = ++filesToken;
+        setTimeout(function () {
+            if (pending === filesToken) rebuild();
+        }, 260);
+    }
+
+    function loadFiles() {
+        emptyMsg.style.display = "none";
+        // First load: nothing on screen yet, show the placeholder. Later
+        // refreshes keep the current rows visible until the answer
+        // arrives, so the list never blinks.
+        if (!fileList.querySelector(".file-card")) {
+            fileList.innerHTML = "";
+            var loading = document.createElement("p");
+            loading.className = "loading";
+            loading.textContent = t("files.loading");
+            fileList.appendChild(loading);
+            fileList.style.display = "";
+            filesKey = null;
+        }
 
         fetchWithTimeout("/api/files?token=" + encodeURIComponent(token), null, 20000)
             .then(function (r) {
@@ -718,43 +1049,10 @@
                 if (data && data.error) {
                     throw new Error(data.code === 403 ? "session" : "server");
                 }
-                fileList.innerHTML = "";
-                if (!data.files || data.files.length === 0) {
-                    emptyMsg.style.display = "";
-                    fileList.style.display = "none";
-                    return;
-                }
-                emptyMsg.style.display = "none";
-                fileList.style.display = "";
-                data.files.forEach(function (file) {
-                    var card = document.createElement("div");
-                    card.className = "file-card";
-
-                    var info = document.createElement("div");
-                    info.className = "file-info";
-
-                    var name = document.createElement("p");
-                    name.className = "file-name";
-                    name.textContent = file.name;
-
-                    var size = document.createElement("p");
-                    size.className = "file-size";
-                    size.textContent = formatSize(file.size);
-
-                    info.appendChild(name);
-                    info.appendChild(size);
-
-                    var btn = document.createElement("a");
-                    btn.className = "btn-download";
-                    btn.textContent = t("files.download");
-                    btn.href = "/api/download/" + encodeURIComponent(file.name) + "?token=" + encodeURIComponent(token);
-
-                    card.appendChild(info);
-                    card.appendChild(btn);
-                    fileList.appendChild(card);
-                });
+                renderFileCards(data.files || []);
             })
             .catch(function (err) {
+                filesKey = null;
                 fileList.innerHTML = "";
                 if (err.message === "session") {
                     endSession(t("session.expired"));

@@ -1,6 +1,7 @@
 ﻿<Window x:Class="OpenDrop.MainWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:anim="using:Avalonia.Animation.Easings"
         Title="OpenDrop"
         Width="880" Height="720"
         MinWidth="760" MinHeight="600"
@@ -95,6 +96,113 @@
             <Setter Property="Background" Value="{DynamicResource Brush.ControlHover}"/>
         </Style>
 
+        <!-- Wordmark: OPENDROP, one Border per letter so the hover is
+             per-letter. Two stacked TextBlocks make the glow: the bottom
+             one is the accent copy (softened by Shadow.Brand), the top
+             one the readable text. Hovering a letter lifts it on a spring
+             and blooms the halo underneath. -->
+        <Style Selector="Border.brand-letter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="2,0,2,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <ThicknessTransition Property="Margin" Duration="0:0:0.5">
+                        <ThicknessTransition.Easing>
+                            <anim:SpringEasing Mass="1" Stiffness="170" Damping="17"/>
+                        </ThicknessTransition.Easing>
+                    </ThicknessTransition>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.brand-letter:pointerover">
+            <Setter Property="Margin" Value="0,-5,0,5"/>
+        </Style>
+        <Style Selector="Border.brand-letter TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <!-- The halo: a permanent faint glow that fills in on hover. -->
+        <Style Selector="Border.brand-letter TextBlock.brand-glow">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}"/>
+            <Setter Property="Effect" Value="{DynamicResource Shadow.Brand}"/>
+            <Setter Property="Opacity" Value="0.55"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.3"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.brand-letter:pointerover TextBlock.brand-glow">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="Border.brand-letter TextBlock.brand-text">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Foreground" Duration="0:0:0.3"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.brand-letter:pointerover TextBlock.brand-text">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextTitle}"/>
+        </Style>
+
+        <!-- Scrollbar: no line buttons, a rounded track that only fades in
+             while you scroll or hover, and a pill thumb that scales up and
+             blooms its glow under the pointer (the fill itself comes from
+             the palette re-pointed in App.axaml). -->
+        <Style Selector="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+        </Style>
+        <Style Selector="ScrollBar /template/ Rectangle#TrackRect">
+            <Setter Property="RadiusX" Value="4"/>
+            <Setter Property="RadiusY" Value="4"/>
+        </Style>
+        <Style Selector="ScrollBar /template/ RepeatButton#PART_LineUpButton">
+            <Setter Property="Width" Value="0"/>
+            <Setter Property="Height" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+        <Style Selector="ScrollBar /template/ RepeatButton#PART_LineDownButton">
+            <Setter Property="Width" Value="0"/>
+            <Setter Property="Height" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+        <Style Selector="ScrollBar Thumb">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
+            <Setter Property="Effect" Value="{DynamicResource Shadow.Thumb}"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.28">
+                        <TransformOperationsTransition.Easing>
+                            <anim:SpringEasing Mass="1" Stiffness="170" Damping="17"/>
+                        </TransformOperationsTransition.Easing>
+                    </TransformOperationsTransition>
+                    <EffectTransition Property="Effect" Duration="0:0:0.3"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <!-- 12px is the width the 6px corner radius needs to read as a pill. -->
+        <Style Selector="ScrollBar:vertical Thumb">
+            <Setter Property="Width" Value="12"/>
+        </Style>
+        <Style Selector="ScrollBar:horizontal Thumb">
+            <Setter Property="Height" Value="12"/>
+        </Style>
+        <Style Selector="ScrollBar:vertical Thumb:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1.35,1)"/>
+            <Setter Property="Effect" Value="{DynamicResource Shadow.ThumbHot}"/>
+        </Style>
+        <Style Selector="ScrollBar:horizontal Thumb:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1,1.4)"/>
+            <Setter Property="Effect" Value="{DynamicResource Shadow.ThumbHot}"/>
+        </Style>
+
         <!-- Shared-files list -->
         <Style Selector="ListBox.filelist">
             <Setter Property="Background" Value="Transparent"/>
@@ -105,6 +213,17 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Padding" Value="10,7"/>
             <Setter Property="CornerRadius" Value="8"/>
+            <!-- A row fades in when it appears (new file, refresh). -->
+            <Style.Animations>
+                <Animation Duration="0:0:0.32" Easing="QuinticEaseOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
         <Style Selector="ListBox.filelist ListBoxItem:selected /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}"/>
@@ -171,6 +290,100 @@
         <Style Selector="TextBlock.hint-success">
             <Setter Property="Foreground" Value="#4caf50"/>
         </Style>
+
+        <!-- Quota bar: the width transition is what makes the fill glide
+             to its new value instead of jumping there. With no limit
+             configured the bar sweeps instead: there is no percentage to
+             show, but the panel is never empty. -->
+        <Style Selector="Border.quota-track">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+        </Style>
+        <Style Selector="Border.quota-fill">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Success}"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Width" Duration="0:0:0.9">
+                        <DoubleTransition.Easing>
+                            <anim:QuinticEaseOut/>
+                        </DoubleTransition.Easing>
+                    </DoubleTransition>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.quota-fill.full">
+            <Setter Property="Background" Value="{DynamicResource Brush.Danger}"/>
+        </Style>
+        <Style Selector="Border.quota-fill.indeterminate">
+            <Style.Animations>
+                <Animation Duration="0:0:1.7" IterationCount="INFINITE"
+                           Easing="CubicEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="-80,0,0,0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="460,0,0,0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Aurora blobs: fill comes from the palette, motion from the
+             slow drift below (each blob moves on its own path).
+             The keyframes move the Margin, not a transform: a full
+             Thickness is what the animation interpolates directly, and
+             the travel has to be a visible share of the window or the
+             drift reads as "motionless" (0.2px in the first seconds of a
+             34s cycle). -->
+        <Style Selector="Ellipse.aurora-1">
+            <Setter Property="Fill" Value="{DynamicResource Brush.Aurora1}"/>
+            <Setter Property="Opacity" Value="0.9"/>
+            <Style.Animations>
+                <Animation Duration="0:0:12" IterationCount="INFINITE"
+                           PlaybackDirection="Alternate" Easing="CubicEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="-220,-260,0,0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="-110,-170,0,0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Ellipse.aurora-2">
+            <Setter Property="Fill" Value="{DynamicResource Brush.Aurora2}"/>
+            <Setter Property="Opacity" Value="0.9"/>
+            <Style.Animations>
+                <Animation Duration="0:0:14" IterationCount="INFINITE"
+                           PlaybackDirection="Alternate" Easing="CubicEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="0,-240,-240,0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="0,-150,-130,0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Ellipse.aurora-3">
+            <Setter Property="Fill" Value="{DynamicResource Brush.Aurora3}"/>
+            <Setter Property="Opacity" Value="0.9"/>
+            <Style.Animations>
+                <Animation Duration="0:0:13" IterationCount="INFINITE"
+                           PlaybackDirection="Alternate" Easing="CubicEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="0,0,-80,-330"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="90,0,-170,-260"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
     </Window.Styles>
 
     <Grid>
@@ -180,24 +393,95 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Title bar: its own surface, a hair above the cards, closed by
-             a rim so the chrome and the content are clearly two planes. -->
-        <Border Grid.Row="0" Padding="20,12" Background="{DynamicResource Brush.Surface2}"
-                BorderBrush="{DynamicResource Brush.Rim}" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="OpenDrop" FontSize="18" FontWeight="SemiBold"
-                           Foreground="{DynamicResource Brush.TextTitle}" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" x:Name="BtnDiscord" Classes="icon"
-                        ToolTip.Tip="{DynamicResource Btn.Discord}"
-                        Click="BtnDiscord_Click" VerticalAlignment="Center">
-                    <Path Width="18" Height="18" Stretch="Uniform" Fill="#5865F2"
-                          Data="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
-                </Button>
-            </Grid>
-        </Border>
+        <!-- The native window chrome already carries the name and the
+             window buttons, so this strip only puts the icons (logo,
+             theme, Discord) on the app itself: no background, no rim,
+             nothing that cuts the window in two. -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="28,16,28,12">
+            <!-- The wordmark: one hover target per letter, each letter
+                 sitting on its own blurred accent copy (the halo). -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left"
+                        VerticalAlignment="Center" Margin="4,0,0,0">
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="O"/><TextBlock Classes="brand-text" Text="O"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="P"/><TextBlock Classes="brand-text" Text="P"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="E"/><TextBlock Classes="brand-text" Text="E"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="N"/><TextBlock Classes="brand-text" Text="N"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="D"/><TextBlock Classes="brand-text" Text="D"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="R"/><TextBlock Classes="brand-text" Text="R"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="O"/><TextBlock Classes="brand-text" Text="O"/></Grid>
+                </Border>
+                <Border Classes="brand-letter">
+                    <Grid><TextBlock Classes="brand-glow" Text="P"/><TextBlock Classes="brand-text" Text="P"/></Grid>
+                </Border>
+            </StackPanel>
+            <Button Grid.Column="1" x:Name="BtnTheme" Classes="icon"
+                    ToolTip.Tip="{DynamicResource Btn.Theme}"
+                    Click="BtnTheme_Click" VerticalAlignment="Center"
+                    Margin="0,0,8,0">
+                <TextBlock x:Name="ThemeGlyph" Text="&#9788;" FontSize="15"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Button>
+            <Button Grid.Column="2" x:Name="BtnDiscord" Classes="icon"
+                    ToolTip.Tip="{DynamicResource Btn.Discord}"
+                    Click="BtnDiscord_Click" VerticalAlignment="Center">
+                <Path Width="18" Height="18" Stretch="Uniform" Fill="#5865F2"
+                      Data="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.157 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+            </Button>
+        </Grid>
+
+        <!-- Aurora: three soft blobs drifting behind everything, sized
+             and placed to reach the corners of the window so no strip of
+             the background falls back to the flat gradient. They are pure
+             decoration: no hit-testing, no effect on layout (their
+             position lives in the Margin the styles animate above). -->
+        <Grid Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="-1" IsHitTestVisible="False">
+            <Ellipse Classes="aurora-1" Width="680" Height="600"
+                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                     Margin="-220,-260,0,0"/>
+            <Ellipse Classes="aurora-2" Width="640" Height="580"
+                     HorizontalAlignment="Right" VerticalAlignment="Top"
+                     Margin="0,-240,-240,0"/>
+            <Ellipse Classes="aurora-3" Width="800" Height="560"
+                     HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                     Margin="0,0,-80,-330"/>
+        </Grid>
 
         <!-- Content: server status on the left, shared files on the right -->
-        <Grid Grid.Row="1" Margin="28,0,28,24">
+        <Grid x:Name="ContentGrid" Grid.Row="1" Margin="28,0,28,24">
+            <Grid.RenderTransform>
+                <TranslateTransform X="0" Y="0"/>
+            </Grid.RenderTransform>
+            <Grid.Styles>
+                <!-- The whole panel settles in when the window opens. -->
+                <Style Selector="Grid#ContentGrid">
+                    <Style.Animations>
+                        <Animation Duration="0:0:0.55" Easing="QuinticEaseOut" FillMode="Forward">
+                            <KeyFrame Cue="0%">
+                                <Setter Property="Opacity" Value="0"/>
+                                <Setter Property="TranslateTransform.Y" Value="16"/>
+                            </KeyFrame>
+                            <KeyFrame Cue="100%">
+                                <Setter Property="Opacity" Value="1"/>
+                                <Setter Property="TranslateTransform.Y" Value="0"/>
+                            </KeyFrame>
+                        </Animation>
+                    </Style.Animations>
+                </Style>
+            </Grid.Styles>
+
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="460"/>
                 <ColumnDefinition Width="16"/>
@@ -247,6 +531,12 @@
                             <TextBlock Classes="label" Text="{DynamicResource Label.SessionCode}"/>
                             <TextBlock x:Name="SessionCodeText" Text="---" FontSize="22" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Brush.TextPrimary}" HorizontalAlignment="Center"/>
+                            <!-- The code is what the phone asks for: one
+                                 click and it is in the clipboard. -->
+                            <Button Classes="small" x:Name="BtnCopyCode"
+                                    Content="{DynamicResource Btn.Copy}"
+                                    HorizontalAlignment="Center" Margin="0,8,0,0"
+                                    Click="BtnCopyCode_Click"/>
                             <TextBlock Text="{DynamicResource Session.Hint}"
                                        FontSize="11" Foreground="{DynamicResource Brush.TextFaint}" HorizontalAlignment="Center"
                                        Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>
@@ -323,6 +613,13 @@
                             <TextBlock x:Name="QuotaStatusText" Text="{DynamicResource Quota.Analyzing}" FontSize="16"
                                        FontWeight="SemiBold" Classes="hint-muted"
                                        HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                            <!-- The fill eases to its new value whenever the
+                                 usage changes (see .quota-fill below). -->
+                            <Border x:Name="QuotaTrack" Classes="quota-track" IsVisible="False"
+                                    Background="{DynamicResource Brush.Control}">
+                                <Border x:Name="QuotaFill" Classes="quota-fill"
+                                        HorizontalAlignment="Left" Width="0"/>
+                            </Border>
                             <TextBlock Text="{DynamicResource Quota.Description}"
                                        FontSize="11" Foreground="{DynamicResource Brush.TextFaint}" HorizontalAlignment="Center"
                                        Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"/>

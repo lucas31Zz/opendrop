@@ -23,6 +23,15 @@
     --on-accent: #ffffff;
     --success: #4caf50;
     --danger: #f44336;
+    /* Specular sheen on buttons: white reads on a dark surface. */
+    --shine: rgba(255, 255, 255, 0.55);
+    /* Overlay scrollbar pill: rest, hover, and the glow around it. */
+    --thumb-a: rgba(74, 158, 255, 0.55);
+    --thumb-b: rgba(124, 92, 255, 0.55);
+    --thumb-a-hot: rgba(142, 192, 255, 0.95);
+    --thumb-b-hot: rgba(171, 152, 255, 0.95);
+    --thumb-glow: rgba(74, 158, 255, 0.55);
+    --thumb-glow-hot: rgba(124, 92, 255, 0.9);
     color-scheme: dark;
 }
 
@@ -45,6 +54,15 @@
     --on-accent: #ffffff;
     --success: #2e8b4f;
     --danger: #d1362f;
+    /* The surface is light here, so the sheen tints instead of glowing. */
+    --shine: rgba(31, 111, 208, 0.18);
+    /* Same keys as Dark (see above): the pill leans on the deep accent. */
+    --thumb-a: rgba(10, 102, 214, 0.5);
+    --thumb-b: rgba(108, 84, 214, 0.5);
+    --thumb-a-hot: rgba(31, 127, 224, 0.9);
+    --thumb-b-hot: rgba(134, 102, 234, 0.9);
+    --thumb-glow: rgba(10, 102, 214, 0.45);
+    --thumb-glow-hot: rgba(108, 84, 214, 0.7);
     color-scheme: light;
 }
 
@@ -108,19 +126,38 @@ body {
 }
 
 .tabs {
+    position: relative;
     display: flex;
     gap: 0;
     margin-bottom: 2rem;
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--border);
+    background: var(--surface);
+}
+
+/* Sliding accent pill. Its position and width are driven by a spring in
+   app.js, so the background glides (with a little overshoot) instead of
+   jumping from one tab to the other. */
+.tab-indicator {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    z-index: 0;
+    background: var(--accent);
+    pointer-events: none;
+    will-change: transform, width;
 }
 
 .tab {
+    position: relative;
+    z-index: 1;
     flex: 1;
     padding: 0.7rem 1rem;
     border: none;
-    background: var(--surface);
+    background: transparent;
     color: var(--text-dim);
     font-size: 0.95rem;
     font-weight: 500;
@@ -129,7 +166,7 @@ body {
 }
 
 .tab.active {
-    background: var(--accent);
+    background: transparent;
     color: var(--on-accent);
 }
 
@@ -200,11 +237,25 @@ body {
 }
 
 .progress-bar {
+    position: relative;
     height: 100%;
     width: 0%;
     background: var(--accent);
     border-radius: 4px;
-    transition: width 0.2s ease;
+    overflow: hidden;
+    /* Eased instead of linear: the bar catches up then settles. */
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Light sweeping across the bar while the transfer runs. */
+.progress-bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg,
+        transparent 25%, rgba(255, 255, 255, 0.45) 50%, transparent 75%);
+    transform: translateX(-100%);
+    animation: shimmer 1.6s linear infinite;
 }
 
 .progress-text {
@@ -524,4 +575,231 @@ body {
 /* Server not answering any more: never leave the bar blank and silent. */
 .quota-text.offline {
     color: var(--danger);
+}
+
+/* ------------------------------------------------------------------
+   Motion. Every effect below is driven by CSS variables only, so the
+   same rules paint both themes; app.js moves the pointer-dependent
+   ones (--shine, --shine-x/y, the tab indicator) and switches the
+   whole lot off when the OS asks for reduced motion.
+   ------------------------------------------------------------------ */
+
+/* --- Scrollbar: same pill as the desktop app --------------------- */
+/* The native bar is hidden; a 12px gradient pill rides the right edge,
+   fading in while the page moves (or when the pointer comes near) and
+   fading out again once you stop. Hovering makes it bloom and widen,
+   dragging it scrolls exactly like the native bar would. */
+html {
+    scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+    display: none;
+}
+
+.scroll-thumb {
+    position: fixed;
+    right: 4px;
+    top: 0;
+    width: 12px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, var(--thumb-a), var(--thumb-b));
+    box-shadow: 0 0 9px var(--thumb-glow);
+    opacity: 0;
+    z-index: 20;
+    cursor: default;
+    touch-action: none;
+    pointer-events: none;
+    will-change: transform, opacity;
+    transform: translateY(var(--y, 0));
+    transition: opacity 0.3s ease, transform 0.16s ease-out,
+        background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.scroll-thumb.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* The widen and the bloom: the two states mirror the app's hover. */
+.scroll-thumb:hover,
+.scroll-thumb.dragging {
+    transform: translateY(var(--y, 0)) scale(1.35, 1);
+    background: linear-gradient(180deg, var(--thumb-a-hot), var(--thumb-b-hot));
+    box-shadow: 0 0 14px var(--thumb-glow-hot);
+}
+
+/* --- Content arriving on screen ----------------------------------- */
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.logo,
+#app,
+.session-screen {
+    animation: rise-in 0.55s cubic-bezier(0.2, 0.8, 0.25, 1) backwards;
+}
+
+#app {
+    animation-delay: 0.08s;
+}
+
+/* Switching tabs plays it again: the new page settles in. */
+.tab-content {
+    animation: rise-in 0.3s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+
+/* --- File list: rows slide in, removed ones slide out -------------- */
+@keyframes card-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes card-out {
+    to {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+}
+
+.file-card {
+    animation: card-in 0.38s cubic-bezier(0.2, 0.8, 0.25, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.file-card.leaving {
+    animation: card-out 0.25s ease forwards;
+    pointer-events: none;
+}
+
+/* --- Specular sheen: the light follows the pointer ----------------- */
+.btn-new::after,
+.btn-unlock::after,
+.btn-download::after,
+.btn-cancel::after,
+.btn-refresh::after,
+.btn-scan::after,
+.theme-toggle::after,
+.tab::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(140px 240px at var(--shine-x, 50%) var(--shine-y, 0%),
+        var(--shine), transparent 65%);
+    opacity: var(--shine-strength, 0);
+    transition: opacity 0.3s ease;
+}
+
+/* The buttons need a positioning context for that overlay. The theme
+   toggle is deliberately left out: an absolutely positioned ::after
+   anchors to a fixed element all the same, and re-declaring
+   position: relative here was dragging it off the top-right corner
+   (it was showing halfway out of the screen). */
+.btn-new,
+.tab {
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-toggle {
+    overflow: hidden;
+}
+
+.btn-new::after,
+.btn-unlock::after,
+.btn-download::after {
+    /* Accent buttons: white reads the same in both themes. */
+    background: radial-gradient(140px 240px at var(--shine-x, 50%) var(--shine-y, 0%),
+        rgba(255, 255, 255, 0.6), transparent 65%);
+}
+
+/* Touch has no pointer stream once the finger lifts: the sheen would
+   freeze white on the button that was just tapped, so phones and
+   tablets drop it entirely (app.js keeps the matching fine-pointer
+   guard so the variables are never written there either). */
+@media (pointer: coarse) {
+
+    .btn-new::after,
+    .btn-unlock::after,
+    .btn-download::after,
+    .btn-cancel::after,
+    .btn-refresh::after,
+    .btn-scan::after,
+    .theme-toggle::after,
+    .tab::after {
+        display: none;
+    }
+}
+
+/* --- Quota bar: the fill eases into place -------------------------- */
+.quota-track {
+    max-width: 260px;
+    height: 6px;
+    margin: 0 auto 0.55rem;
+    background: var(--surface-2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.quota-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    background: var(--success);
+    transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+        background 0.4s ease;
+}
+
+.quota-fill.full {
+    background: var(--danger);
+}
+
+/* No limit configured: there is no percentage to show, so the fill
+   sweeps across instead of leaving the track empty. */
+.quota-fill.indeterminate {
+    width: 70px;
+    animation: quota-sweep 1.7s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes quota-sweep {
+    from {
+        margin-left: -80px;
+    }
+    to {
+        margin-left: calc(100% + 10px);
+    }
+}
+
+@keyframes shimmer {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+/* --- Reduced motion: keep every state change, drop the movement ---- */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
