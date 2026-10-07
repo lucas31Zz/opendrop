@@ -1,6 +1,6 @@
 [project]
 name = "opendrop-lan"
-version = "0.12.0"
+version = "0.12.1"
 description = "Simple local-first file transfer between devices over the local network (HTTPS, no cloud)"
 readme = "README.md"
 license = { text = "MIT" }

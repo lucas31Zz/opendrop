@@ -361,6 +361,10 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 self._send_file(WEB_DIR / "style.css", "text/css")
             elif path == "/app.js":
                 self._send_file(WEB_DIR / "app.js", "application/javascript")
+            elif path == "/jsqr.min.js":
+                # QR decoder for browsers without BarcodeDetector (Safari
+                # on iPhone, Firefox): fetched on demand by the scanner.
+                self._send_file(WEB_DIR / "jsqr.min.js", "application/javascript")
             elif path == "/qr":
                 self._route_qr(query, ip)
             elif path.startswith("/api/"):

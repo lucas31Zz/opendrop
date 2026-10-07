@@ -284,7 +284,10 @@ desktop is present, otherwise open the URL by hand in your browser.
 ## Using it from a phone
 
 1. Note the `https://<ip>:<port>` address shown by the app.
-2. Scan the **QR code** (or type the URL with `?token=...`).
+2. Scan the **QR code**: with the phone's camera app, or with the
+   *Scan QR code* button on the session screen (it scans in the page
+   itself - Safari, Chrome, Brave, Firefox, anything modern). Typing the
+   URL with `?token=...` by hand still works too.
 3. On first visit the browser shows a self-signed certificate warning:
    accept the one from the OpenDrop machine only (step-by-step in
    [SECURITY.md](SECURITY.md)).

@@ -373,15 +373,81 @@
         location.reload();
     }
 
-    function startScanner() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            showUnlockError(t("camera.blocked"));
-            return;
-        }
-        if (typeof window.BarcodeDetector === "undefined") {
-            showUnlockError(t("camera.unsupported"));
-            return;
-        }
+    // --- Decoder choice: Chrome and Edge ship BarcodeDetector, but
+    // Safari (every iPhone) and Firefox do not - there the frames are
+    // decoded by the bundled jsQR, fetched on demand so browsers with
+    // the native detector never download it.
+    var jsqrLoading = false;
+    var jsqrWaiters = [];
+
+    function flushJsQr(ok) {
+        var waiters = jsqrWaiters;
+        jsqrWaiters = [];
+        for (var i = 0; i < waiters.length; i++) waiters[i](ok);
+    }
+
+    function withJsQR(done) {
+        if (window.jsQR) { done(true); return; }
+        jsqrWaiters.push(done);
+        if (jsqrLoading) return;
+        jsqrLoading = true;
+        var script = document.createElement("script");
+        script.src = "/jsqr.min.js";
+        script.onload = function () {
+            jsqrLoading = false;
+            flushJsQr(typeof window.jsQR === "function");
+        };
+        script.onerror = function () {
+            jsqrLoading = false;
+            flushJsQr(false);
+        };
+        document.head.appendChild(script);
+    }
+
+    function startNativeLoop() {
+        var detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        var detecting = false;
+        scanTimer = setInterval(function () {
+            // Never queue a second detect() while one is running: on a
+            // slow phone the promises would pile up and starve the UI.
+            if (detecting) return;
+            detecting = true;
+            detector.detect(scannerVideo).then(function (codes) {
+                if (codes && codes.length) handleScanned(codes[0].rawValue);
+            }).catch(function () { /* no QR in view */ })
+              .finally(function () { detecting = false; });
+        }, 400);
+    }
+
+    function startJsQrLoop() {
+        // jsQR runs on the CPU: the frame is shrunk to 480px wide first,
+        // which is plenty to read a code filling the phone screen.
+        var canvas = document.createElement("canvas");
+        var ctx = canvas.getContext("2d", { willReadFrequently: true });
+        scanTimer = setInterval(function () {
+            if (document.hidden || !scannerVideo.videoWidth) return;
+            var w = scannerVideo.videoWidth;
+            var h = scannerVideo.videoHeight;
+            var target = Math.min(w, 480);
+            var targetH = Math.round(h * (target / w));
+            if (canvas.width !== target || canvas.height !== targetH) {
+                canvas.width = target;
+                canvas.height = targetH;
+            }
+            ctx.drawImage(scannerVideo, 0, 0, target, targetH);
+            var frame = ctx.getImageData(0, 0, target, targetH);
+            // The code comes from a screen: normal polarity, skip the
+            // inversion passes.
+            var code = window.jsQR(frame.data, frame.width, frame.height, {
+                inversionAttempts: "dontInvert"
+            });
+            if (code && code.data) handleScanned(code.data);
+        }, 400);
+    }
+
+    function openCamera(useNative) {
+        // Never two streams or two loops: tapping Scan again restarts.
+        stopScanner();
         navigator.mediaDevices.getUserMedia({
             video: { facingMode: { ideal: "environment" } },
             audio: false
@@ -389,20 +455,29 @@
             scanStream = stream;
             scanner.style.display = "";
             scannerVideo.srcObject = stream;
-            var detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-            var detecting = false;
-            scanTimer = setInterval(function () {
-                // Never queue a second detect() while one is running: on a
-                // slow phone the promises would pile up and starve the UI.
-                if (detecting) return;
-                detecting = true;
-                detector.detect(scannerVideo).then(function (codes) {
-                    if (codes && codes.length) handleScanned(codes[0].rawValue);
-                }).catch(function () { /* no QR in view */ })
-                  .finally(function () { detecting = false; });
-            }, 400);
+            // iOS paints the stream only once play() runs, even with
+            // playsinline and muted (this call sits in the tap gesture).
+            var playing = scannerVideo.play();
+            if (playing && playing.catch) playing.catch(function () { /* autoplay */ });
+            if (useNative) startNativeLoop();
+            else startJsQrLoop();
         }).catch(function () {
             showUnlockError(t("camera.denied"));
+        });
+    }
+
+    function startScanner() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showUnlockError(t("camera.blocked"));
+            return;
+        }
+        if (typeof window.BarcodeDetector !== "undefined") {
+            openCamera(true);
+            return;
+        }
+        withJsQR(function (ok) {
+            if (ok) openCamera(false);
+            else showUnlockError(t("camera.unsupported"));
         });
     }
 

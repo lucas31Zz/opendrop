@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.12.1] - 2026-10-07
+
+### Fixed
+
+- **QR scanning inside the browser on phones**: the *Scan QR code*
+  button refused to start on Safari (iPhone), Brave and Firefox - "QR
+  reading is not supported by this browser" - because those browsers
+  ship `getUserMedia` but not the Shape Detection API the scanner
+  relied on. The camera frames are now decoded by the bundled jsQR
+  (MIT, `web/jsqr.min.js`, fetched only when needed) whenever the
+  native `BarcodeDetector` is missing, so every phone scans the code
+  without leaving the page. Chrome and Edge on Android keep the native
+  detector (no extra cost); the old message remains only as a last
+  resort if the decoder cannot load.
+
 ## [0.12.0] - 2026-10-07
 
 ### Added
