@@ -103,6 +103,8 @@
     <x:String x:Key="Files.RenamePrompt">New name:</x:String>
     <x:String x:Key="Files.RenameInvalid">That name cannot be used on this system.</x:String>
     <x:String x:Key="Files.RenameExists">A file with that name already exists.</x:String>
+    <x:String x:Key="Files.RenameBatchPrompt">New base name for the {0} selected files.&#10;&#10;They are numbered in order: name, name (2), name (3)... Each file keeps its own extension.</x:String>
+    <x:String x:Key="Files.RenameBatchFailed">{0} file(s) could not be renamed.</x:String>
     <x:String x:Key="Files.DeleteTitle">Delete</x:String>
     <x:String x:Key="Files.DeleteConfirm">Delete {0} file(s)?&#10;&#10;{1}&#10;&#10;The files are removed from the disk.</x:String>
     <x:String x:Key="Files.DeleteFailed">{0} file(s) could not be deleted.</x:String>

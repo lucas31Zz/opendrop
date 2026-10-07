@@ -2,12 +2,14 @@ using System.Diagnostics;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using QRCoder;
 
 namespace OpenDrop;
@@ -426,9 +428,15 @@ public partial class MainWindow : Window
     private async Task RenameSelectedAsync()
     {
         var selection = SelectedFiles();
-        if (selection.Count != 1)
+        if (selection.Count == 0)
         {
-            await Msg.ShowAsync(this, Lang.T("Files.SelectOne"), Lang.T("Label.SharedFiles"));
+            await Msg.ShowAsync(this, Lang.T("Files.SelectAny"), Lang.T("Label.SharedFiles"));
+            return;
+        }
+
+        if (selection.Count > 1)
+        {
+            await RenameManyAsync(selection);
             return;
         }
 
@@ -474,6 +482,66 @@ public partial class MainWindow : Window
         SelectByName(name);
     }
 
+    // Windows-style batch rename: one base name, then numbering for every
+    // file after the first (report.pdf, report (2).pdf, report (3).pdf...).
+    // Each file keeps its own extension and an existing file is never
+    // overwritten.
+    private async Task RenameManyAsync(List<ShareFile> selection)
+    {
+        var dir = ResolveShareDir();
+        if (dir == null) return;
+
+        var baseName = await Msg.InputAsync(this, Lang.T("Files.RenameTitle"),
+            Lang.Format("Files.RenameBatchPrompt", selection.Count),
+            Path.GetFileNameWithoutExtension(selection[0].Name));
+        if (baseName == null) return;
+
+        baseName = baseName.Trim();
+        if (baseName.Length == 0) return;
+
+        if (baseName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.RenameInvalid"), Lang.T("Files.RenameTitle"));
+            return;
+        }
+
+        // Sorted by name, so the numbering follows the list order.
+        var files = selection
+            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var failed = 0;
+        var renamed = 0;
+        for (var i = 0; i < files.Count; i++)
+        {
+            var file = files[i];
+            var ext = Path.GetExtension(file.Name);
+            var name = i == 0 ? baseName + ext : $"{baseName} ({i + 1}){ext}";
+            if (string.Equals(name, file.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                renamed++;
+                continue;
+            }
+
+            var target = Path.Combine(dir, name);
+            if (File.Exists(target)) target = UniquePath(target);
+
+            try
+            {
+                File.Move(file.FullPath, target);
+                MoveRegistry.Rename(file.FullPath, target);
+                renamed++;
+            }
+            catch { failed++; }
+        }
+
+        RefreshFiles();
+
+        if (failed > 0)
+            await Msg.ShowAsync(this, Lang.Format("Files.RenameBatchFailed", failed),
+                Lang.T("Files.RenameTitle"));
+    }
+
     private void SelectByName(string name)
     {
         foreach (var file in _shareFiles)
@@ -486,6 +554,10 @@ public partial class MainWindow : Window
     }
 
     private async void BtnDelete_Click(object? sender, RoutedEventArgs e)
+        => await DeleteSelectedAsync();
+
+    // Delete key of the file list lands here too.
+    private async Task DeleteSelectedAsync()
     {
         var selection = SelectedFiles();
         if (selection.Count == 0)
@@ -558,6 +630,15 @@ public partial class MainWindow : Window
         }
         if (sources.Count == 0) return;
 
+        await ImportIntoShareAsync(sources, dir, move, expandFolders: false);
+    }
+
+    // Copies (or moves) the given sources into the share folder, off the
+    // UI thread, then reports the result. Shared by the Add files button
+    // and by files dropped on the list.
+    private async Task ImportIntoShareAsync(List<string> sources, string dir, bool move,
+        bool expandFolders)
+    {
         FilesHint.Text = Lang.T("Files.Adding");
         SetHint(FilesHint, "hint-muted");
         FilesHint.IsVisible = true;
@@ -567,7 +648,8 @@ public partial class MainWindow : Window
         var moved = new List<(string Target, string Origin)>();
         try
         {
-            (added, skipped, failed, moved) = await Task.Run(() => ImportFiles(sources, dir, move));
+            (added, skipped, failed, moved) = await Task.Run(() =>
+                ImportFiles(expandFolders ? ExpandToFiles(sources) : sources, dir, move));
         }
         finally
         {
@@ -588,6 +670,30 @@ public partial class MainWindow : Window
         else if (skipped > 0)
             await Msg.ShowAsync(this,
                 Lang.Format("Files.AddSkipped", added, skipped), Lang.T("Files.AddTitle"));
+    }
+
+    // A dropped folder is added as the files it contains, like the Explorer
+    // does. Runs on the background thread.
+    private static List<string> ExpandToFiles(List<string> sources)
+    {
+        var files = new List<string>();
+        foreach (var source in sources)
+        {
+            try
+            {
+                if (File.Exists(source))
+                {
+                    files.Add(source);
+                }
+                else if (Directory.Exists(source))
+                {
+                    files.AddRange(Directory.EnumerateFiles(source, "*",
+                        SearchOption.AllDirectories));
+                }
+            }
+            catch { }
+        }
+        return files;
     }
 
     // Copies (or moves) the chosen files into the share folder. The
@@ -672,6 +778,191 @@ public partial class MainWindow : Window
         }
 
         return Path.Combine(dir, $"{name} ({Guid.NewGuid():N}){ext}");
+    }
+
+    #endregion
+
+    #region Drag & drop onto the list
+
+    // Files dragged in from the Explorer are copied into the share folder.
+    // The card lights up while it is the drop target.
+
+    private void SharedFiles_DragEnter(object? sender, DragEventArgs e)
+        => SharedFiles_DragOver(sender, e);
+
+    private void SharedFiles_DragOver(object? sender, DragEventArgs e)
+    {
+        var accepted = e.DataTransfer.Contains(DataFormat.File);
+        e.DragEffects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+
+        if (sender is Border card)
+            card.Classes.Set("dropping", accepted);
+    }
+
+    private void SharedFiles_DragLeave(object? sender, DragEventArgs e)
+    {
+        if (sender is Border card)
+            card.Classes.Set("dropping", false);
+    }
+
+    private async void SharedFiles_Drop(object? sender, DragEventArgs e)
+    {
+        if (sender is Border card)
+            card.Classes.Set("dropping", false);
+
+        if (!e.DataTransfer.Contains(DataFormat.File)) return;
+
+        List<string> dropped;
+        try
+        {
+            var files = e.DataTransfer.TryGetFiles();
+            if (files is null || files.Length == 0) return;
+
+            dropped = new List<string>();
+            foreach (var item in files)
+            {
+                var path = item.TryGetLocalPath();
+                if (!string.IsNullOrEmpty(path))
+                    dropped.Add(path!);
+            }
+        }
+        catch
+        {
+            return;
+        }
+
+        if (dropped.Count == 0) return;
+
+        var dir = ResolveShareDir();
+        if (dir == null)
+        {
+            await Msg.ShowAsync(this, Lang.T("Files.MissingFolder"), Lang.T("Label.SharedFiles"));
+            return;
+        }
+
+        // A drop always copies: moving files out of their folder because
+        // they were dragged across the desktop would be surprising.
+        await ImportIntoShareAsync(dropped, dir, move: false, expandFolders: true);
+    }
+
+    #endregion
+
+    #region Selection (rubber band, Ctrl+A, Delete)
+
+    // Dragging the left button over the empty area of the list draws a
+    // band and selects everything it touches, as in the Explorer.
+    private bool _bandActive;
+    private bool _bandShown;
+    private bool _bandAdditive;
+    private Point _bandStart;
+    private List<ShareFile> _bandBase = new();
+
+    private void FileList_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _bandActive = false;
+        _bandShown = false;
+        _bandBase.Clear();
+
+        if (!e.GetCurrentPoint(FileList).Properties.IsLeftButtonPressed) return;
+
+        // Press on a row: the list itself owns the click (and Ctrl/Shift
+        // already work there), so no band is started.
+        if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(true) != null)
+            return;
+
+        _bandActive = true;
+        _bandStart = e.GetPosition(FileList);
+        _bandAdditive = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        _bandBase = _bandAdditive ? SelectedFiles() : new List<ShareFile>();
+        e.Pointer.Capture(FileList);
+    }
+
+    private void FileList_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_bandActive) return;
+
+        var p = e.GetPosition(FileList);
+        var dx = p.X - _bandStart.X;
+        var dy = p.Y - _bandStart.Y;
+        if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return; // still a click
+
+        var x = Math.Min(_bandStart.X, p.X);
+        var y = Math.Min(_bandStart.Y, p.Y);
+        var w = Math.Abs(dx);
+        var h = Math.Abs(dy);
+        var band = new Rect(x, y, w, h);
+
+        SelectionBand.Margin = new Thickness(x, y, 0, 0);
+        SelectionBand.Width = w;
+        SelectionBand.Height = h;
+        SelectionBand.IsVisible = true;
+        _bandShown = true;
+
+        var target = new List<ShareFile>(_bandBase);
+        foreach (var file in FilesInBand(band))
+        {
+            if (!target.Contains(file)) target.Add(file);
+        }
+        ApplySelection(target);
+    }
+
+    private void FileList_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_bandActive) return;
+        _bandActive = false;
+        SelectionBand.IsVisible = false;
+
+        if (e.Pointer.Captured == FileList)
+            e.Pointer.Capture(null);
+
+        // Click on empty space without dragging clears the selection;
+        // Ctrl+click leaves it alone, like the Explorer.
+        if (!_bandShown && !_bandAdditive && e.InitialPressMouseButton == MouseButton.Left)
+            FileList.UnselectAll();
+    }
+
+    private List<ShareFile> FilesInBand(Rect band)
+    {
+        var hits = new List<ShareFile>();
+        for (var i = 0; i < _shareFiles.Count; i++)
+        {
+            if (FileList.ContainerFromIndex(i) is not Control container) continue;
+            var origin = container.TranslatePoint(default, FileList);
+            if (origin is not { } o) continue;
+
+            var rect = new Rect(o.X, o.Y, container.Bounds.Width, container.Bounds.Height);
+            if (rect.Intersects(band))
+                hits.Add(_shareFiles[i]);
+        }
+        return hits;
+    }
+
+    private void ApplySelection(List<ShareFile> files)
+    {
+        var selection = FileList.Selection;
+        selection.Clear();
+        foreach (var file in files)
+        {
+            var index = _shareFiles.IndexOf(file);
+            if (index >= 0) selection.Select(index);
+        }
+    }
+
+    // Ctrl+A selects everything, Delete deletes the selection.
+    private async void FileList_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            FileList.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Delete)
+        {
+            e.Handled = true;
+            await DeleteSelectedAsync();
+        }
     }
 
     #endregion

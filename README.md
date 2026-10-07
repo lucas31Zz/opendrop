@@ -48,6 +48,11 @@ server running on your machine, nothing goes over the internet.
 - **Desktop app for Windows and Linux** (Avalonia, .NET 8): QR code,
   address, session code, quota, folders, settings, one-click server
   start/stop
+- **Shared files from the app**: drag files or folders from the Explorer
+  onto the *Shared files* panel and they are copied into the share folder;
+  select like the Explorer (rubber band on empty space, Ctrl/Shift,
+  Ctrl+A), rename several at once (`report`, `report (2)`...) and delete
+  them with the Delete key
 - **English and French**: English is the default everywhere (installer,
   desktop app, web interface, server messages); switch the app to French
   in *Settings* (or pick it in the Windows installer)

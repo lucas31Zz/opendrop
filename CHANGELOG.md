@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.11.0] - 2026-10-07
+
+### Added
+
+- **Drag & drop onto the share panel**: files or folders dragged from the
+  Explorer onto the *Shared files* card are copied into the share folder,
+  folders being added file by file. The card outlines itself with the
+  accent colour while it is the drop target. A drop always copies, never
+  moves, so a drag can never empty a folder by surprise.
+- **Windows-style selection** in the shared-files list: dragging the left
+  button over the empty area draws a rubber band and selects everything it
+  touches (holding Ctrl keeps the current selection), **Ctrl+A** selects
+  everything, and the **Delete** key deletes the selection after the usual
+  confirmation.
+- **Batch rename**: renaming a selection of several files asks for one
+  base name and numbers the result like the Explorer (`report.pdf`,
+  `report (2).pdf`, `report (3).pdf`...). Every file keeps its own
+  extension and an existing file is never overwritten.
+
+### Changed
+
+- *Add files* and a drop now share the same import path: same progress
+  hint, same busy state, same copy/skip/failure report.
+- The *Rename* button accepts any number of selected files instead of
+  demanding exactly one.
+
 ## [0.10.0] - 2026-10-07
 
 ### Added

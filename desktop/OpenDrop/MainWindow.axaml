@@ -17,6 +17,12 @@
                  for contact, and an inset highlight on the top edge. -->
             <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}"/>
         </Style>
+        <!-- Same card while files are dragged over it: the accent outline
+             says "drop here". -->
+        <Style Selector="Border.card.dropping">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+        </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -326,8 +332,14 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Shared files -->
-            <Border Grid.Column="2" Classes="card" Margin="0" VerticalAlignment="Stretch">
+            <!-- Shared files. Also the drop target for files dragged in
+                 from the Explorer: they are copied into the share folder. -->
+            <Border Grid.Column="2" Classes="card" Margin="0" VerticalAlignment="Stretch"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragEnter="SharedFiles_DragEnter"
+                    DragDrop.DragOver="SharedFiles_DragOver"
+                    DragDrop.DragLeave="SharedFiles_DragLeave"
+                    DragDrop.Drop="SharedFiles_Drop">
                 <DockPanel LastChildFill="True">
                     <TextBlock DockPanel.Dock="Top" Classes="label"
                                Text="{DynamicResource Label.SharedFiles}"/>
@@ -355,8 +367,13 @@
                                    TextWrapping="Wrap" IsVisible="False" Margin="0,2,0,0"/>
                     </StackPanel>
 
-                    <ListBox x:Name="FileList" Classes="filelist" SelectionMode="Multiple"
-                             FontSize="13" Margin="0,4,0,0" DoubleTapped="FileList_DoubleTapped">
+                    <Grid Margin="0,4,0,0">
+                        <ListBox x:Name="FileList" Classes="filelist" SelectionMode="Multiple"
+                                 FontSize="13" DoubleTapped="FileList_DoubleTapped"
+                                 PointerPressed="FileList_PointerPressed"
+                                 PointerMoved="FileList_PointerMoved"
+                                 PointerReleased="FileList_PointerReleased"
+                                 KeyDown="FileList_KeyDown">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid ColumnDefinitions="*,Auto,Auto">
@@ -372,7 +389,18 @@
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                    </ListBox>
+                        </ListBox>
+
+                        <!-- Rubber band drawn while the left button is dragged
+                             over the empty area of the list (Windows-style
+                             multi-selection). -->
+                        <Rectangle x:Name="SelectionBand" IsVisible="False"
+                                   IsHitTestVisible="False" Opacity="0.75"
+                                   HorizontalAlignment="Left" VerticalAlignment="Top"
+                                   RadiusX="2" RadiusY="2" StrokeThickness="1"
+                                   Fill="{DynamicResource Brush.AccentSoft}"
+                                   Stroke="{DynamicResource Brush.Accent}"/>
+                    </Grid>
                 </DockPanel>
             </Border>
         </Grid>
