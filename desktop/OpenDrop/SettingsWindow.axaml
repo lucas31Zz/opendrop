@@ -36,6 +36,10 @@
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
+        <Style Selector="Border.card:pointerover">
+            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.CardHover}"/>
+        </Style>
+
         <!-- Sidebar tabs: plain RadioButtons in one group, styled as a
              list rather than the stock TabControl, so every later visual
              pass only has to touch this one style. -->
@@ -104,6 +108,12 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
+        <!-- Pointer glow (see MainWindow): same patch, moved by
+             GlowService, showing through the gaps between the cards. -->
+        <Border x:Name="GlowLayer" Grid.Row="1" IsHitTestVisible="False" IsVisible="False"
+                Width="560" Height="560" HorizontalAlignment="Left" VerticalAlignment="Top"
+                Background="{DynamicResource Glow.Ambient}"/>
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">

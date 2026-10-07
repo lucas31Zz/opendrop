@@ -62,6 +62,15 @@
                     <BoxShadows x:Key="Shadow.Recessed">inset 0 2 5 0 #40000000, inset 0 -1 0 0 #10ffffff</BoxShadows>
                     <SolidColorBrush x:Key="Brush.Rim">#14ffffff</SolidColorBrush>
                     <DropShadowEffect x:Key="Shadow.Accent" OffsetX="0" OffsetY="4" BlurRadius="16" Color="#4a9eff" Opacity="0.35"/>
+
+                    <!-- Pointer glow: a radial wash GlowService slides
+                         behind the content, and the hover variant of the
+                         card shadow (same stack plus an accent layer). -->
+                    <RadialGradientBrush x:Key="Glow.Ambient">
+                        <GradientStop Color="#734a9eff" Offset="0"/>
+                        <GradientStop Color="#004a9eff" Offset="1"/>
+                    </RadialGradientBrush>
+                    <BoxShadows x:Key="Shadow.CardHover">0 16 32 -16 #73000000, 0 3 8 -4 #33000000, inset 0 1 0 0 #14ffffff, 0 0 28 0 #734a9eff</BoxShadows>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Brush.Window">#f4f5f7</SolidColorBrush>
@@ -105,6 +114,13 @@
                     <BoxShadows x:Key="Shadow.Recessed">inset 0 2 5 0 #1a000000, inset 0 -1 0 0 #ffffff</BoxShadows>
                     <SolidColorBrush x:Key="Brush.Rim">#0f000000</SolidColorBrush>
                     <DropShadowEffect x:Key="Shadow.Accent" OffsetX="0" OffsetY="4" BlurRadius="16" Color="#0a66d6" Opacity="0.3"/>
+                    <!-- Same keys as Dark (see above), softer: a light
+                         surface needs less wash to read as lit. -->
+                    <RadialGradientBrush x:Key="Glow.Ambient">
+                        <GradientStop Color="#590a66d6" Offset="0"/>
+                        <GradientStop Color="#000a66d6" Offset="1"/>
+                    </RadialGradientBrush>
+                    <BoxShadows x:Key="Shadow.CardHover">0 16 32 -16 #1f000000, 0 3 8 -4 #14000000, inset 0 1 0 0 #ffffff, 0 0 28 0 #590a66d6</BoxShadows>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

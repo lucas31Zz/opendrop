@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.11.0] - 2026-10-07
+
+### Added
+
+- **Pointer glow**: a soft accent wash follows the cursor behind the
+  content of the main window and of Settings. The patch is a fixed-size
+  radial gradient (`Glow.Ambient` in the theme dictionaries) moved with
+  a render transform, so one pointer event costs a single assignment -
+  no layout pass, no timer, no allocation. It is never hit-tested, so it
+  cannot steal a click, and it hides itself as soon as the pointer
+  leaves the window.
+- Cards light up under the pointer: `Shadow.CardHover` is the usual card
+  shadow stack plus an accent layer.
+
+### Changed
+
+- New `Services/GlowService.cs` owns the behaviour and exposes
+  `Enabled`, ready for the effects switch that ships with the web pass.
+- Checked at runtime with a scripted pointer pass: hidden at start,
+  centred on the pointer on every move, four shadows while a card is
+  under the pointer and three anywhere else, hidden again once the
+  pointer leaves the window. The README screenshots are still the old
+  ones (final pass).
+
 ## [0.10.0] - 2026-10-07
 
 ### Added

@@ -59,6 +59,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // The service keeps itself alive through the window events.
+        _ = GlowService.Attach(this, GlowLayer);
         var handler = new HttpClientHandler();
         // OpenDrop self-signed certificate: accepted only on the local
         // loopback (info poll), never for LAN traffic.

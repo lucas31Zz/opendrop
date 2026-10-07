@@ -19,6 +19,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        _ = GlowService.Attach(this, GlowLayer);
         LoadSettings();
     }
 

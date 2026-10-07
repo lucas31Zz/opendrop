@@ -17,6 +17,9 @@
                  for contact, and an inset highlight on the top edge. -->
             <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}"/>
         </Style>
+        <Style Selector="Border.card:pointerover">
+            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.CardHover}"/>
+        </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -173,6 +176,14 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
+        <!-- Pointer glow: a fixed patch declared behind everything and
+             moved by GlowService. Row 1 is the star row, so a fixed size
+             here cannot resize the layout - the patch just overflows the
+             row and shows in the gaps between the cards. -->
+        <Border x:Name="GlowLayer" Grid.Row="1" IsHitTestVisible="False" IsVisible="False"
+                Width="760" Height="760" HorizontalAlignment="Left" VerticalAlignment="Top"
+                Background="{DynamicResource Glow.Ambient}"/>
 
         <!-- Title bar: its own surface, a hair above the cards, closed by
              a rim so the chrome and the content are clearly two planes. -->
