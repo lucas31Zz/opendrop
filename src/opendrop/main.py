@@ -28,6 +28,9 @@ def main():
     lang = normalize_lang(config.get("language", "en"))
     # Desktop theme; published on /api/info so the phone page follows it.
     theme = normalize_theme(config.get("theme", DEFAULT_THEME))
+    # Decorative effects (pointer glow, reactive icons), same story: the
+    # phone page reads the flag on /api/info and drops them when off.
+    effects = bool(config.get("effects", True))
     ip = get_local_ip()
     if args.port:
         port = args.port
@@ -71,7 +74,8 @@ def main():
                                session_code=previous_code,
                                global_quota_bytes=global_quota_bytes,
                                language=lang,
-                               theme=theme)
+                               theme=theme,
+                               effects=effects)
     except PortInUseError as e:
         print(f"\n  {t('Error:', lang)} {e}", flush=True)
         print(f"  {t('An older server is probably still running: stop it,', lang)}",
@@ -81,7 +85,7 @@ def main():
     session_code = server.sessions.code
     save_session_state(token, session_code)
     print(flush=True)
-    print("  OpenDrop v0.11.0", flush=True)
+    print("  OpenDrop v0.12.0", flush=True)
     print(flush=True)
     print(f"  {t('Server:', lang):<18}{ip}:{port}", flush=True)
     print(f"  {t('Web interface:', lang):<18}{url_upload}", flush=True)

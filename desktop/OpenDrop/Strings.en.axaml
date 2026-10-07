@@ -128,6 +128,9 @@
     <x:String x:Key="Field.Theme">Theme</x:String>
     <x:String x:Key="Theme.Light">Light</x:String>
     <x:String x:Key="Theme.Dark">Dark</x:String>
+    <x:String x:Key="Field.Effects">Effects</x:String>
+    <x:String x:Key="Field.EffectsLabel">Pointer glow and reactive icons</x:String>
+    <x:String x:Key="Field.EffectsHint">The glow follows the mouse and the icons light up near it. Turn it off for a static interface: the phone page follows this switch too, and so does the system reduced-motion setting.</x:String>
 
     <!-- Updates -->
     <x:String x:Key="Section.Updates">UPDATES</x:String>

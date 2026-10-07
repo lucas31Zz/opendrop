@@ -29,7 +29,7 @@ python -m tests.test_paths        # 43
 python -m tests.test_quota        # 40
 python -m tests.test_sessions     # 34
 python -m tests.test_tls          # 15
-python -m tests.test_server       # 16
+python -m tests.test_server       # 18
 python -m tests.test_beta         # 64
 ```
 

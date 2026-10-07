@@ -23,6 +23,9 @@
     --on-accent: #ffffff;
     --success: #4caf50;
     --danger: #f44336;
+    /* Pointer light (effects): accent at low alpha so the wash reads as
+       light rather than as a colour block. */
+    --glow-color: rgba(74, 158, 255, 0.14);
     color-scheme: dark;
 }
 
@@ -45,6 +48,7 @@
     --on-accent: #ffffff;
     --success: #2e8b4f;
     --danger: #d1362f;
+    --glow-color: rgba(31, 111, 208, 0.12);
     color-scheme: light;
 }
 
@@ -65,10 +69,43 @@ body {
 }
 
 .container {
+    position: relative;
+    z-index: 1;
     width: 100%;
     max-width: 420px;
     padding: 2rem 1.5rem;
     text-align: center;
+}
+
+/* ------------------------------------------------------------------
+   Effects: one fixed light under the content, painted by the browser
+   from two custom properties the script writes in a requestAnimationFrame
+   (passive listeners, no layout read). Disabled entirely when the server
+   says so or when the device asks for reduced motion.
+   ------------------------------------------------------------------ */
+.glow {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(280px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+                var(--glow-color), transparent 70%);
+}
+
+.glow.on {
+    opacity: 1;
+}
+
+/* Icons declared reactive: they only track the pointer while effects are
+   on (the variable is left alone otherwise, which keeps them at full
+   strength). The steps are quantised by the script to avoid re-rendering
+   on every pixel. */
+.icon-reactive {
+    opacity: calc(0.55 + 0.45 * var(--prox, 1));
+    transform: scale(calc(0.94 + 0.06 * var(--prox, 1)));
+    transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .theme-toggle {
@@ -81,11 +118,23 @@ body {
     border-radius: 50%;
     background: var(--surface);
     color: var(--text);
-    font-size: 1.1rem;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     z-index: 10;
     transition: background 0.2s;
+}
+
+.theme-toggle .icon-theme {
+    width: 20px;
+    height: 20px;
+}
+
+/* Until the script has run the page is dark, so the moon starts hidden
+   (the hidden attribute itself is HTML-only, not for SVG). */
+.theme-toggle .icon-moon {
+    display: none;
 }
 
 .theme-toggle:hover {
@@ -96,8 +145,33 @@ body {
     margin-bottom: 1.5rem;
 }
 
+/* Every icon is an inline SVG (they follow currentColor and render the
+   same on every phone; the old emoji did not). The wrappers carry the
+   size, the SVG fills its wrapper. */
+.logo-icon,
+.drop-icon,
+.success-icon,
+.error-icon,
+.session-icon {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.logo-icon svg,
+.drop-icon svg,
+.success-icon svg,
+.error-icon svg,
+.session-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
 .logo-icon {
-    font-size: 3rem;
+    width: 3rem;
+    height: 3rem;
+    color: var(--accent);
 }
 
 .logo h1 {
@@ -157,9 +231,16 @@ body {
 }
 
 .drop-icon {
-    font-size: 2.5rem;
-    display: block;
+    width: 2.5rem;
+    height: 2.5rem;
     margin-bottom: 0.8rem;
+    color: var(--text-dim);
+    transition: color 0.2s ease;
+}
+
+.drop-zone:hover .drop-icon,
+.drop-zone.dragover .drop-icon {
+    color: var(--accent);
 }
 
 .drop-zone p {
@@ -260,9 +341,10 @@ body {
 }
 
 .success-icon {
-    font-size: 3rem;
-    display: block;
+    width: 3rem;
+    height: 3rem;
     margin-bottom: 0.8rem;
+    color: var(--success);
 }
 
 .success-title {
@@ -297,9 +379,10 @@ body {
 }
 
 .error-icon {
-    font-size: 3rem;
-    display: block;
+    width: 3rem;
+    height: 3rem;
     margin-bottom: 0.8rem;
+    color: var(--danger);
 }
 
 .error-title {
@@ -386,9 +469,10 @@ body {
 }
 
 .session-icon {
-    font-size: 3rem;
-    display: block;
+    width: 3rem;
+    height: 3rem;
     margin-bottom: 0.8rem;
+    color: var(--accent);
 }
 
 .session-title {
@@ -481,6 +565,13 @@ body {
     transition: background 0.2s;
 }
 
+.btn-scan .icon-inline {
+    width: 1.05em;
+    height: 1.05em;
+    vertical-align: -0.18em;
+    margin-right: 0.4em;
+}
+
 .btn-scan:hover {
     background: var(--surface-2);
 }
@@ -524,4 +615,29 @@ body {
 /* Server not answering any more: never leave the bar blank and silent. */
 .quota-text.offline {
     color: var(--danger);
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion: the light and the icon proximity are decoration, so
+   they disappear entirely and the interface keeps working as a plain,
+   static page.
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+    .glow {
+        display: none;
+    }
+
+    .icon-reactive {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

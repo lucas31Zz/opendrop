@@ -47,6 +47,11 @@ public partial class SettingsWindow : Window
 
                 if (config.TryGetProperty("global_quota_bytes", out var quota))
                     QuotaBox.Text = QuotaToText(quota.GetInt64());
+
+                // Decorative effects default to on, and a hand-edited
+                // config with anything but false counts as on too.
+                if (config.TryGetProperty("effects", out var fx))
+                    ToggleEffects.IsChecked = fx.ValueKind != JsonValueKind.False;
             }
         }
         catch { }
@@ -185,6 +190,7 @@ public partial class SettingsWindow : Window
             // The theme is written by ThemeManager.Set as soon as it
             // changes; stored here too so a save never drops it.
             config["theme"] = ThemeManager.Current;
+            config["effects"] = ToggleEffects.IsChecked == true;
 
             // Warn when the requested quota exceeds 20% of the disk's free
             // space: the user may still choose it, but knowingly.

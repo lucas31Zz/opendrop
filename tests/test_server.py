@@ -78,6 +78,27 @@ def test_server():
     except Exception as e:
         r.check("Unknown theme falls back to dark", False, str(e))
 
+    # The decorative effects switch is part of the same contract: /api/info
+    # always carries it as a boolean so the page can drop the glow, and an
+    # explicit False in config.json reaches the page.
+    try:
+        resp = urlopen(_url(port, "/api/info", token))
+        data = json.loads(resp.read())
+        r.check("Info effects is a bool",
+                isinstance(data.get("effects"), bool), data.get("effects"))
+    except Exception as e:
+        r.check("Info effects is a bool", False, str(e))
+
+    try:
+        muted, mport, mtoken = _start_server(effects=False)
+        resp = urlopen(_url(mport, "/api/info", mtoken))
+        data = json.loads(resp.read())
+        r.check("effects=False reaches the page",
+                data.get("effects") is False, data)
+        muted.shutdown()
+    except Exception as e:
+        r.check("effects=False reaches the page", False, str(e))
+
     # QR code
     try:
         resp = urlopen(_url(port, "/qr", token))

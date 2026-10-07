@@ -42,6 +42,10 @@ def load_config() -> dict:
         # "dark"). Also published on /api/info so the phone page can
         # follow it.
         "theme": DEFAULT_THEME,
+        # Decorative effects (pointer glow, icons reacting to the pointer)
+        # on the desktop and on the phone page. False = static interface,
+        # which is also what prefers-reduced-motion asks for on the web.
+        "effects": True,
     }
     if config_path.exists():
         try:

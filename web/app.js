@@ -155,8 +155,15 @@
         document.documentElement.setAttribute("data-theme", theme);
         var button = document.getElementById("theme-toggle");
         if (button) {
-            // The icon shows the theme a tap switches to.
-            button.textContent = theme === "dark" ? "\u2600" : "\u263e";
+            // The icon shows the theme a tap switches to. Both are SVGs
+            // (see index.html): the attribute is toggled inline so it
+            // overrides the default rule that hides the moon.
+            var sun = button.querySelector(".icon-sun");
+            var moon = button.querySelector(".icon-moon");
+            if (sun && moon) {
+                sun.style.display = theme === "dark" ? "" : "none";
+                moon.style.display = theme === "dark" ? "none" : "block";
+            }
             var label = t("theme.toggle");
             button.title = label;
             button.setAttribute("aria-label", label);
@@ -174,6 +181,109 @@
     var themeButton = document.getElementById("theme-toggle");
     if (themeButton) themeButton.addEventListener("click", toggleTheme);
     applyTheme();
+
+    // --- effects: pointer light and reactive icons -----------------
+    // One rAF pass drives both: the browser paints the glow from two
+    // custom properties and each icon from a single proximity value, so a
+    // pointer event only stores two numbers - no layout read, no repaint
+    // per event, and the values are quantised so a slow move does not
+    // repaint for every pixel. Listeners are passive and are not
+    // installed at all when the server turns effects off or when the
+    // system asks for reduced motion (the CSS hides the layer too).
+    var effectsOn = true;
+    var effectsWired = false;
+    var glowEl = document.getElementById("glow");
+    var reactiveIcons = [];
+    var pointerX = 0;
+    var pointerY = 0;
+    var frameQueued = false;
+    var lit = false;
+
+    function effectsAllowed() {
+        if (!effectsOn) return false;
+        if (window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            return false;
+        }
+        return true;
+    }
+
+    function collectReactiveIcons() {
+        reactiveIcons = [];
+        var nodes = document.querySelectorAll(".icon-reactive");
+        for (var i = 0; i < nodes.length; i++) reactiveIcons.push(nodes[i]);
+    }
+
+    function drawEffects() {
+        frameQueued = false;
+        if (!lit) return;
+        if (glowEl) {
+            glowEl.style.setProperty("--glow-x", pointerX + "px");
+            glowEl.style.setProperty("--glow-y", pointerY + "px");
+        }
+        for (var i = 0; i < reactiveIcons.length; i++) {
+            var el = reactiveIcons[i];
+            var rect = el.getBoundingClientRect();
+            var dx = pointerX - (rect.left + rect.width / 2);
+            var dy = pointerY - (rect.top + rect.height / 2);
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            var prox = Math.max(0, Math.min(1, 1 - dist / 420));
+            var steps = Math.round(prox * 20) / 20;
+            if (el._prox !== steps) {
+                el._prox = steps;
+                el.style.setProperty("--prox", String(steps));
+            }
+        }
+    }
+
+    function onPointerMove(e) {
+        pointerX = e.clientX;
+        pointerY = e.clientY;
+        if (!lit) {
+            lit = true;
+            if (glowEl) glowEl.classList.add("on");
+        }
+        if (!frameQueued) {
+            frameQueued = true;
+            requestAnimationFrame(drawEffects);
+        }
+    }
+
+    function onPointerAway() {
+        lit = false;
+        if (glowEl) glowEl.classList.remove("on");
+    }
+
+    function resetReactiveIcons() {
+        for (var i = 0; i < reactiveIcons.length; i++) {
+            reactiveIcons[i].style.removeProperty("--prox");
+            reactiveIcons[i]._prox = undefined;
+        }
+    }
+
+    function setEffects(enabled) {
+        effectsOn = !!enabled;
+        if (effectsAllowed()) {
+            if (!effectsWired) {
+                effectsWired = true;
+                collectReactiveIcons();
+                window.addEventListener("pointermove", onPointerMove, { passive: true });
+                document.addEventListener("pointerleave", onPointerAway);
+                window.addEventListener("blur", onPointerAway);
+            }
+            return;
+        }
+        onPointerAway();
+        if (effectsWired) {
+            effectsWired = false;
+            window.removeEventListener("pointermove", onPointerMove);
+            document.removeEventListener("pointerleave", onPointerAway);
+            window.removeEventListener("blur", onPointerAway);
+        }
+        resetReactiveIcons();
+    }
+
+    setEffects(true);
 
     function applyLang() {
         document.documentElement.lang = LANG;
@@ -213,6 +323,11 @@
             if (info && normalizeTheme(info.theme) !== serverTheme) {
                 serverTheme = normalizeTheme(info.theme);
                 applyTheme();
+            }
+            // The PC can switch the decorative effects off wholesale; the
+            // page follows it the same way it follows the theme.
+            if (info && typeof info.effects === "boolean" && info.effects !== effectsOn) {
+                setEffects(info.effects);
             }
         })
         .catch(function () { /* server unreachable: keep the defaults */ });

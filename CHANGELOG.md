@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.12.0] - 2026-10-07
+
+### Added
+
+- **Web effects**: the phone page gets the same pointer light as the
+  desktop. The wash is one fixed radial gradient read from two custom
+  properties written in a single `requestAnimationFrame` from a passive
+  `pointermove` listener: no layout read, no repaint per event, and the
+  per-icon proximity is quantised to twenty steps so a slow move does not
+  re-render for every pixel. The icons that track the pointer are marked
+  `icon-reactive` in the markup.
+- **Effects switch**: *Settings > Appearance* gains a checkbox that
+  writes `effects` to `config.json`. The desktop glow and the web glow
+  both follow it, `/api/info` publishes it as a boolean, and the page
+  stops installing its listeners when the server says off. The page also
+  honours `prefers-reduced-motion`, which hides the light and the icon
+  movement entirely.
+- The seven emoji of the phone page are now inline SVG icons that follow
+  the theme colour: the light/dark toggle shows a sun or a moon, the drop
+  zone a folder, the transfer states a check, a cross and a lock, the
+  scan button a camera.
+
+### Changed
+
+- `create_server(..., effects=True)`, the `/api/info` payload and the
+  config defaults all carry the flag; the desktop reads it once at start
+  and again when Settings closes.
+- `test_server` grows two checks for the flag (18/18, 294 checks across
+  the eight suites).
+
+### Fixed
+
+- The *Scan QR code* button carried `data-i18n` on the button itself, so
+  applying a language replaced its whole content and dropped the camera
+  icon; the label now lives in its own span next to the SVG.
+
 ## [0.11.0] - 2026-10-07
 
 ### Added

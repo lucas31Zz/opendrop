@@ -54,13 +54,17 @@ public partial class MainWindow : Window
     private NativeMenuItem? _trayQuit;
     private bool _forceClose;
 
+    // Ambient pointer light behind the content; Enabled follows the
+    // "effects" switch in config.json (Settings > Appearance).
+    private readonly GlowService _glow;
+
     private List<ShareFile> _shareFiles = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        // The service keeps itself alive through the window events.
-        _ = GlowService.Attach(this, GlowLayer);
+        _glow = GlowService.Attach(this, GlowLayer);
+        _glow.Enabled = ReadEffectsConfig();
         var handler = new HttpClientHandler();
         // OpenDrop self-signed certificate: accepted only on the local
         // loopback (info poll), never for LAN traffic.
@@ -931,6 +935,22 @@ public partial class MainWindow : Window
         }
     }
 
+    // Decorative effects switch from config.json: a missing key or an
+    // unreadable file means on - the default experience should be the
+    // full one, and only an explicit false turns the glow off.
+    private static bool ReadEffectsConfig()
+    {
+        try
+        {
+            var path = QuotaUsage.ConfigPath;
+            if (!File.Exists(path)) return true;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            return !doc.RootElement.TryGetProperty("effects", out var value) ||
+                   value.ValueKind != JsonValueKind.False;
+        }
+        catch { return true; }
+    }
+
     private async void BtnSettings_Click(object? sender, RoutedEventArgs e)
     {
         try
@@ -940,6 +960,9 @@ public partial class MainWindow : Window
 
             if (settingsWindow.SettingsChanged)
             {
+                // The glow is decorative: honour the switch right away
+                // instead of waiting for the next launch.
+                _glow.Enabled = ReadEffectsConfig();
                 _ = RefreshQuotaAsync();
                 RefreshFiles();
                 if (_isRunning)

@@ -509,6 +509,9 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             # Desktop theme choice: the phone page follows it unless
             # the device overrides it locally.
             "theme": getattr(self.server, "theme", DEFAULT_THEME),
+            # Decorative effects (pointer glow, reactive icons): the page
+            # and the desktop app drop them entirely when False.
+            "effects": bool(getattr(self.server, "effects", True)),
         }
         if "token" in query:
             self._check_token(query)
@@ -730,7 +733,8 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
                   tls_cert_dir: str | Path | None = None,
                   global_quota_bytes: int = 0,
                   language: str = "en",
-                  theme: str = DEFAULT_THEME) -> ThreadedHTTPServer:
+                  theme: str = DEFAULT_THEME,
+                  effects: bool = True) -> ThreadedHTTPServer:
     language = normalize_lang(language)
     theme = normalize_theme(theme)
     sessions = SessionManager(expires_in=session_expires_in, code=session_code)
@@ -766,6 +770,8 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     server.language = language
     # Desktop light/dark choice, mirrored to the phone page.
     server.theme = theme
+    # Decorative effects switch, mirrored to the phone page.
+    server.effects = bool(effects)
     # Global receive-folder quota (0 = unlimited). The folder is scanned on
     # every upload; the reservation is thread-safe.
     server.quota = QuotaTracker(download_dir, global_quota_bytes, lang=language)

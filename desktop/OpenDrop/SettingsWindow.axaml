@@ -263,11 +263,22 @@
 
                     <!-- Appearance: light / dark only -->
                     <StackPanel x:Name="TabAppearance" IsVisible="False">
-                        <Border Classes="card" Margin="0,0,0,16">
+                        <Border Classes="card" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Classes="field" Text="{DynamicResource Field.Theme}"/>
                                 <ComboBox x:Name="ThemeCombo" FontSize="13" Margin="0,4,0,0"
                                           SelectionChanged="ThemeCombo_SelectionChanged"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Classes="field" Text="{DynamicResource Field.Effects}"/>
+                                <CheckBox x:Name="ToggleEffects" IsChecked="True" FontSize="13"
+                                          Content="{DynamicResource Field.EffectsLabel}"
+                                          Foreground="{DynamicResource Brush.Accent}"/>
+                                <TextBlock Text="{DynamicResource Field.EffectsHint}" FontSize="11"
+                                           Foreground="{DynamicResource Brush.TextDim}"
+                                           Margin="0,6,0,0" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>

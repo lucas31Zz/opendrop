@@ -128,6 +128,9 @@
     <x:String x:Key="Field.Theme">Thème</x:String>
     <x:String x:Key="Theme.Light">Clair</x:String>
     <x:String x:Key="Theme.Dark">Sombre</x:String>
+    <x:String x:Key="Field.Effects">Effets</x:String>
+    <x:String x:Key="Field.EffectsLabel">Lueur du curseur et icônes réactives</x:String>
+    <x:String x:Key="Field.EffectsHint">La lueur suit la souris et les icônes s'illuminent à proximité. Désactivez pour une interface statique : la page du téléphone suit aussi ce réglage, ainsi que le réglage système de réduction des animations.</x:String>
 
     <!-- Mises à jour -->
     <x:String x:Key="Section.Updates">MISES À JOUR</x:String>
