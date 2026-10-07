@@ -46,6 +46,22 @@
                     <SolidColorBrush x:Key="Brush.IconFar">#888888</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.IconNear">#cccccc</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.IconHover">#4a9eff</SolidColorBrush>
+
+                    <!-- Depth: one definition per level instead of
+                         repeating numbers at every surface. BoxShadows is
+                         a value type, so it lives here and is bound with
+                         a DynamicResource setter on each Border. The
+                         window background is a gradient so flat chrome
+                         (title bar, footer) reads as being on a
+                         different plane than the cards. -->
+                    <LinearGradientBrush x:Key="Surface.Window" StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#151517" Offset="0"/>
+                        <GradientStop Color="#0d0d0e" Offset="1"/>
+                    </LinearGradientBrush>
+                    <BoxShadows x:Key="Shadow.Card">0 16 32 -16 #73000000, 0 3 8 -4 #33000000, inset 0 1 0 0 #14ffffff</BoxShadows>
+                    <BoxShadows x:Key="Shadow.Recessed">inset 0 2 5 0 #40000000, inset 0 -1 0 0 #10ffffff</BoxShadows>
+                    <SolidColorBrush x:Key="Brush.Rim">#14ffffff</SolidColorBrush>
+                    <DropShadowEffect x:Key="Shadow.Accent" OffsetX="0" OffsetY="4" BlurRadius="16" Color="#4a9eff" Opacity="0.35"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Brush.Window">#f4f5f7</SolidColorBrush>
@@ -77,6 +93,18 @@
                     <SolidColorBrush x:Key="Brush.IconFar">#5f646c</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.IconNear">#3f434a</SolidColorBrush>
                     <SolidColorBrush x:Key="Brush.IconHover">#0a66d6</SolidColorBrush>
+
+                    <!-- Same keys as Dark (see above), with shadows tuned
+                         for a light surface: black at low alpha reads as
+                         elevation, white does not. -->
+                    <LinearGradientBrush x:Key="Surface.Window" StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#fafbfc" Offset="0"/>
+                        <GradientStop Color="#eceef1" Offset="1"/>
+                    </LinearGradientBrush>
+                    <BoxShadows x:Key="Shadow.Card">0 16 32 -16 #1f000000, 0 3 8 -4 #14000000, inset 0 1 0 0 #ffffff</BoxShadows>
+                    <BoxShadows x:Key="Shadow.Recessed">inset 0 2 5 0 #1a000000, inset 0 -1 0 0 #ffffff</BoxShadows>
+                    <SolidColorBrush x:Key="Brush.Rim">#0f000000</SolidColorBrush>
+                    <DropShadowEffect x:Key="Shadow.Accent" OffsetX="0" OffsetY="4" BlurRadius="16" Color="#0a66d6" Opacity="0.3"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

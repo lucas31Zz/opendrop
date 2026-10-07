@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Settings.Title}"
         Width="420" Height="560"
-        Background="{DynamicResource Brush.Window}"
+        Background="{DynamicResource Surface.Window}"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
 
@@ -12,6 +12,7 @@
             <Setter Property="Background" Value="{DynamicResource Brush.Card}"/>
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}"/>
         </Style>
         <Style Selector="TextBlock.section">
             <Setter Property="FontSize" Value="11"/>
@@ -24,10 +25,15 @@
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
+        <!-- Fields are pressed into the card rather than sitting on it:
+             an inner shadow plus a hairline rim. -->
         <Style Selector="Border.input">
             <Setter Property="Background" Value="{DynamicResource Brush.Input}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Recessed}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Rim}"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
         <!-- Sidebar tabs: plain RadioButtons in one group, styled as a
@@ -67,6 +73,7 @@
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Effect" Value="{DynamicResource Shadow.Accent}"/>
         </Style>
         <Style Selector="Button.save:pointerover">
             <Setter Property="Background" Value="{DynamicResource Brush.AccentHover}"/>

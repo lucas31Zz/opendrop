@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.10.0] - 2026-10-07
+
+### Added
+
+- **Depth**: the surfaces are layered instead of flat. The window
+  background becomes a gradient, every card carries a two-part box
+  shadow (wide and soft, plus a tighter contact one) finished by an
+  inset highlight along its top edge, and the settings fields are
+  pressed into their card with an inner shadow and a hairline rim.
+- The title bar gets its own surface (`Brush.Surface2`) closed by a
+  rim, so the chrome reads as a plane above the content.
+- The primary buttons (Start server, Save) sit above the cards with a
+  coloured drop shadow: a Button cannot take a BoxShadow in Avalonia,
+  the effect is its equivalent.
+
+### Changed
+
+- Depth lives in the theme dictionaries as `Surface.Window`,
+  `Shadow.Card`, `Shadow.Recessed`, `Brush.Rim` and `Shadow.Accent` -
+  one definition per level, both variants sharing the keys, so the
+  light and dark passes only differ in colour. The brushes reserved by
+  0.9.0 now have their first readers.
+- Verified at runtime in both themes: gradient background, three box
+  shadows per card, recessed fields with their rim, drop shadow on the
+  accent buttons. Screenshots in the README are redone in the final
+  pass (0.14.0).
+
 ## [0.9.0] - 2026-10-07
 
 ### Added

@@ -4,7 +4,7 @@
         Title="OpenDrop"
         Width="880" Height="720"
         MinWidth="760" MinHeight="600"
-        Background="{DynamicResource Brush.Window}"
+        Background="{DynamicResource Surface.Window}"
         WindowStartupLocation="CenterScreen">
 
     <Window.Styles>
@@ -13,6 +13,9 @@
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Padding" Value="16,12"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
+            <!-- Lifted off the window: a wide soft shadow, a tighter one
+                 for contact, and an inset highlight on the top edge. -->
+            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}"/>
         </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="11"/>
@@ -46,6 +49,10 @@
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <!-- The one button that carries the action gets a coloured
+                 glow-shadow so it sits above the cards (a Button has no
+                 BoxShadow in Avalonia, the effect is the equivalent). -->
+            <Setter Property="Effect" Value="{DynamicResource Shadow.Accent}"/>
         </Style>
         <Style Selector="Button.accent:pointerover">
             <Setter Property="Background" Value="{DynamicResource Brush.AccentHover}"/>
@@ -167,8 +174,10 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Title bar -->
-        <Border Grid.Row="0" Padding="20,12" Background="{DynamicResource Brush.Window}">
+        <!-- Title bar: its own surface, a hair above the cards, closed by
+             a rim so the chrome and the content are clearly two planes. -->
+        <Border Grid.Row="0" Padding="20,12" Background="{DynamicResource Brush.Surface2}"
+                BorderBrush="{DynamicResource Brush.Rim}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0" Text="OpenDrop" FontSize="18" FontWeight="SemiBold"
                            Foreground="{DynamicResource Brush.TextTitle}" VerticalAlignment="Center"/>
