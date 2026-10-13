@@ -61,10 +61,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // Pointer-following sheen on every button of this window; the
-        // shared-files list is wired again after each refresh because it
-        // creates buttons of its own (Put back).
-        Shine.Attach(this);
+        // OS-level "reduce motion": parks the aurora and makes every
+        // transition instant, before the first frame is drawn.
+        Motion.Apply(this);
         UpdateThemeGlyph();
 
         var handler = new HttpClientHandler();
@@ -316,7 +315,6 @@ public partial class MainWindow : Window
             _shareFiles = files;
             FileList.ItemsSource = _shareFiles;
             FilesEmpty.IsVisible = files.Count == 0;
-            Shine.Attach(this);
         }
         catch { }
     }

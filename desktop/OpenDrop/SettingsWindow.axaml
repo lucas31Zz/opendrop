@@ -9,11 +9,16 @@
         CanResize="False">
 
     <Window.Styles>
+        <!-- Same Liquid Glass card as the main window (see
+             MainWindow.axaml): translucent pane over the aurora,
+             bevelled rim, layered shadow with the specular top line. -->
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource Brush.Card}"/>
-            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Glass.Fill}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Glass.Rim}"/>
+            <Setter Property="CornerRadius" Value="18"/>
             <Setter Property="Padding" Value="16,12"/>
-            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}"/>
+            <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glass}"/>
         </Style>
         <Style Selector="TextBlock.section">
             <Setter Property="FontSize" Value="11"/>
@@ -55,7 +60,7 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="RadioButton.tab:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Brush.Control}"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Glass.Fill}"/>
         </Style>
         <!-- The highlight itself lives on the pill that springs from tab
              to tab (see TabPill), so the checked background is left
@@ -69,43 +74,108 @@
         <Style Selector="RadioButton.tab:checked">
             <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}"/>
         </Style>
+        <!-- The springing highlight is the accent-tinted glass of the
+             active state, same language as the web tab indicator. -->
         <Style Selector="Border.tab-pill">
-            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Glass.Tint}"/>
+            <Setter Property="CornerRadius" Value="10"/>
         </Style>
 
+        <!-- Save: the accent glass pill, twin of Button.accent in the
+             main window. The hover swaps the gradient for a solid, so
+             the two brushes are eased into each other. -->
         <Style Selector="Button.save">
-            <Setter Property="Background" Value="{DynamicResource Brush.Accent}"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.AccentGradient}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="0,12"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="CornerRadius" Value="20"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Effect" Value="{DynamicResource Shadow.Accent}"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.18"/>
+                </Transitions>
+            </Setter>
         </Style>
         <Style Selector="Button.save:pointerover">
             <Setter Property="Background" Value="{DynamicResource Brush.AccentHover}"/>
         </Style>
         <Style Selector="Button.browse">
-            <Setter Property="Background" Value="{DynamicResource Brush.Control}"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Glass.FillSoft}"/>
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Glass.Edge}"/>
+            <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.browse:pointerover">
-            <Setter Property="Background" Value="{DynamicResource Brush.ControlHover}"/>
+            <Setter Property="Background" Value="{DynamicResource Brush.Glass.Fill}"/>
         </Style>
         <Style Selector="TextBox">
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <!-- Same aurora as the main window (see MainWindow.axaml): the
+             glass needs colour behind it to have something to sit on.
+             Motion.Apply in the code-behind strips these animations
+             when the system asks for reduced motion - the blobs then
+             keep these static margins. -->
+        <Style Selector="Ellipse.aurora-1">
+            <Setter Property="Fill" Value="{DynamicResource Brush.Aurora1}"/>
+            <Setter Property="Opacity" Value="0.9"/>
+            <Setter Property="Margin" Value="-130,-130,0,0"/>
+            <Style.Animations>
+                <Animation Duration="0:0:7" IterationCount="INFINITE"
+                           PlaybackDirection="AlternateReverse" Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="-130,-130,0,0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="-60,-70,0,0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Ellipse.aurora-2">
+            <Setter Property="Fill" Value="{DynamicResource Brush.Aurora2}"/>
+            <Setter Property="Opacity" Value="0.85"/>
+            <Setter Property="Margin" Value="0,-120,-120,0"/>
+            <Style.Animations>
+                <Animation Duration="0:0:9" IterationCount="INFINITE"
+                           PlaybackDirection="AlternateReverse" Easing="SineEaseIn">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="0,-120,-120,0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="0,-60,-170,0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Ellipse.aurora-3">
+            <Setter Property="Fill" Value="{DynamicResource Brush.Aurora3}"/>
+            <Setter Property="Opacity" Value="0.75"/>
+            <Setter Property="Margin" Value="0,0,-60,-160"/>
+            <Style.Animations>
+                <Animation Duration="0:0:8" IterationCount="INFINITE"
+                           PlaybackDirection="AlternateReverse" Easing="QuadraticEaseIn">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Margin" Value="0,0,-60,-160"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Margin" Value="-50,0,-10,-120"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
     </Window.Styles>
 
@@ -115,6 +185,22 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
+        <!-- Aurora: same wrapper as the main window (see MainWindow.axaml)
+             - a full-span grid behind everything, so the blobs never take
+             part in the row layout. Sized and placed to reach the corners
+             of this smaller window; decorative and click-through. -->
+        <Grid Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="-1" IsHitTestVisible="False">
+            <Ellipse Classes="aurora-1" Width="340" Height="300"
+                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                     Margin="-130,-130,0,0"/>
+            <Ellipse Classes="aurora-2" Width="320" Height="290"
+                     HorizontalAlignment="Right" VerticalAlignment="Top"
+                     Margin="0,-120,-120,0"/>
+            <Ellipse Classes="aurora-3" Width="380" Height="280"
+                     HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                     Margin="0,0,-60,-160"/>
+        </Grid>
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">

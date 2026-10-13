@@ -92,6 +92,7 @@
 
     <!-- Shared files -->
     <x:String x:Key="Label.SharedFiles">SHARED FILES</x:String>
+    <x:String x:Key="Label.DropFilesHere">drop files here</x:String>
     <x:String x:Key="Btn.AddFiles">Add files...</x:String>
     <x:String x:Key="Btn.Rename">Rename</x:String>
     <x:String x:Key="Btn.Delete">Delete</x:String>

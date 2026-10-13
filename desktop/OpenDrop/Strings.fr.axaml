@@ -92,6 +92,7 @@
 
     <!-- Fichiers partagés -->
     <x:String x:Key="Label.SharedFiles">FICHIERS PARTAGÉS</x:String>
+    <x:String x:Key="Label.DropFilesHere">déposez des fichiers ici</x:String>
     <x:String x:Key="Btn.AddFiles">Ajouter des fichiers...</x:String>
     <x:String x:Key="Btn.Rename">Renommer</x:String>
     <x:String x:Key="Btn.Delete">Supprimer</x:String>

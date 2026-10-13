@@ -361,6 +361,10 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 self._send_file(WEB_DIR / "style.css", "text/css")
             elif path == "/app.js":
                 self._send_file(WEB_DIR / "app.js", "application/javascript")
+            elif path == "/zip.js":
+                # ZIP writer (folders on the Send tab, multi-download):
+                # part of the static bundle, no third-party code.
+                self._send_file(WEB_DIR / "zip.js", "application/javascript")
             elif path == "/jsqr.min.js":
                 # QR decoder for browsers without BarcodeDetector (Safari
                 # on iPhone, Firefox): fetched on demand by the scanner.

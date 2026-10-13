@@ -5,6 +5,77 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.13.0] - 2026-10-14
+
+### Added
+
+- **Folders in the web *Send* tab**: drop a folder (or pick *Choose a
+  folder*) and it travels as a single `name.zip`, zipped right in the
+  browser by a new dependency-free writer (`web/zip.js`: CRC-32, deflate
+  through `CompressionStream` with a store fallback, UTF-8 names). The
+  PC's share folder only ever receives a plain `.zip`, never a folder
+  tree.
+- **Several files per send**: a drop, a multi-select or a folder pick
+  queues every file; they upload one after the other behind an `n / total`
+  badge, and the batch ends on a single result ("N files sent", total
+  size). Cancelling also drops the zips still being prepared.
+- **A real workspace in the web *Download* tab**:
+  - live search over the share folder;
+  - three display densities - one, two or four files per row - remembered
+    per device;
+  - **virtual folders**: create, rename and delete folders that live only
+    in the browser (`localStorage`); files are moved in by drag & drop,
+    or with *Move to…* on touch where dragging does not exist, and the
+    share folder on the PC is never touched - deleting a folder puts its
+    files back Home;
+  - selection with per-file checkboxes and a select-all box, then
+    **Download (n)**: several files arrive as one
+    `OpenDrop-n-files.zip` built in the browser (a single file still
+    downloads directly).
+- **"Drop files here" hint** under *SHARED FILES* in the desktop window,
+  so the drop panel reads as a drop target before anything is dragged
+  over it.
+
+### Changed
+
+- **Liquid Glass, end to end**: the web page, the main window and the
+  Settings window are rebuilt on translucent layers - tinted blur,
+  hairline rims, accent gradients, soft inner light, refraction
+  highlights on the cards - over an aurora that stays in the background.
+  Dark remains the default and the light theme got the same treatment.
+  System fonts, monospace codes, and the logo are untouched.
+- **The interface does more work for less cost**: the background orbs
+  carry their softness inside the gradient instead of a live blur, are
+  frozen outright on touch devices, small controls no longer run their
+  own `backdrop-filter`, and the SVG refraction layer is only built for
+  fine pointers.
+- **The web page no longer jumps on a tab switch**: the column is
+  top-aligned and the container padding follows the viewport, so *Send*
+  and *Download* always sit at the same height.
+- The desktop theme glyph is drawn in Segoe UI Symbol: the sun's rays
+  were clipped by the colour-emoji font.
+
+### Removed
+
+- **The specular sheen** (`Services/Shine.cs` and its CSS twin): the
+  light that followed the pointer over buttons and tabs is gone
+  everywhere, on request. The spring tab indicators, entry animations,
+  aurora and scrollbar pill all stay.
+
+### Fixed
+
+- **Deleting a virtual folder could do nothing at all**: the cross relied
+  on `window.confirm()`, and a browser told to stop asking for
+  confirmations answers "no" on the spot. The confirmation is now inline
+  - the first tap arms the cross (red tick), the second deletes, three
+  seconds to change your mind - with no dialog anywhere.
+- **The web theme toggle could sit off the corner** and drag the whole
+  column sideways: a `position: fixed` button was captured by a list
+  that created a positioning context.
+- **The Settings aurora collapsed its own window**: the drifting ellipses
+  were laid out inside the very rows they were meant to float behind;
+  they now sit in a dedicated background layer, like the main window.
+
 ## [0.12.1] - 2026-10-07
 
 ### Fixed

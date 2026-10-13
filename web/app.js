@@ -49,7 +49,26 @@
             "quota.offline": "Server unreachable.",
             "theme.toggle": "Switch theme",
             "upload.serverError": "Server error ({0})",
-            "upload.unreachable": "Could not reach the server."
+            "upload.unreachable": "Could not reach the server.",
+            "drop.chooseFolder": "Choose a folder",
+            "drop.folderHint": "folders arrive zipped",
+            "send.preparing": "Preparing...",
+            "send.preparingError": "Could not read the folder.",
+            "success.multiple": "{0} files sent",
+            "files.search": "Search files...",
+            "files.newFolder": "New folder",
+            "files.folderDefault": "Folder",
+            "files.rename": "Rename",
+            "files.root": "Home",
+            "files.moveTo": "Move to...",
+            "files.selectAll": "Select all",
+            "files.noMatch": "No matching files.",
+            "files.emptyFolder": "This folder is empty.",
+            "files.deleteFolder": "Delete folder",
+            "files.downloadError": "Download failed.",
+            "view.aria1": "One per row",
+            "view.aria2": "Two per row",
+            "view.aria4": "Four per row"
         },
         fr: {
             "tab.send": "Envoyer",
@@ -93,7 +112,26 @@
             "quota.offline": "Serveur injoignable.",
             "theme.toggle": "Changer de th\u00e8me",
             "upload.serverError": "Erreur serveur ({0})",
-            "upload.unreachable": "Impossible de contacter le serveur."
+            "upload.unreachable": "Impossible de contacter le serveur.",
+            "drop.chooseFolder": "Choisir un dossier",
+            "drop.folderHint": "les dossiers arrivent compress\u00e9s en zip",
+            "send.preparing": "Pr\u00e9paration...",
+            "send.preparingError": "Impossible de lire le dossier.",
+            "success.multiple": "{0} fichiers envoy\u00e9s",
+            "files.search": "Rechercher des fichiers...",
+            "files.newFolder": "Nouveau dossier",
+            "files.folderDefault": "Dossier",
+            "files.rename": "Renommer",
+            "files.root": "Accueil",
+            "files.moveTo": "D\u00e9placer vers...",
+            "files.selectAll": "Tout cocher",
+            "files.noMatch": "Aucun fichier correspondant.",
+            "files.emptyFolder": "Ce dossier est vide.",
+            "files.deleteFolder": "Supprimer le dossier",
+            "files.downloadError": "\u00c9chec du t\u00e9l\u00e9chargement.",
+            "view.aria1": "Un par ligne",
+            "view.aria2": "Deux par ligne",
+            "view.aria4": "Quatre par ligne"
         }
     };
 
@@ -162,7 +200,9 @@
             button.setAttribute("aria-label", label);
         }
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute("content", theme === "dark" ? "#0f0f0f" : "#f4f5f7");
+        // Averages the mesh backdrop, so the browser chrome blends into
+        // the page instead of stopping at a flat colour.
+        if (meta) meta.setAttribute("content", theme === "dark" ? "#11141f" : "#eff2f8");
     }
 
     function toggleTheme() {
@@ -174,6 +214,18 @@
     var themeButton = document.getElementById("theme-toggle");
     if (themeButton) themeButton.addEventListener("click", toggleTheme);
     applyTheme();
+
+    // --- Liquid Glass refraction: SVG displacement blended into the
+    // backdrop filter of .tabs and .drop-zone. Only Chromium actually
+    // renders url() there; CSS.supports only checks the grammar (it
+    // says yes elsewhere too), so the engine is checked as well and
+    // every other engine simply keeps the plain blur declared in
+    // style.css. Runs for every visitor, session locked or not.
+    if (window.CSS && CSS.supports &&
+        CSS.supports("backdrop-filter", "url(#og-glass) blur(1px)") &&
+        (window.chrome || /Edg\//.test(navigator.userAgent || ""))) {
+        document.documentElement.classList.add("refract");
+    }
 
     function applyLang() {
         document.documentElement.lang = LANG;
@@ -601,68 +653,11 @@
     }
 
     // --- EFFECTS ----------------------------------------------------
-    // Pointer-driven bits of the motion layer (specular sheen, spring
-    // tab indicator). Everything else lives in the CSS. Nothing here
-    // runs when the OS asks for reduced motion.
+    // Pointer-driven bits of the motion layer (the spring tab
+    // indicator). Everything else lives in the CSS. Nothing here runs
+    // when the OS asks for reduced motion.
     var reducedMotion = !!(window.matchMedia &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-
-    // --- Specular sheen: every interactive element gets its light
-    // steered by the pointer, fading out with the distance.
-    var shineEls = [];
-    function collectShine() {
-        shineEls = Array.prototype.slice.call(document.querySelectorAll(
-            ".btn-new, .btn-unlock, .btn-download, .btn-cancel, " +
-            ".btn-refresh, .btn-scan, .theme-toggle, .tab"));
-    }
-
-    var pointerX = -1e4;
-    var pointerY = -1e4;
-    var shineFrame = 0;
-
-    function paintShine() {
-        shineFrame = 0;
-        for (var i = 0; i < shineEls.length; i++) {
-            var el = shineEls[i];
-            var rect = el.getBoundingClientRect();
-            if (rect.width === 0) continue;
-
-            // Distance to the nearest edge: 0 inside the element.
-            var dx = Math.max(rect.left - pointerX, 0, pointerX - rect.right);
-            var dy = Math.max(rect.top - pointerY, 0, pointerY - rect.bottom);
-            var dist = Math.sqrt(dx * dx + dy * dy);
-
-            var strength = dist === 0
-                ? 1
-                : Math.max(0, 1 - dist / 250);
-            // Smoothstep, so the light does not pop in at the border.
-            strength = strength * strength * (3 - 2 * strength);
-            el.style.setProperty("--shine-strength", strength.toFixed(3));
-
-            if (dist === 0) {
-                el.style.setProperty("--shine-x",
-                    (((pointerX - rect.left) / rect.width) * 100).toFixed(1) + "%");
-                el.style.setProperty("--shine-y",
-                    (((pointerY - rect.top) / rect.height) * 100).toFixed(1) + "%");
-            }
-        }
-    }
-
-    // Coarse pointers (phones, tablets) get no sheen at all: a tap is a
-    // one-shot pointermove, so the light would freeze white on the
-    // button you just pressed. style.css mirrors this with a
-    // (pointer: coarse) guard on the overlay.
-    var finePointer = !window.matchMedia ||
-        window.matchMedia("(pointer: fine)").matches;
-
-    if (!reducedMotion && finePointer) {
-        collectShine();
-        window.addEventListener("pointermove", function (e) {
-            pointerX = e.clientX;
-            pointerY = e.clientY;
-            if (!shineFrame) shineFrame = requestAnimationFrame(paintShine);
-        }, { passive: true });
-    }
 
     // --- Spring-driven indicator under the active tab.
     var tabIndicator = document.getElementById("tab-indicator");
@@ -859,12 +854,15 @@
     // --- UPLOAD ---
     var dropZone = document.getElementById("drop-zone");
     var fileInput = document.getElementById("file-input");
+    var folderInput = document.getElementById("folder-input");
+    var btnChooseFolder = document.getElementById("btn-choose-folder");
     var transferInfo = document.getElementById("transfer-info");
     var successMsg = document.getElementById("success-msg");
     var errorMsg = document.getElementById("error-msg");
 
     var filenameEl = document.getElementById("filename");
     var filesizeEl = document.getElementById("filesize");
+    var queueCount = document.getElementById("queue-count");
     var progressBar = document.getElementById("progress-bar");
     var progressText = document.getElementById("progress-text");
     var btnCancel = document.getElementById("btn-cancel");
@@ -876,6 +874,55 @@
     var errorDetail = document.getElementById("error-detail");
 
     var currentXhr = null;
+
+    // --- Send queue: many files (and zipped folders) travel one after
+    // the other; the badge counts them (2 / 5) while they run, and the
+    // success screen sums the batch up when the last one lands.
+    var sendQueue = [];
+    var queueTotal = 0;
+    var queueBytes = 0;
+    var queueDone = 0;
+    var prepareEpoch = 0;   // bumped on cancel: a pending zip must not
+                            // start uploads after the user gave up
+
+    function updateQueueBadge() {
+        if (queueTotal > 1) {
+            queueCount.textContent = (queueDone + 1) + " / " + queueTotal;
+            queueCount.style.display = "";
+        } else {
+            queueCount.style.display = "none";
+        }
+    }
+
+    function finishQueue() {
+        sendQueue = [];
+        queueTotal = 0;
+        queueCount.style.display = "none";
+        refreshQuota();
+    }
+
+    function enqueueFiles(files) {
+        if (!files || !files.length) {
+            showSendView("drop");
+            return;
+        }
+        sendQueue = files.slice();
+        queueTotal = files.length;
+        queueBytes = 0;
+        files.forEach(function (f) { queueBytes += f.size || 0; });
+        queueDone = 0;
+        updateQueueBadge();
+        pumpQueue();
+    }
+
+    function pumpQueue() {
+        if (!sendQueue.length) {
+            finishQueue();
+            return;
+        }
+        updateQueueBadge();
+        uploadFile(sendQueue.shift());
+    }
 
     function showSendView(view) {
         transferInfo.style.display = "none";
@@ -925,35 +972,36 @@
 
         xhr.addEventListener("load", function () {
             currentXhr = null;
-            refreshQuota();
             if (xhr.status === 401 || xhr.status === 403) {
+                sendQueue = [];
                 endSession(t("session.expired"));
                 return;
             }
             try {
                 var resp = JSON.parse(xhr.responseText);
                 if (xhr.status === 200 && resp.success) {
-                    successFilename.textContent = resp.filename;
-                    successSize.textContent = formatSize(resp.size);
-                    if (resp.sha256) {
-                        successHash.textContent = "SHA-256: " + resp.sha256;
-                        successHash.style.display = "";
-                    } else {
-                        successHash.style.display = "none";
+                    queueDone++;
+                    if (sendQueue.length) {
+                        pumpQueue();    // next file, badge follows along
+                        return;
                     }
-                    showSendView("success");
+                    showBatchSuccess(resp);
+                    finishQueue();
                     return;
                 }
                 errorDetail.textContent = resp.error || t("upload.serverError", xhr.status);
             } catch (err) {
                 errorDetail.textContent = t("upload.serverError", xhr.status);
             }
+            sendQueue = [];
+            finishQueue();
             showSendView("error");
         });
 
         xhr.addEventListener("error", function () {
             currentXhr = null;
-            refreshQuota();
+            sendQueue = [];
+            finishQueue();
             errorDetail.textContent = t("upload.unreachable");
             showSendView("error");
         });
@@ -962,15 +1010,179 @@
         xhr.send(formData);
     }
 
+    // One file keeps its detailed screen; a batch reports the count and
+    // the total instead of only the last file's numbers.
+    function showBatchSuccess(resp) {
+        if (queueTotal > 1) {
+            successFilename.textContent = t("success.multiple", queueTotal);
+            successSize.textContent = formatSize(queueBytes);
+            successHash.style.display = "none";
+        } else {
+            successFilename.textContent = resp.filename;
+            successSize.textContent = formatSize(resp.size);
+            if (resp.sha256) {
+                successHash.textContent = "SHA-256: " + resp.sha256;
+                successHash.style.display = "";
+            } else {
+                successHash.style.display = "none";
+            }
+        }
+        showSendView("success");
+    }
+
+    // --- Folder support: a dropped or picked folder is zipped here, in
+    // the browser - the PC's share folder only ever receives a plain
+    // .zip. Entry walking is async and batched: readEntries hands out
+    // chunks, so it loops until a chunk comes back empty.
+    function readAllEntries(reader) {
+        return new Promise(function (resolve, reject) {
+            var all = [];
+            (function loop() {
+                reader.readEntries(function (batch) {
+                    if (!batch.length) { resolve(all); return; }
+                    all = all.concat(Array.prototype.slice.call(batch));
+                    loop();
+                }, reject);
+            })();
+        });
+    }
+
+    function collectFolderFiles(entry, prefix) {
+        if (entry.isFile) {
+            return new Promise(function (resolve, reject) {
+                entry.file(function (f) {
+                    resolve([{ name: prefix + entry.name, file: f }]);
+                }, reject);
+            });
+        }
+        if (!entry.isDirectory) return Promise.resolve([]);
+        return readAllEntries(entry.createReader()).then(function (children) {
+            var chain = Promise.resolve([]);
+            children.forEach(function (child) {
+                chain = chain.then(function (acc) {
+                    return collectFolderFiles(child, prefix + entry.name + "/")
+                        .then(function (more) { return acc.concat(more); });
+                });
+            });
+            return chain;
+        });
+    }
+
+    function zipFolder(name, entries) {
+        return OpenDropZip.buildZip(entries).then(function (blob) {
+            return new File([blob], name + ".zip", { type: "application/zip" });
+        });
+    }
+
+    function prepareDropped(dataTransfer) {
+        var items = dataTransfer && dataTransfer.items ?
+            Array.prototype.slice.call(dataTransfer.items) : [];
+        var entries = [];
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].kind !== "file") continue;
+            var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+            if (entry) entries.push(entry);
+        }
+        if (!entries.length) {
+            // No entry API, or a plain file drop: the files go as they are.
+            var plain = dataTransfer && dataTransfer.files ?
+                Array.prototype.slice.call(dataTransfer.files) : [];
+            return Promise.resolve(plain);
+        }
+        var chain = Promise.resolve([]);
+        entries.forEach(function (entry) {
+            chain = chain.then(function (acc) {
+                if (entry.isFile) {
+                    return new Promise(function (resolve, reject) {
+                        entry.file(function (f) { resolve(acc.concat(f)); }, reject);
+                    });
+                }
+                return collectFolderFiles(entry, "").then(function (found) {
+                    if (!found.length) return acc;
+                    return zipFolder(entry.name, found).then(function (zip) {
+                        return acc.concat(zip);
+                    });
+                });
+            });
+        });
+        return chain;
+    }
+
+    function preparePickedFolders(fileListIn) {
+        // <input webkitdirectory>: every file carries webkitRelativePath,
+        // grouped per top-level folder and zipped as one.
+        var files = Array.prototype.slice.call(fileListIn || []);
+        var groups = {};
+        var order = [];
+        files.forEach(function (f) {
+            var rel = f.webkitRelativePath || f.name;
+            var slash = rel.indexOf("/");
+            var top = slash >= 0 ? rel.slice(0, slash) : f.name;
+            if (!groups[top]) { groups[top] = []; order.push(top); }
+            groups[top].push({ name: slash >= 0 ? rel.slice(slash + 1) : f.name, file: f });
+        });
+        var chain = Promise.resolve([]);
+        order.forEach(function (top) {
+            chain = chain.then(function (acc) {
+                return zipFolder(top, groups[top]).then(function (zip) {
+                    return acc.concat(zip);
+                });
+            });
+        });
+        return chain;
+    }
+
+    function startPreparing(label) {
+        showSendView("transfer");
+        filenameEl.textContent = label;
+        filesizeEl.textContent = "";
+        progressBar.style.width = "0%";
+        progressText.textContent = t("send.preparing");
+    }
+
+    function prepareThenSend(promise, label) {
+        var epoch = ++prepareEpoch;
+        startPreparing(label);
+        promise.then(function (files) {
+            if (epoch !== prepareEpoch) return;    // cancelled meanwhile
+            enqueueFiles(files);
+        }).catch(function () {
+            if (epoch !== prepareEpoch) return;
+            finishQueue();
+            errorDetail.textContent = t("send.preparingError");
+            showSendView("error");
+        });
+    }
+
     dropZone.addEventListener("click", function () {
         fileInput.click();
     });
 
+    if (btnChooseFolder) {
+        btnChooseFolder.addEventListener("click", function (e) {
+            // The drop zone would open the file picker too.
+            e.stopPropagation();
+            folderInput.click();
+        });
+    }
+
     fileInput.addEventListener("change", function () {
         if (fileInput.files.length > 0) {
-            uploadFile(fileInput.files[0]);
+            enqueueFiles(Array.prototype.slice.call(fileInput.files));
         }
+        fileInput.value = "";
     });
+
+    if (folderInput) {
+        folderInput.addEventListener("change", function () {
+            if (folderInput.files.length > 0) {
+                var rel = folderInput.files[0].webkitRelativePath || "";
+                prepareThenSend(preparePickedFolders(folderInput.files),
+                    rel ? rel.split("/")[0] : t("drop.chooseFolder"));
+            }
+            folderInput.value = "";
+        });
+    }
 
     dropZone.addEventListener("dragover", function (e) {
         e.preventDefault();
@@ -984,47 +1196,295 @@
     dropZone.addEventListener("drop", function (e) {
         e.preventDefault();
         dropZone.classList.remove("dragover");
-        if (e.dataTransfer.files.length > 0) {
-            uploadFile(e.dataTransfer.files[0]);
-        }
+        var dt = e.dataTransfer;
+        var label = (dt && dt.files && dt.files.length) ? dt.files[0].name : "...";
+        prepareThenSend(prepareDropped(dt), label);
     });
 
     btnCancel.addEventListener("click", function () {
+        prepareEpoch++;     // a zip still being built must not start
         if (currentXhr) {
             currentXhr.abort();
             currentXhr = null;
         }
+        finishQueue();
         showSendView("drop");
         fileInput.value = "";
+        if (folderInput) folderInput.value = "";
     });
 
     btnNew.addEventListener("click", function () {
         showSendView("drop");
         fileInput.value = "";
+        if (folderInput) folderInput.value = "";
     });
 
     btnRetry.addEventListener("click", function () {
         showSendView("drop");
         fileInput.value = "";
+        if (folderInput) folderInput.value = "";
     });
 
     // --- DOWNLOAD ---
+    // The list now carries a small workspace on top of the server's
+    // files: a search box, a 1/2/4-per-row view switch, selection
+    // checkboxes with a Download (n) button, and web-only folders to
+    // sort files into (they live in localStorage - the PC's share
+    // folder is never touched, and a file moved here is still the same
+    // file on disk).
     var fileList = document.getElementById("file-list");
     var emptyMsg = document.getElementById("empty-msg");
+    var emptyText = emptyMsg.querySelector("p");
+    var emptyHint = emptyMsg.querySelector(".empty-hint");
     var btnRefresh = document.getElementById("btn-refresh");
+    var searchInput = document.getElementById("search-input");
+    var viewSwitch = document.getElementById("view-switch");
+    var selectAllChk = document.getElementById("select-all");
+    var btnDlSel = document.getElementById("btn-dl-sel");
+    var dlSelCount = document.getElementById("dl-sel-count");
+    var moveSelect = document.getElementById("move-select");
+    var crumbRoot = document.getElementById("crumb-root");
+    var crumbSep = document.getElementById("crumb-sep");
+    var crumbFolder = document.getElementById("crumb-folder");
+    var btnNewFolder = document.getElementById("btn-newfolder");
+    var dlStatus = document.getElementById("dl-status");
 
-    // Rendering the shared list. Coming back to this tab refetches it,
-    // so the list is only rebuilt when its content actually changed:
-    // rows that disappear slide out, rows that appear slide in with a
-    // small stagger (see .file-card in the CSS).
-    var filesKey = null;
-    var filesToken = 0;
+    var serverFiles = [];
+    var searchQuery = "";
+    var selection = {};         // file name -> true
+
+    // One level of folders; a file sits at Home or inside exactly one
+    // folder, keyed by its server name. Placements of files the server
+    // no longer lists are pruned on each refresh.
+    var WEBFS_KEY = "opendrop.webfs.v1";
+    var VIEW_KEY = "opendrop.webview";
+    var webfs = { folders: {}, placements: {} };
+    var currentFolder = null;   // folder id, or null for Home
+    var viewMode = "list";
+
+    function loadWebfs() {
+        try {
+            var parsed = JSON.parse(storeRead(WEBFS_KEY) || "{}");
+            if (parsed && typeof parsed === "object") {
+                if (parsed.folders && typeof parsed.folders === "object") {
+                    webfs.folders = parsed.folders;
+                }
+                if (parsed.placements && typeof parsed.placements === "object") {
+                    webfs.placements = parsed.placements;
+                }
+            }
+        } catch (e) { /* corrupted: start from scratch */ }
+        var stored = storeRead(VIEW_KEY);
+        if (stored === "grid2" || stored === "grid4") viewMode = stored;
+    }
+
+    function saveWebfs() {
+        storeWrite(WEBFS_KEY, JSON.stringify(webfs));
+    }
+
+    function pruneWebfs() {
+        var known = {};
+        serverFiles.forEach(function (f) { known[f.name] = true; });
+        var changed = false;
+        Object.keys(webfs.placements).forEach(function (name) {
+            if (!known[name]) { delete webfs.placements[name]; changed = true; }
+        });
+        if (changed) saveWebfs();
+    }
+
+    function folderList() {
+        return Object.keys(webfs.folders).map(function (id) {
+            return { id: id, name: webfs.folders[id] };
+        }).sort(function (a, b) {
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    function filesIn(folderId) {
+        return serverFiles.filter(function (f) {
+            return (webfs.placements[f.name] || null) === (folderId || null);
+        });
+    }
+
+    function uniqueFolderName(base, exceptId) {
+        var taken = {};
+        folderList().forEach(function (f) {
+            if (f.id !== exceptId) taken[f.name] = true;
+        });
+        if (!taken[base]) return base;
+        var n = 2;
+        while (taken[base + " " + n]) n++;
+        return base + " " + n;
+    }
+
+    function newFolderId() {
+        return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    // Renaming without prompt(): one input takes the label's place, Enter
+    // or a tap outside saves, Escape restores. prompt() is blocked in
+    // some embedded views and reads badly on phones.
+    function editNameInline(host, current, commit) {
+        var input = document.createElement("input");
+        input.type = "text";
+        input.className = "folder-edit";
+        input.value = current || "";
+        input.maxLength = 40;
+        input.draggable = false;
+        host.textContent = "";
+        host.appendChild(input);
+        input.focus();
+        input.select();
+        var done = false;
+        var finish = function (save) {
+            if (done) return;
+            done = true;
+            var value = input.value.trim();
+            if (save && value) commit(value);
+            else renderList();
+        };
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") finish(true);
+            else if (e.key === "Escape") finish(false);
+            e.stopPropagation();
+        });
+        input.addEventListener("blur", function () { finish(true); });
+    }
+
+    function startRename(card) {
+        var id = card.dataset.id;
+        var nameEl = card.querySelector(".folder-name");
+        editNameInline(nameEl, webfs.folders[id], function (value) {
+            webfs.folders[id] = uniqueFolderName(value, id);
+            saveWebfs();
+            renderList();
+        });
+    }
+
+    // Deleting a folder never touches a real file (they all go back
+    // Home), but it still dissolves some organizing work - so the cross
+    // arms first and deletes on the second tap. Chosen over
+    // window.confirm(): a browser told to stop asking silently answers
+    // "no" and the button would do nothing at all.
+    var armedDelete = null;     // { id, btn, timer }
+
+    function disarmDelete() {
+        if (!armedDelete) return;
+        window.clearTimeout(armedDelete.timer);
+        if (armedDelete.btn) {
+            armedDelete.btn.classList.remove("armed");
+            armedDelete.btn.textContent = "\u2715";
+        }
+        armedDelete = null;
+    }
+
+    function armDelete(card) {
+        var btn = card.querySelector('.folder-action[data-act="delete"]');
+        if (!btn) return;
+        if (armedDelete && armedDelete.btn === btn) {
+            disarmDelete();
+            deleteFolderNow(card.dataset.id);
+            return;
+        }
+        disarmDelete();
+        btn.classList.add("armed");
+        btn.textContent = "\u2713";     // tick: "tap again to confirm"
+        armedDelete = {
+            id: card.dataset.id,
+            btn: btn,
+            timer: window.setTimeout(disarmDelete, 3500)
+        };
+    }
+
+    function deleteFolderNow(id) {
+        disarmDelete();
+        delete webfs.folders[id];
+        Object.keys(webfs.placements).forEach(function (name) {
+            if (webfs.placements[name] === id) delete webfs.placements[name];
+        });
+        if (currentFolder === id) currentFolder = null;
+        saveWebfs();
+        renderList();
+    }
+
+    function downloadUrl(name) {
+        return "/api/download/" + encodeURIComponent(name) +
+            "?token=" + encodeURIComponent(token);
+    }
+
+    function buildFolderCard(folder, index) {
+        var card = document.createElement("div");
+        card.className = "folder-card";
+        card.dataset.id = folder.id;
+        card.dataset.drop = "folder";
+        card.style.setProperty("--i", index);
+
+        var glyph = document.createElement("span");
+        glyph.className = "folder-icon";
+        glyph.textContent = "\ud83d\udcc1";   // folder
+
+        var name = document.createElement("p");
+        name.className = "folder-name";
+        name.textContent = folder.name;
+
+        var count = document.createElement("span");
+        count.className = "folder-count";
+        count.textContent = String(filesIn(folder.id).length);
+
+        var rename = document.createElement("button");
+        rename.type = "button";
+        rename.className = "folder-action";
+        rename.dataset.act = "rename";
+        rename.textContent = "\u270f";        // pencil
+        rename.setAttribute("aria-label", t("files.rename"));
+
+        var del = document.createElement("button");
+        del.type = "button";
+        del.className = "folder-action danger";
+        del.dataset.act = "delete";
+        del.textContent = "\u2715";           // cross
+        del.setAttribute("aria-label", t("files.deleteFolder"));
+
+        card.appendChild(glyph);
+        card.appendChild(name);
+        card.appendChild(count);
+        card.appendChild(rename);
+        card.appendChild(del);
+        return card;
+    }
+
+    function buildBackCard(index) {
+        var card = document.createElement("div");
+        card.className = "back-card";
+        card.dataset.drop = "root";
+        card.style.setProperty("--i", index);
+
+        var glyph = document.createElement("span");
+        glyph.className = "folder-icon";
+        glyph.textContent = "\u2b05";         // left arrow
+
+        var name = document.createElement("span");
+        name.className = "folder-name";
+        name.textContent = t("files.root");
+
+        card.appendChild(glyph);
+        card.appendChild(name);
+        return card;
+    }
 
     function buildFileCard(file, index) {
         var card = document.createElement("div");
         card.className = "file-card";
         card.dataset.name = file.name;
+        card.draggable = true;
         card.style.setProperty("--i", index);
+
+        var check = document.createElement("label");
+        check.className = "file-check";
+        var box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = !!selection[file.name];
+        check.appendChild(box);
 
         var info = document.createElement("div");
         info.className = "file-info";
@@ -1043,68 +1503,326 @@
         var btn = document.createElement("a");
         btn.className = "btn-download";
         btn.textContent = t("files.download");
-        btn.href = "/api/download/" + encodeURIComponent(file.name) + "?token=" + encodeURIComponent(token);
+        btn.href = downloadUrl(file.name);
+        // The row is what drags; the link only downloads.
+        btn.draggable = false;
 
+        card.appendChild(check);
         card.appendChild(info);
         card.appendChild(btn);
         return card;
     }
 
-    function renderFileCards(files) {
-        var key = files.map(function (f) {
-            return f.name + "\u0000" + f.size;
-        }).join("\n");
-        if (key === filesKey) return; // unchanged: leave the list alone
-        filesKey = key;
-
-        if (files.length === 0) {
-            fileList.innerHTML = "";
-            emptyMsg.style.display = "";
-            fileList.style.display = "none";
-            return;
-        }
-
-        emptyMsg.style.display = "none";
-        fileList.style.display = "";
-
-        var names = files.map(function (f) { return f.name; });
-        var leaving = Array.prototype.slice.call(
-            fileList.querySelectorAll(".file-card")).filter(function (el) {
-                return names.indexOf(el.dataset.name) < 0;
-            });
-
-        var rebuild = function () {
-            fileList.innerHTML = "";
-            files.forEach(function (file, i) {
-                fileList.appendChild(buildFileCard(file, i));
-            });
-        };
-
-        if (leaving.length === 0) {
-            rebuild();
-            return;
-        }
-
-        leaving.forEach(function (el) { el.classList.add("leaving"); });
-        var pending = ++filesToken;
-        setTimeout(function () {
-            if (pending === filesToken) rebuild();
-        }, 260);
+    function visibleNames() {
+        var query = searchQuery.toLowerCase();
+        return filesIn(currentFolder).filter(function (f) {
+            return !query || f.name.toLowerCase().indexOf(query) >= 0;
+        }).map(function (f) { return f.name; });
     }
+
+    function renderCrumbs() {
+        if (currentFolder) {
+            crumbSep.style.display = "";
+            crumbFolder.style.display = "";
+            crumbFolder.textContent = webfs.folders[currentFolder] || "";
+        } else {
+            crumbSep.style.display = "none";
+            crumbFolder.style.display = "none";
+            crumbFolder.textContent = "";
+        }
+    }
+
+    function renderMoveOptions() {
+        while (moveSelect.options.length > 2) moveSelect.remove(2);
+        folderList().forEach(function (folder) {
+            if (folder.id === currentFolder) return;
+            var option = document.createElement("option");
+            option.value = folder.id;
+            option.textContent = folder.name;
+            moveSelect.appendChild(option);
+        });
+    }
+
+    function renderSelectionUI() {
+        var n = Object.keys(selection).length;
+        dlSelCount.textContent = String(n);
+        btnDlSel.disabled = n === 0;
+        moveSelect.disabled = n === 0;
+        var visible = visibleNames();
+        var all = visible.length > 0 && visible.every(function (name) {
+            return selection[name];
+        });
+        selectAllChk.checked = all;
+        selectAllChk.disabled = visible.length === 0;
+    }
+
+    function syncVisibleChecks() {
+        var boxes = fileList.querySelectorAll(".file-card .file-check input");
+        boxes.forEach(function (box) {
+            var card = box.closest(".file-card");
+            box.checked = !!selection[card.dataset.name];
+        });
+    }
+
+    function renderList() {
+        var query = searchQuery.toLowerCase();
+        var folders = folderList().filter(function (f) {
+            return !query || f.name.toLowerCase().indexOf(query) >= 0;
+        });
+        var files = filesIn(currentFolder).filter(function (f) {
+            return !query || f.name.toLowerCase().indexOf(query) >= 0;
+        });
+
+        fileList.className = "file-list" + (viewMode === "list" ? "" : " " + viewMode);
+        fileList.innerHTML = "";
+        var index = 0;
+        if (currentFolder) fileList.appendChild(buildBackCard(index++));
+        folders.forEach(function (folder) {
+            fileList.appendChild(buildFolderCard(folder, index++));
+        });
+        files.forEach(function (file) {
+            fileList.appendChild(buildFileCard(file, index++));
+        });
+
+        var nothing = !folders.length && !files.length;
+        if (nothing) {
+            emptyText.textContent = query ? t("files.noMatch") :
+                (currentFolder ? t("files.emptyFolder") : t("files.empty"));
+            emptyHint.style.display = (query || currentFolder) ? "none" : "";
+        }
+        emptyMsg.style.display = nothing ? "" : "none";
+        fileList.style.display = nothing ? "none" : "";
+
+        renderCrumbs();
+        renderMoveOptions();
+        renderSelectionUI();
+    }
+
+    function moveSelectionTo(folderId) {
+        Object.keys(selection).forEach(function (name) {
+            if (folderId) webfs.placements[name] = folderId;
+            else delete webfs.placements[name];
+        });
+        selection = {};
+        saveWebfs();
+        renderList();
+    }
+
+    function flashStatus(message) {
+        dlStatus.textContent = message;
+        window.clearTimeout(flashStatus.timer);
+        flashStatus.timer = window.setTimeout(function () {
+            dlStatus.textContent = "";
+        }, 3500);
+    }
+
+    function saveBlob(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+    }
+
+    function downloadSelected() {
+        var names = Object.keys(selection);
+        if (!names.length) return;
+        if (names.length === 1) {
+            var a = document.createElement("a");
+            a.href = downloadUrl(names[0]);
+            a.click();
+            return;
+        }
+        // Several files: fetched one by one, then handed over as a
+        // single zip built on this device.
+        var total = names.length;
+        var done = 0;
+        btnDlSel.disabled = true;
+        dlSelCount.textContent = "0/" + total;
+        var chain = Promise.resolve([]);
+        names.forEach(function (name) {
+            chain = chain.then(function (acc) {
+                return fetchWithTimeout(downloadUrl(name), null, 60000)
+                    .then(function (r) {
+                        if (!r.ok) throw new Error("http " + r.status);
+                        return r.blob();
+                    })
+                    .then(function (blob) {
+                        done++;
+                        dlSelCount.textContent = done + "/" + total;
+                        return acc.concat([{ name: name, file: blob }]);
+                    });
+            });
+        });
+        chain.then(function (entries) {
+            return OpenDropZip.buildZip(entries);
+        }).then(function (zipBlob) {
+            saveBlob(zipBlob, "OpenDrop-" + total + "-files.zip");
+        }).catch(function () {
+            flashStatus(t("files.downloadError"));
+        }).finally(function () {
+            renderSelectionUI();
+        });
+    }
+
+    loadWebfs();
+
+    searchInput.addEventListener("input", function () {
+        searchQuery = searchInput.value.trim();
+        renderList();
+    });
+
+    viewSwitch.addEventListener("click", function (e) {
+        var btn = e.target.closest(".view-btn");
+        if (!btn) return;
+        viewMode = btn.dataset.view;
+        storeWrite(VIEW_KEY, viewMode);
+        viewSwitch.querySelectorAll(".view-btn").forEach(function (b) {
+            b.classList.toggle("active", b === btn);
+        });
+        renderList();
+    });
+
+    viewSwitch.querySelectorAll(".view-btn").forEach(function (b) {
+        b.classList.toggle("active", b.dataset.view === viewMode);
+    });
+
+    selectAllChk.addEventListener("change", function () {
+        var names = visibleNames();
+        if (selectAllChk.checked) {
+            names.forEach(function (name) { selection[name] = true; });
+        } else {
+            names.forEach(function (name) { delete selection[name]; });
+        }
+        syncVisibleChecks();
+        renderSelectionUI();
+    });
+
+    btnDlSel.addEventListener("click", downloadSelected);
+
+    moveSelect.addEventListener("change", function () {
+        var value = moveSelect.value;
+        moveSelect.value = "";
+        if (!value) return;
+        moveSelectionTo(value === "__root__" ? null : value);
+    });
+
+    crumbRoot.addEventListener("click", function () {
+        if (!currentFolder) return;
+        currentFolder = null;
+        selection = {};
+        renderList();
+    });
+
+    btnNewFolder.addEventListener("click", function () {
+        if (currentFolder) return;   // folders live at Home
+        var id = newFolderId();
+        webfs.folders[id] = t("files.folderDefault");
+        saveWebfs();
+        renderList();
+        // The new folder opens straight into its inline rename.
+        var card = fileList.querySelector('.folder-card[data-id="' + id + '"]');
+        if (card) startRename(card);
+    });
+
+    fileList.addEventListener("click", function (e) {
+        var action = e.target.closest(".folder-action");
+        if (!(action && action.dataset.act === "delete")) {
+            // Any other click (here or elsewhere in the list) drops the
+            // armed delete back to its resting cross.
+            disarmDelete();
+        }
+        if (action) {
+            var actionCard = action.closest(".folder-card");
+            if (!actionCard) return;
+            if (action.dataset.act === "rename") startRename(actionCard);
+            else if (action.dataset.act === "delete") armDelete(actionCard);
+            return;
+        }
+        var folderCard = e.target.closest(".folder-card");
+        if (folderCard && !e.target.closest(".folder-edit")) {
+            currentFolder = folderCard.dataset.id;
+            selection = {};
+            searchQuery = "";
+            searchInput.value = "";
+            renderList();
+            return;
+        }
+        if (e.target.closest(".back-card")) {
+            currentFolder = null;
+            selection = {};
+            renderList();
+        }
+    });
+
+    fileList.addEventListener("change", function (e) {
+        var box = e.target.closest(".file-check input");
+        if (!box) return;
+        var card = box.closest(".file-card");
+        if (box.checked) selection[card.dataset.name] = true;
+        else delete selection[card.dataset.name];
+        renderSelectionUI();
+    });
+
+    // Drag files into folders with a pointer; phones use the Move to
+    // select instead (HTML5 drag does not exist there).
+    fileList.addEventListener("dragstart", function (e) {
+        var card = e.target.closest(".file-card");
+        if (!card) return;
+        var name = card.dataset.name;
+        if (!selection[name]) {
+            selection = {};
+            selection[name] = true;
+            syncVisibleChecks();
+            renderSelectionUI();
+        }
+        e.dataTransfer.setData("text/plain", Object.keys(selection).join("\n"));
+        e.dataTransfer.effectAllowed = "move";
+        card.classList.add("dragging");
+    });
+
+    fileList.addEventListener("dragend", function () {
+        fileList.querySelectorAll(".dragging, .drop-hover").forEach(function (el) {
+            el.classList.remove("dragging", "drop-hover");
+        });
+    });
+
+    fileList.addEventListener("dragover", function (e) {
+        var target = e.target.closest("[data-drop]");
+        if (!target) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        target.classList.add("drop-hover");
+    });
+
+    fileList.addEventListener("dragleave", function (e) {
+        var target = e.target.closest("[data-drop]");
+        if (target) target.classList.remove("drop-hover");
+    });
+
+    fileList.addEventListener("drop", function (e) {
+        var target = e.target.closest("[data-drop]");
+        if (!target) return;
+        e.preventDefault();
+        target.classList.remove("drop-hover");
+        moveSelectionTo(target.dataset.drop === "root" ? null : target.dataset.id);
+    });
 
     function loadFiles() {
         emptyMsg.style.display = "none";
         // First load: nothing on screen yet, show the placeholder. Later
         // refreshes keep the current rows visible until the answer
         // arrives, so the list never blinks.
-        if (!fileList.querySelector(".file-card")) {
+        if (!fileList.querySelector(".file-card, .folder-card, .back-card")) {
             fileList.innerHTML = "";
             var loading = document.createElement("p");
             loading.className = "loading";
             loading.textContent = t("files.loading");
             fileList.appendChild(loading);
             fileList.style.display = "";
-            filesKey = null;
         }
 
         fetchWithTimeout("/api/files?token=" + encodeURIComponent(token), null, 20000)
@@ -1124,10 +1842,18 @@
                 if (data && data.error) {
                     throw new Error(data.code === 403 ? "session" : "server");
                 }
-                renderFileCards(data.files || []);
+                serverFiles = data.files || [];
+                pruneWebfs();
+                if (currentFolder && !webfs.folders[currentFolder]) {
+                    currentFolder = null;
+                }
+                Object.keys(selection).forEach(function (name) {
+                    var gone = !serverFiles.some(function (f) { return f.name === name; });
+                    if (gone) delete selection[name];
+                });
+                renderList();
             })
             .catch(function (err) {
-                filesKey = null;
                 fileList.innerHTML = "";
                 if (err.message === "session") {
                     endSession(t("session.expired"));
@@ -1142,6 +1868,7 @@
                         msg.textContent = t("files.loadError");
                     }
                     fileList.appendChild(msg);
+                    fileList.style.display = "";
                 }
             });
     }

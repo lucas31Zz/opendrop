@@ -26,8 +26,8 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
-        // Same pointer-following sheen as the main window.
-        Shine.Attach(this);
+        // Same reduced-motion guard as the main window.
+        Motion.Apply(this);
         LoadSettings();
 
         // The pill needs a real layout pass before its position is known.

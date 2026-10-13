@@ -1,9 +1,21 @@
 /* ------------------------------------------------------------------
-   Palette. Two themes, one set of variables: every rule below only
-   references them, so light/dark is a single switch on <html>.
-   Dark is the default (it is also what :root falls back to if the
-   script that sets data-theme never runs).
+   OpenDrop web UI - Liquid Glass (iOS 26 style).
+
+   Layers of the file:
+     1. Palette tokens (two themes, one set of variables)
+     2. Liquid Glass tokens (three levels: card / floating / active)
+     3. Base + the coloured backdrop the glass needs to exist
+     4. Components (glass surfaces, buttons, inputs)
+     5. Motion (scrollbar pill, springs, elasticity)
+     6. Fallbacks (@supports, reduced motion)
+
+   Rules of the game: every colour, blur and shadow comes from a
+   token - no magic values below. backdrop-filter carries the whole
+   look on the web side; the desktop app fakes the same material with
+   translucent brushes (see desktop/OpenDrop/App.axaml).
    ------------------------------------------------------------------ */
+
+/* --- 1. Palette ---------------------------------------------------- */
 :root {
     --bg: #0f0f0f;
     --text: #e0e0e0;
@@ -23,8 +35,6 @@
     --on-accent: #ffffff;
     --success: #4caf50;
     --danger: #f44336;
-    /* Specular sheen on buttons: white reads on a dark surface. */
-    --shine: rgba(255, 255, 255, 0.55);
     /* Overlay scrollbar pill: rest, hover, and the glow around it. */
     --thumb-a: rgba(74, 158, 255, 0.55);
     --thumb-b: rgba(124, 92, 255, 0.55);
@@ -32,6 +42,39 @@
     --thumb-b-hot: rgba(171, 152, 255, 0.95);
     --thumb-glow: rgba(74, 158, 255, 0.55);
     --thumb-glow-hot: rgba(124, 92, 255, 0.9);
+
+    /* --- Liquid Glass (Dark): a thin white veil over colour. The
+       fill stays low so the mesh behind stays visible; contrast comes
+       from the blur (which averages the backdrop) plus the shadows. */
+    --glass-1: rgba(255, 255, 255, 0.07);   /* level 1: cards */
+    --glass-2: rgba(255, 255, 255, 0.11);   /* level 2: floating */
+    --glass-3: rgba(255, 255, 255, 0.15);   /* hover lift */
+    --glass-edge: rgba(255, 255, 255, 0.14);       /* plain 1px rim */
+    --glass-rim-hi: rgba(255, 255, 255, 0.30);     /* bevel: top-left */
+    --glass-rim-lo: rgba(0, 0, 0, 0.40);           /* bevel: bottom-right */
+    --glass-blur: blur(22px) saturate(170%);
+    --glass-blur-float: blur(30px) saturate(190%);
+    --glass-blur-refract: url(#og-glass) blur(24px) saturate(185%);
+    --glass-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), 0 3px 10px rgba(0, 0, 0, 0.35);
+    --glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+                   inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+    /* Accent-tinted glass: the "active material" of the app. */
+    --glass-accent-a: rgba(96, 170, 255, 0.52);
+    --glass-accent-b: rgba(58, 142, 239, 0.34);
+    --glass-accent-edge: rgba(160, 205, 255, 0.45);
+    --glass-danger-a: rgba(255, 110, 96, 0.30);
+    --glass-danger-b: rgba(244, 67, 54, 0.18);
+    --indicator-glow: rgba(74, 158, 255, 0.45);
+
+    /* Backdrop mesh: rich enough that the glass has something to
+       bend, quiet enough to stay out of the way. */
+    --mesh-1: rgba(43, 82, 158, 0.55);
+    --mesh-2: rgba(84, 52, 150, 0.50);
+    --mesh-3: rgba(20, 96, 110, 0.45);
+    --orb-a: #3f7fe8;
+    --orb-b: #7c5cff;
+    --orb-c: #1fb8c9;
+    --orb-opacity: 0.38;
     color-scheme: dark;
 }
 
@@ -54,8 +97,6 @@
     --on-accent: #ffffff;
     --success: #2e8b4f;
     --danger: #d1362f;
-    /* The surface is light here, so the sheen tints instead of glowing. */
-    --shine: rgba(31, 111, 208, 0.18);
     /* Same keys as Dark (see above): the pill leans on the deep accent. */
     --thumb-a: rgba(10, 102, 214, 0.5);
     --thumb-b: rgba(108, 84, 214, 0.5);
@@ -63,6 +104,36 @@
     --thumb-b-hot: rgba(134, 102, 234, 0.9);
     --thumb-glow: rgba(10, 102, 214, 0.45);
     --thumb-glow-hot: rgba(108, 84, 214, 0.7);
+
+    /* --- Liquid Glass (Light): milk over pastel. The fill is much
+       higher than in dark (0.35-0.6) because white-on-white needs the
+       tint to keep the text readable where an orb passes behind. */
+    --glass-1: rgba(255, 255, 255, 0.42);
+    --glass-2: rgba(255, 255, 255, 0.55);
+    --glass-3: rgba(255, 255, 255, 0.68);
+    --glass-edge: rgba(255, 255, 255, 0.70);
+    --glass-rim-hi: rgba(255, 255, 255, 0.95);
+    --glass-rim-lo: rgba(31, 50, 80, 0.16);
+    --glass-blur: blur(22px) saturate(170%);
+    --glass-blur-float: blur(30px) saturate(190%);
+    --glass-blur-refract: url(#og-glass) blur(24px) saturate(185%);
+    --glass-shadow: 0 18px 44px rgba(31, 50, 80, 0.16), 0 3px 10px rgba(31, 50, 80, 0.10);
+    --glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.90),
+                   inset 0 -1px 0 rgba(31, 50, 80, 0.08);
+    --glass-accent-a: rgba(47, 127, 224, 0.94);
+    --glass-accent-b: rgba(31, 111, 208, 0.88);
+    --glass-accent-edge: rgba(255, 255, 255, 0.55);
+    --glass-danger-a: rgba(209, 54, 47, 0.88);
+    --glass-danger-b: rgba(209, 54, 47, 0.78);
+    --indicator-glow: rgba(31, 111, 208, 0.35);
+
+    --mesh-1: rgba(174, 200, 250, 0.75);
+    --mesh-2: rgba(206, 190, 248, 0.70);
+    --mesh-3: rgba(160, 224, 230, 0.65);
+    --orb-a: #a8c8ff;
+    --orb-b: #c3b1f5;
+    --orb-c: #8fdde6;
+    --orb-opacity: 0.55;
     color-scheme: light;
 }
 
@@ -72,42 +143,153 @@
     box-sizing: border-box;
 }
 
+/* --- 3. Base + backdrop -------------------------------------------- */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
     display: flex;
-    align-items: center;
+    /* Top-aligned, not centred: with `align-items: center` the whole
+       column re-centres whenever the tab content changes height
+       (drop-zone vs file list), which shoved the logo and tabs up and
+       down by ~100px on every tab switch. The breathing room above the
+       column comes from the viewport-based padding on .container
+       instead, so it is identical on both tabs. */
+    align-items: flex-start;
     justify-content: center;
+    overflow-x: hidden;
+}
+
+/* The material the glass bends: a fixed mesh with three slow orbs.
+   transform/opacity only (compositor-friendly), frozen entirely in
+   reduced motion. It sits behind everything (z-index: -1) and is
+   decorative: aria-hidden in index.html. */
+.bg-mesh {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    background:
+        radial-gradient(120% 90% at 12% -10%, var(--mesh-1), transparent 60%),
+        radial-gradient(100% 80% at 110% 25%, var(--mesh-2), transparent 55%),
+        radial-gradient(130% 100% at 50% 115%, var(--mesh-3), transparent 60%);
+}
+
+/* The softness is baked into each gradient: the old filter: blur(70px)
+   cost a giant filtered texture per orb, and (worse) a moving scene
+   behind every backdrop-filter above it. Same colours, same positions,
+   falloff matched to the blurred disc - just nothing left to render
+   per frame. */
+.orb {
+    position: absolute;
+    width: 50vmax;
+    height: 50vmax;
+    border-radius: 50%;
+    opacity: var(--orb-opacity);
+    will-change: transform;
+}
+
+.orb-a {
+    background: radial-gradient(circle closest-side,
+        var(--orb-a) 0%, var(--orb-a) 28%, transparent 88%);
+    top: -14%;
+    left: -16%;
+    animation: drift-a 52s ease-in-out infinite alternate;
+}
+
+.orb-b {
+    background: radial-gradient(circle closest-side,
+        var(--orb-b) 0%, var(--orb-b) 28%, transparent 88%);
+    top: 28%;
+    right: -22%;
+    animation: drift-b 61s ease-in-out infinite alternate;
+}
+
+.orb-c {
+    background: radial-gradient(circle closest-side,
+        var(--orb-c) 0%, var(--orb-c) 28%, transparent 88%);
+    bottom: -28%;
+    left: 18%;
+    animation: drift-c 47s ease-in-out infinite alternate;
+}
+
+/* Touch devices: the mesh is a backdrop, not a show. Frozen, the glass
+   above samples it once instead of re-blurring a scene that changes
+   every frame (the single biggest mobile win: each visible
+   backdrop-filter is one full-screen pass per frame otherwise). The
+   composition - colours and placement - is identical. */
+@media (pointer: coarse) {
+    .orb {
+        animation: none !important;
+        will-change: auto;
+    }
+}
+
+/* Very slow wander (full cycle well past 40s), no blur animation,
+   no layout: the orbs only translate and scale a little. */
+@keyframes drift-a {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(16vmax, 9vmax, 0) scale(1.12); }
+}
+
+@keyframes drift-b {
+    from { transform: translate3d(0, 0, 0) scale(1.08); }
+    to { transform: translate3d(-14vmax, 12vmax, 0) scale(0.96); }
+}
+
+@keyframes drift-c {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(10vmax, -13vmax, 0) scale(1.15); }
+}
+
+.svg-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
 }
 
 .container {
     width: 100%;
     max-width: 420px;
-    padding: 2rem 1.5rem;
+    /* Vertical rhythm keyed to the viewport (not the content): the
+       column starts a comfortable way down on tall screens but never
+       moves when the tab - and with it the content height - changes. */
+    padding: clamp(2rem, 7vh, 5rem) 1.5rem 3rem;
     text-align: center;
 }
+
+/* --- 4. Components ------------------------------------------------- */
+
+/* Rounded rectangles whose radius eats their padding: a card inside a
+   card gets a proportionally smaller corner (concentric radii). */
 
 .theme-toggle {
     position: fixed;
     top: 14px;
     right: 14px;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--border);
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--glass-edge);
     border-radius: 50%;
-    background: var(--surface);
+    background: var(--glass-2);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
     color: var(--text);
     font-size: 1.1rem;
     line-height: 1;
     cursor: pointer;
     z-index: 10;
-    transition: background 0.2s;
+    overflow: hidden;
+    transition: background 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .theme-toggle:hover {
-    background: var(--surface-2);
+    background: var(--glass-3);
+}
+
+.theme-toggle:active {
+    transform: scale(0.92);
 }
 
 .logo {
@@ -125,15 +307,35 @@ body {
     margin-top: 0.3rem;
 }
 
+/* Floating capsule of glass. The indicator inside slides on a spring
+   (app.js), the rim is the masked bevel below. */
 .tabs {
     position: relative;
     display: flex;
     gap: 0;
-    margin-bottom: 2rem;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: var(--surface);
+    margin-bottom: 1.8rem;
+    padding: 4px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-edge);
+    background: var(--glass-2);
+    -webkit-backdrop-filter: var(--glass-blur-float);
+    backdrop-filter: var(--glass-blur-float);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+}
+
+/* Refraction hero #1: the SVG displacement rides the same declaration
+   as the blur, so browsers that cannot blend url() into
+   backdrop-filter keep a perfectly good frosted capsule (and Safari,
+   which may drop the whole url() list, is kept on the plain blur by
+   the .refract switch in app.js). The displacement pass re-renders the
+   backdrop on every change, so it only runs where a pointer drives the
+   scene: fine-pointer devices. Touch keeps the plain blur. */
+@media (pointer: fine) {
+
+    .refract .tabs {
+        -webkit-backdrop-filter: var(--glass-blur-refract);
+        backdrop-filter: var(--glass-blur-refract);
+    }
 }
 
 /* Sliding accent pill. Its position and width are driven by a spring in
@@ -141,12 +343,14 @@ body {
    jumping from one tab to the other. */
 .tab-indicator {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
     width: 0;
     z-index: 0;
-    background: var(--accent);
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    box-shadow: 0 2px 12px var(--indicator-glow);
     pointer-events: none;
     will-change: transform, width;
 }
@@ -157,6 +361,7 @@ body {
     flex: 1;
     padding: 0.7rem 1rem;
     border: none;
+    border-radius: 999px;
     background: transparent;
     color: var(--text-dim);
     font-size: 0.95rem;
@@ -171,20 +376,46 @@ body {
 }
 
 .tab:not(.active):hover {
-    background: var(--surface-2);
+    background: var(--glass-3);
     color: var(--text);
 }
 
+/* Refraction hero #2 + level-1 card. The dashed drop affordance moved
+   to an inner frame so the outer card can be plain glass. */
 .drop-zone {
-    border: 2px dashed var(--border-strong);
-    border-radius: 16px;
-    padding: 3rem 1.5rem;
+    border-radius: 24px;
+    padding: 0.55rem;
     cursor: pointer;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+    overflow: hidden;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (pointer: fine) {
+
+    .refract .drop-zone {
+        -webkit-backdrop-filter: var(--glass-blur-refract);
+        backdrop-filter: var(--glass-blur-refract);
+    }
+}
+
+.drop-zone:active {
+    transform: scale(0.985);
+}
+
+.drop-zone .drop-zone-content {
+    border: 2px dashed var(--border-strong);
+    border-radius: 18px;
+    padding: 2.6rem 1.5rem;
     transition: border-color 0.2s, background 0.2s;
 }
 
-.drop-zone:hover,
-.drop-zone.dragover {
+.drop-zone:hover .drop-zone-content,
+.drop-zone.dragover .drop-zone-content {
     border-color: var(--accent);
     background: var(--accent-soft);
 }
@@ -212,6 +443,14 @@ body {
 
 .transfer-info {
     margin-top: 1.5rem;
+    padding: 1.3rem 1.4rem;
+    border-radius: 20px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+    text-align: left;
 }
 
 .filename {
@@ -227,21 +466,30 @@ body {
     margin-bottom: 1.2rem;
 }
 
+/* Recessed groove the progress fills: the inverse of the glass depth
+   (inner shadow instead of the outer one). */
 .progress-bar-container {
     width: 100%;
     height: 8px;
-    background: var(--surface-2);
-    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 999px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.08);
     overflow: hidden;
     margin-bottom: 0.8rem;
+}
+
+[data-theme="light"] .progress-bar-container {
+    background: rgba(31, 50, 80, 0.10);
 }
 
 .progress-bar {
     position: relative;
     height: 100%;
     width: 0%;
-    background: var(--accent);
-    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+    border-radius: 999px;
+    box-shadow: 0 0 10px var(--indicator-glow);
     overflow: hidden;
     /* Eased instead of linear: the bar catches up then settles. */
     transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
@@ -264,50 +512,90 @@ body {
     margin-bottom: 1.2rem;
 }
 
+/* --- Buttons: glass pills. Primary actions carry the accent glass.
+   No backdrop-filter of their own: a button used to be one full-screen
+   backdrop pass per phone frame, and its gradient fill reads the same
+   over the smooth mesh (or over a card that is already blurred). */
 .btn-cancel,
 .btn-new,
-.btn-refresh {
-    padding: 0.6rem 1.5rem;
-    border: none;
-    border-radius: 8px;
+.btn-refresh,
+.btn-download,
+.btn-unlock,
+.btn-scan {
+    display: inline-block;
+    padding: 0.62rem 1.45rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
     font-size: 0.95rem;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-cancel:active,
+.btn-new:active,
+.btn-refresh:active,
+.btn-download:active,
+.btn-unlock:active,
+.btn-scan:active {
+    transform: scale(0.95);
 }
 
 .btn-cancel {
-    background: var(--surface-3);
+    background: linear-gradient(180deg, var(--glass-danger-a), var(--glass-danger-b));
     color: var(--text);
 }
 
 .btn-cancel:hover {
-    background: var(--surface-4);
+    background: linear-gradient(180deg, var(--glass-danger-a), var(--glass-danger-a));
+}
+
+.btn-new,
+.btn-download {
+    background: linear-gradient(180deg, var(--glass-accent-a), var(--glass-accent-b));
+    color: var(--on-accent);
+    border-color: var(--glass-accent-edge);
+    box-shadow: 0 6px 18px var(--indicator-glow),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.btn-new:hover,
+.btn-download:hover {
+    background: linear-gradient(180deg, var(--glass-accent-a), var(--glass-accent-a));
 }
 
 .btn-new {
-    background: var(--accent);
-    color: var(--on-accent);
     margin-top: 0.5rem;
 }
 
-.btn-new:hover {
-    background: var(--accent-hover);
+.btn-refresh,
+.btn-scan {
+    background: var(--glass-2);
+    color: var(--text);
+    box-shadow: var(--glass-inner);
+}
+
+.btn-refresh:hover,
+.btn-scan:hover {
+    background: var(--glass-3);
+    color: var(--text);
 }
 
 .btn-refresh {
-    background: var(--surface-2);
-    color: var(--text-dim);
     margin-top: 1rem;
     font-size: 0.85rem;
 }
 
-.btn-refresh:hover {
-    background: var(--surface-3);
-    color: var(--text);
-}
-
 .success-msg {
     margin-top: 1.5rem;
+    padding: 1.4rem;
+    border-radius: 20px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
 }
 
 .success-icon {
@@ -345,6 +633,13 @@ body {
 
 .error-msg {
     margin-top: 1.5rem;
+    padding: 1.4rem;
+    border-radius: 20px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
 }
 
 .error-icon {
@@ -366,24 +661,34 @@ body {
     margin-bottom: 1rem;
 }
 
+/* One blurred container for the whole list (performance rule: the
+   backdrop is sampled once); the rows inside are plain translucency. */
 .file-list {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
+    padding: 0.9rem;
+    border-radius: 20px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
 }
 
 .loading {
     color: var(--text-faint);
     font-size: 0.9rem;
+    padding: 0.3rem 0.4rem;
 }
 
 .file-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    background: var(--glass-2);
+    border: 1px solid var(--glass-edge);
+    border-radius: 16px;
     padding: 1rem 1.2rem;
 }
 
@@ -406,24 +711,15 @@ body {
 }
 
 .btn-download {
-    display: inline-block;
     padding: 0.5rem 1rem;
-    background: var(--accent);
-    color: var(--on-accent);
-    text-decoration: none;
-    border-radius: 8px;
     font-size: 0.85rem;
     white-space: nowrap;
-    transition: background 0.2s;
-}
-
-.btn-download:hover {
-    background: var(--accent-hover);
 }
 
 .empty-msg {
     color: var(--text-faint);
     font-size: 0.9rem;
+    padding: 0.6rem 0.4rem 0.2rem;
 }
 
 .empty-hint {
@@ -432,8 +728,15 @@ body {
     margin-top: 0.3rem;
 }
 
+/* Level-1 glass panel around the whole locked-session flow. */
 .session-screen {
-    padding: 1rem 0 2rem;
+    padding: 1.8rem 1.5rem;
+    border-radius: 24px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
 }
 
 .session-icon {
@@ -469,9 +772,9 @@ body {
 .code-input {
     width: 120px;
     padding: 0.6rem 0.7rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
+    border: 1px solid var(--glass-edge);
+    border-radius: 14px;
+    background: var(--glass-1);
     color: var(--text);
     font-size: 1.05rem;
     font-weight: 600;
@@ -492,24 +795,22 @@ body {
 
 .btn-unlock {
     padding: 0.6rem 1.2rem;
-    border: none;
-    border-radius: 8px;
-    background: var(--accent);
+    background: linear-gradient(180deg, var(--glass-accent-a), var(--glass-accent-b));
+    border-color: var(--glass-accent-edge);
     color: var(--on-accent);
     font-size: 0.95rem;
     font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.btn-unlock:hover {
-    background: var(--accent-hover);
 }
 
 .btn-unlock:disabled {
-    background: var(--surface-3);
+    background: var(--glass-2);
+    border-color: var(--glass-edge);
     color: var(--text-faint);
     cursor: default;
+}
+
+.btn-unlock:disabled:active {
+    transform: none;
 }
 
 .unlock-error {
@@ -523,17 +824,6 @@ body {
     width: 100%;
     margin-top: 0.8rem;
     padding: 0.6rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--text);
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.btn-scan:hover {
-    background: var(--surface-2);
 }
 
 .scanner {
@@ -544,7 +834,8 @@ body {
     display: block;
     width: 100%;
     min-height: 200px;
-    border-radius: 12px;
+    border-radius: 16px;
+    border: 1px solid var(--glass-edge);
     background: #000;
     object-fit: cover;
 }
@@ -553,9 +844,17 @@ body {
     margin-top: 0.6rem;
 }
 
+/* Quota strip: glass card, centered text. */
 .quota-bar {
     text-align: center;
-    margin-bottom: 0.9rem;
+    margin-bottom: 1rem;
+    padding: 0.7rem 1rem;
+    border-radius: 16px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-inner);
 }
 
 .quota-text {
@@ -577,12 +876,52 @@ body {
     color: var(--danger);
 }
 
-/* ------------------------------------------------------------------
-   Motion. Every effect below is driven by CSS variables only, so the
-   same rules paint both themes; app.js moves the pointer-dependent
-   ones (--shine, --shine-x/y, the tab indicator) and switches the
-   whole lot off when the OS asks for reduced motion.
-   ------------------------------------------------------------------ */
+/* Glass bevel: one masked pseudo-element draws the bright top-left /
+   dark bottom-right rim on every big glass surface. `mask-composite`
+   carves the 1px padding ring out of the overlay so only the edge
+   shows. Same selector list as the sheen below. */
+.glass-rim::before,
+.theme-toggle::before,
+.tabs::before,
+.drop-zone::before,
+.transfer-info::before,
+.success-msg::before,
+.error-msg::before,
+.file-list::before,
+.session-screen::before,
+.quota-bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg,
+        var(--glass-rim-hi), transparent 38%, transparent 62%, var(--glass-rim-lo));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* Every surface that carries the bevel needs to be a positioning
+   context for it. The theme toggle is deliberately absent from this
+   list: it is `position: fixed`, which is a containing block of its
+   own - re-declaring `position: relative` on it here would drag it
+   out of the top-right corner (it would flow as a flex sibling of
+   the container, and shove the column off-centre). */
+.tabs,
+.drop-zone,
+.transfer-info,
+.success-msg,
+.error-msg,
+.file-list,
+.session-screen,
+.quota-bar {
+    position: relative;
+}
+
+/* --- 5. Motion ------------------------------------------------------ */
 
 /* --- Scrollbar: same pill as the desktop app --------------------- */
 /* The native bar is hidden; a 12px gradient pill rides the right edge,
@@ -686,65 +1025,10 @@ body::-webkit-scrollbar {
     pointer-events: none;
 }
 
-/* --- Specular sheen: the light follows the pointer ----------------- */
-.btn-new::after,
-.btn-unlock::after,
-.btn-download::after,
-.btn-cancel::after,
-.btn-refresh::after,
-.btn-scan::after,
-.theme-toggle::after,
-.tab::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    pointer-events: none;
-    background: radial-gradient(140px 240px at var(--shine-x, 50%) var(--shine-y, 0%),
-        var(--shine), transparent 65%);
-    opacity: var(--shine-strength, 0);
-    transition: opacity 0.3s ease;
-}
-
-/* The buttons need a positioning context for that overlay. The theme
-   toggle is deliberately left out: an absolutely positioned ::after
-   anchors to a fixed element all the same, and re-declaring
-   position: relative here was dragging it off the top-right corner
-   (it was showing halfway out of the screen). */
-.btn-new,
-.tab {
-    position: relative;
-    overflow: hidden;
-}
-
-.theme-toggle {
-    overflow: hidden;
-}
-
-.btn-new::after,
-.btn-unlock::after,
-.btn-download::after {
-    /* Accent buttons: white reads the same in both themes. */
-    background: radial-gradient(140px 240px at var(--shine-x, 50%) var(--shine-y, 0%),
-        rgba(255, 255, 255, 0.6), transparent 65%);
-}
-
-/* Touch has no pointer stream once the finger lifts: the sheen would
-   freeze white on the button that was just tapped, so phones and
-   tablets drop it entirely (app.js keeps the matching fine-pointer
-   guard so the variables are never written there either). */
-@media (pointer: coarse) {
-
-    .btn-new::after,
-    .btn-unlock::after,
-    .btn-download::after,
-    .btn-cancel::after,
-    .btn-refresh::after,
-    .btn-scan::after,
-    .theme-toggle::after,
-    .tab::after {
-        display: none;
-    }
+/* Keyboard ring: crisp on glass, both themes. */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* --- Quota bar: the fill eases into place -------------------------- */
@@ -752,22 +1036,29 @@ body::-webkit-scrollbar {
     max-width: 260px;
     height: 6px;
     margin: 0 auto 0.55rem;
-    background: var(--surface-2);
-    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 999px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
     overflow: hidden;
+}
+
+[data-theme="light"] .quota-track {
+    background: rgba(31, 50, 80, 0.10);
 }
 
 .quota-fill {
     height: 100%;
     width: 0%;
-    border-radius: 3px;
+    border-radius: 999px;
     background: var(--success);
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
     transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1),
         background 0.4s ease;
 }
 
 .quota-fill.full {
     background: var(--danger);
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.5);
 }
 
 /* No limit configured: there is no percentage to show, so the fill
@@ -792,6 +1083,30 @@ body::-webkit-scrollbar {
     }
 }
 
+/* --- 6. Fallbacks --------------------------------------------------- */
+
+/* No backdrop-filter at all: the glass would be a nearly invisible
+   film, so every surface that relies on the blur falls back to the
+   solid surfaces it replaced (buttons and the theme toggle carry no
+   backdrop and keep their gradients everywhere). */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+
+    .tabs,
+    .drop-zone,
+    .transfer-info,
+    .success-msg,
+    .error-msg,
+    .file-list,
+    .session-screen,
+    .quota-bar {
+        background: var(--surface);
+    }
+
+    .file-card {
+        background: var(--surface-2);
+    }
+}
+
 /* --- Reduced motion: keep every state change, drop the movement ---- */
 @media (prefers-reduced-motion: reduce) {
 
@@ -801,5 +1116,443 @@ body::-webkit-scrollbar {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+
+    /* The orbs are the only long-running thing on the page: park them
+       outright rather than letting the shorthand above race them. */
+    .orb {
+        animation: none !important;
+    }
+}
+
+/* --- Download workspace: search, views, selection, folders -------- */
+/* No backdrop-filter on any of the small controls (the performance
+   rule): they sit on glass or on the page's own mesh, and their
+   gradients read fine either way. */
+
+.link-folder {
+    display: inline-block;
+    margin-top: 0.55rem;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.link-folder:hover {
+    background: var(--glass-3);
+}
+
+.queue-count {
+    display: inline-block;
+    margin: 0.15rem 0 0.4rem;
+    padding: 0.18rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--glass-accent-edge);
+    background: var(--accent-soft);
+    color: var(--on-accent);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.list-toolbar {
+    margin-bottom: 0.8rem;
+}
+
+.toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-size: 0.88rem;
+    box-shadow: var(--glass-inner);
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: var(--text-faint);
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+}
+
+.view-switch {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    box-shadow: var(--glass-inner);
+}
+
+.view-btn {
+    width: 28px;
+    height: 26px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.view-btn.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    color: #fff;
+}
+
+.sel-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.select-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+}
+
+.select-all input,
+.file-check input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.btn-dl-sel {
+    margin-left: auto;
+    padding: 0.42rem 0.95rem;
+    border: 1px solid var(--glass-accent-edge);
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--glass-accent-a), var(--glass-accent-b));
+    color: var(--on-accent);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px var(--indicator-glow);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.btn-dl-sel:disabled {
+    opacity: 0.4;
+    box-shadow: none;
+    cursor: default;
+}
+
+.btn-dl-sel:not(:disabled):active {
+    transform: scale(0.95);
+}
+
+.move-select {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.move-select:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.dl-status {
+    font-size: 0.78rem;
+    color: #e5484d;
+    flex-basis: 100%;
+}
+
+.crumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 0.7rem;
+}
+
+.crumb {
+    padding: 0.32rem 0.8rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.crumb.home {
+    background: var(--glass-3);
+}
+
+.crumb.current {
+    font-weight: 600;
+    cursor: default;
+}
+
+.crumb-sep {
+    color: var(--text-faint);
+    font-size: 0.8rem;
+}
+
+.btn-newfolder {
+    margin-left: auto;
+    padding: 0.32rem 0.8rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-newfolder:hover {
+    background: var(--glass-3);
+}
+
+.nf-plus {
+    font-weight: 700;
+    margin-right: 2px;
+}
+
+/* Folders and the "back" tile inside the list: same glass rows as the
+   files, with a drop ring when a drag hovers them. */
+.folder-card,
+.back-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 16px;
+    background: var(--glass-2);
+    cursor: pointer;
+    animation: card-in 0.38s cubic-bezier(0.2, 0.8, 0.25, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.folder-card.drop-hover,
+.back-card.drop-hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--indicator-glow);
+}
+
+.folder-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.folder-name {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.92rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-count {
+    color: var(--text-faint);
+    font-size: 0.78rem;
+}
+
+.folder-action {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--glass-edge);
+    border-radius: 50%;
+    background: var(--glass-3);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.15s;
+}
+
+.folder-card:hover .folder-action {
+    opacity: 1;
+}
+
+.folder-action.danger:hover {
+    color: #e5484d;
+}
+
+/* Armed delete: the first tap turns the cross into a red tick, the
+   second one (within the timeout) removes the folder. */
+.folder-action.armed {
+    color: #e5484d;
+    border-color: #e5484d;
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(229, 72, 77, 0.35);
+}
+
+.folder-edit {
+    width: 100%;
+    min-width: 0;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+}
+
+/* The checkbox rides at the left of every file row. */
+.file-card {
+    justify-content: flex-start;
+    gap: 10px;
+    cursor: grab;
+}
+
+.file-card.dragging {
+    opacity: 0.5;
+}
+
+.file-check {
+    display: flex;
+    align-items: center;
+    flex: none;
+}
+
+/* 2 and 4 per row: the same cards, stood on end. The download pill
+   shrinks to fit the tile (and to a bare arrow on the narrowest). */
+.file-list.grid2,
+.file-list.grid4 {
+    display: grid;
+    gap: 10px;
+}
+
+.file-list.grid2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.file-list.grid4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0.7rem;
+}
+
+.file-list.grid2 .file-card,
+.file-list.grid4 .file-card,
+.file-list.grid2 .folder-card,
+.file-list.grid4 .folder-card,
+.file-list.grid2 .back-card,
+.file-list.grid4 .back-card {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 0.8rem 0.5rem;
+    text-align: center;
+}
+
+.file-list.grid2 .file-info,
+.file-list.grid4 .file-info {
+    flex: none;
+    width: 100%;
+    text-align: center;
+}
+
+.file-list.grid2 .file-name,
+.file-list.grid4 .file-name {
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.8rem;
+}
+
+.file-list.grid4 .file-name {
+    font-size: 0.72rem;
+}
+
+.file-list.grid2 .file-size,
+.file-list.grid4 .file-size {
+    font-size: 0.72rem;
+}
+
+.file-list.grid2 .btn-download,
+.file-list.grid4 .btn-download {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.72rem;
+    width: auto;
+}
+
+.file-list.grid4 .btn-download {
+    font-size: 0;
+    padding: 0.3rem 0.55rem;
+}
+
+.file-list.grid4 .btn-download::after {
+    content: "\2193";
+    font-size: 0.85rem;
+}
+
+.file-list.grid2 .folder-name,
+.file-list.grid4 .folder-name {
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.file-list.grid4 .folder-name {
+    font-size: 0.72rem;
+}
+
+.file-list.grid4 .folder-count,
+.file-list.grid4 .folder-action {
+    display: none;
+}
+
+.file-list.grid2 .folder-action,
+.file-list.grid4 .folder-action {
+    opacity: 1;
+}
+
+/* Same fallback as the panels above: no backdrop support means solid. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+
+    .folder-card,
+    .back-card {
+        background: var(--surface-2);
     }
 }

@@ -11,6 +11,15 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+    <!-- Liquid Glass needs colour behind it: a slow mesh with three
+         blurred orbs, transform/opacity only, parked in reduced
+         motion. Purely decorative (aria-hidden). -->
+    <div class="bg-mesh" aria-hidden="true">
+        <span class="orb orb-a"></span>
+        <span class="orb orb-b"></span>
+        <span class="orb orb-c"></span>
+    </div>
+
     <!-- Light/dark. Follows the desktop app's choice unless this device
          overrides it; the icon shows the theme a tap switches to. -->
     <button id="theme-toggle" class="theme-toggle" type="button"
@@ -44,13 +53,18 @@
                         <span class="drop-icon">&#128194;</span>
                         <p data-i18n="drop.choose">Choose a file</p>
                         <p class="drop-hint" data-i18n="drop.hint">or drop it here</p>
+                        <button type="button" class="link-folder" id="btn-choose-folder"
+                                data-i18n="drop.chooseFolder">Choose a folder</button>
+                        <p class="drop-hint" data-i18n="drop.folderHint">folders arrive zipped</p>
                     </div>
-                    <input type="file" id="file-input">
+                    <input type="file" id="file-input" multiple>
+                    <input type="file" id="folder-input" webkitdirectory multiple>
                 </div>
 
                 <div class="transfer-info" id="transfer-info" style="display:none;">
                     <p class="filename" id="filename"></p>
                     <p class="filesize" id="filesize"></p>
+                    <p class="queue-count" id="queue-count" style="display:none;"></p>
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="progress-bar"></div>
                     </div>
@@ -76,6 +90,49 @@
             </div>
 
             <div class="tab-content" id="tab-receive" style="display:none;">
+                <div class="list-toolbar">
+                    <div class="toolbar-row">
+                        <input type="search" class="search-input" id="search-input"
+                               placeholder="Search files..." autocomplete="off"
+                               data-i18n-attr="placeholder:files.search">
+                        <div class="view-switch" id="view-switch">
+                            <button type="button" class="view-btn active" data-view="list"
+                                    data-i18n-attr="aria-label:view.aria1" aria-label="One per row">1</button>
+                            <button type="button" class="view-btn" data-view="grid2"
+                                    data-i18n-attr="aria-label:view.aria2" aria-label="Two per row">2</button>
+                            <button type="button" class="view-btn" data-view="grid4"
+                                    data-i18n-attr="aria-label:view.aria4" aria-label="Four per row">4</button>
+                        </div>
+                    </div>
+                    <div class="sel-bar">
+                        <label class="select-all">
+                            <input type="checkbox" id="select-all">
+                            <span data-i18n="files.selectAll">Select all</span>
+                        </label>
+                        <button type="button" class="btn-dl-sel" id="btn-dl-sel" disabled>
+                            <span data-i18n="files.download">Download</span>
+                            (<span id="dl-sel-count">0</span>)
+                        </button>
+                        <select class="move-select" id="move-select" disabled>
+                            <option value="" selected data-i18n="files.moveTo">Move to...</option>
+                            <option value="__root__" data-i18n="files.root">Home</option>
+                        </select>
+                        <span class="dl-status" id="dl-status"></span>
+                    </div>
+                </div>
+
+                <div class="crumbs" id="crumbs">
+                    <button type="button" class="crumb home" id="crumb-root"
+                            data-i18n="files.root">Home</button>
+                    <span class="crumb-sep" id="crumb-sep" style="display:none;">/</span>
+                    <button type="button" class="crumb current" id="crumb-folder"
+                            style="display:none;"></button>
+                    <button type="button" class="btn-newfolder" id="btn-newfolder">
+                        <span class="nf-plus">+</span>
+                        <span data-i18n="files.newFolder">New folder</span>
+                    </button>
+                </div>
+
                 <div class="file-list" id="file-list">
                     <p class="loading" data-i18n="files.loading">Loading...</p>
                 </div>
@@ -112,6 +169,22 @@
         </div>
     </div>
 
+    <!-- Liquid Glass refraction: a gentle turbulence fed into the
+         backdrop filter of .tabs and .drop-zone (see style.css).
+         Only Chromium blends url() into backdrop-filter; app.js adds
+         the .refract class there so other engines keep the plain
+         blur. -->
+    <svg class="svg-defs" aria-hidden="true" focusable="false">
+        <filter id="og-glass" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.010 0.014"
+                          numOctaves="2" seed="7" result="noise"/>
+            <feGaussianBlur in="noise" stdDeviation="6" result="soft"/>
+            <feDisplacementMap in="SourceGraphic" in2="soft" scale="14"
+                               xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+    </svg>
+
+    <script src="/zip.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

@@ -38,9 +38,15 @@ server running on your machine, nothing goes over the internet.
   manual rotation (Reset button) or automatic (timer), plus a 6-character
   backup code to unlock a device
 - **Web interface** in the browser, no install needed: *Send* and
-  *Download* tabs, quota bar up top, session lock
+  *Download* tabs, quota bar up top, session lock; several files per
+  send, and whole folders zipped in the browser on their way
 - **Share folder**: files dropped in there are offered to other devices,
   downloadable in one click
+- **A workspace in the browser**: the *Download* tab searches, switches
+  between one, two or four files per row, and sorts files into virtual
+  folders that live on the device only (drag them in, or *Move to…* on a
+  phone - the share folder on the PC is never modified); a selection
+  downloads as a single zip
 - **Global receive quota** (optional): rejected with a 507 before anything
   is written, live indicator (green under the limit, red once reached)
 - **Safety limits**: 10 GB per file, per-IP rate limits, sanitized file
@@ -59,11 +65,11 @@ server running on your machine, nothing goes over the internet.
 - **Light or dark**: one theme switch in *Settings* covers the desktop
   window, the dialogs and the phone page; the web interface follows it and
   keeps its own ☀/☾ button for this device
-- **Motion**: buttons catch a light that follows the pointer, tab
-  indicators slide on a spring, cards settle into place, the desktop
-  window breathes behind a slow aurora and scrolls on a glowing pill -
-  everything switches off when the OS asks for reduced motion (and the
-  sheen never shows on touch screens)
+- **Liquid Glass**: translucent layers, tinted blurs and accent
+  gradients over a slow aurora, dark by default with a full light theme;
+  tab indicators spring, cards settle in, and every animation switches
+  off when the OS asks for reduced motion (touch devices skip the
+  background work entirely)
 
 ---
 
@@ -426,8 +432,9 @@ code.
   automatically (*Security* above).
 - **The token lives in the URL**: it can end up in your browser history;
   anyone holding the token or the session code can send and receive.
-- **One file per request** in the web interface, and the phone's file list
-  refreshes manually (*Refresh* button).
+- **Sequential uploads** in the web interface: several files (or zipped
+  folders) go one after the other, never in parallel; the phone's file
+  list refreshes manually (*Refresh* button).
 - **Phone to phone**: a phone can send to the PC, but the *Download* tab
   only offers the *Share* folder, so one phone cannot pull what another
   phone just sent.
