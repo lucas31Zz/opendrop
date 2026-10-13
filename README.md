@@ -90,8 +90,8 @@ session code, token refresh, folders, quota):
 Configure folders, port, storage quota, token rotation, appearance
 (light/dark) and language. A sidebar lists the six tabs (General,
 Storage, Security, Network, Appearance, Updates) and only the selected
-page is shown, so the window keeps a fixed height and each tab scrolls
-on its own:
+page is shown, so the window keeps a fixed size; pages taller than the
+window scroll on their own:
 
 | Dark | Light |
 |---|---|
