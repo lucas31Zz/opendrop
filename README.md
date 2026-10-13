@@ -118,7 +118,7 @@ no install needed, in the same light/dark theme as the app.
 
 | Dark | Light |
 |---|---|
-| ![Web interface - Download (dark)](docs/screenshots/web-share-dark.png) | ![Web interface - Download (light)](docs/screenshots/web-share-light.png) |
+| ![Web interface - Download (dark)](docs/screenshots/web-download-dark.png) | ![Web interface - Download (light)](docs/screenshots/web-download-light.png) |
 
 ---
 

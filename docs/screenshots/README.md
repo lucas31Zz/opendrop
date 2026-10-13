@@ -13,9 +13,9 @@ points at these exact files.
 | `settings-scroll.png` | Whole settings form, General page (fits without scrolling) | dark |
 | `settings-light-scroll.png` | Same settings form, light theme | light |
 | `web-send-dark.png` | Web interface, *Send* tab | dark |
-| `web-share-dark.png` | Web interface, *Download* tab | dark |
+| `web-download-dark.png` | Web interface, *Download* tab (workspace: search, views, virtual folder, selection) | dark |
 | `web-send-light.png` | Web interface, *Send* tab | light |
-| `web-share-light.png` | Web interface, *Download* tab | light |
+| `web-download-light.png` | Web interface, *Download* tab (workspace: search, views, virtual folder, selection) | light |
 
 The desktop shots are full client-area captures of the app (no window
 borders, no desktop background) so they stay readable at any zoom. The
