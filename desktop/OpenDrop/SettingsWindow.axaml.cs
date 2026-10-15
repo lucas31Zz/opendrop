@@ -1,14 +1,19 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using QRCoder;
 
 namespace OpenDrop;
 
@@ -23,12 +28,71 @@ public partial class SettingsWindow : Window
     // The highlight that springs between the tabs: one run at a time.
     private CancellationTokenSource? _pillCts;
 
-    public SettingsWindow()
+    // The Appareils tab talks to the local server through these: the same
+    // ServerManager and loopback-bypassing HttpClient as the main window
+    // (passed in rather than rebuilt, so the certificate handling stays
+    // in one place). _serverRunning is the state at the time the window
+    // opened; the pairing client keeps it fresh from there.
+    private readonly ServerManager _serverManager;
+    private readonly HttpClient _http;
+    private bool _serverRunning;
+
+    // The full device token: the label shows a truncated form, but the
+    // copy button needs the whole value.
+    private string DeviceTokenValue = "";
+
+    // The Appareils tab keeps itself fresh while it is shown: one 3 s
+    // tick at a time, and never two loads in flight at once - a tick
+    // landing on a running load queues exactly one more run instead of
+    // stacking a second request on it.
+    private readonly DispatcherTimer _devicesTimer = new()
     {
+        Interval = TimeSpan.FromSeconds(3)
+    };
+    private bool _devicesBusy;
+    private bool _devicesReloadQueued;
+
+    // What the pair card currently shows: the QR is only re-rendered
+    // when the link itself changes (the tab reloads every 3 s).
+    private string _lastPairLink = "";
+
+    // Signature of the last rendered device set (count + ip + share
+    // flag): an unchanged set keeps its rows, so a pointer resting on a
+    // Dissocier button never has the row rebuilt underneath it.
+    private string? _lastRowsSignature;
+
+    public SettingsWindow(ServerManager serverManager, HttpClient http, bool serverRunning)
+    {
+        _serverManager = serverManager;
+        _http = http;
+        _serverRunning = serverRunning;
         InitializeComponent();
         // Same reduced-motion guard as the main window.
         Motion.Apply(this);
         LoadSettings();
+
+        // The Appareils buttons are wired here rather than in the XAML
+        // (task 10 shipped the shell inert). The constructor snapshot
+        // only seeds the enabled state: LoadDevicesAsync re-asks
+        // ServerManager on every load, since the server may have been
+        // stopped or restarted since this window opened.
+        BtnCopyToken.Click += BtnCopyToken_Click;
+        BtnRefreshDevices.Click += BtnRefreshDevices_Click;
+        BtnCopyLink.Click += BtnCopyLink_Click;
+        BtnOpenLink.Click += BtnOpenLink_Click;
+        BtnReset.Click += BtnReset_Click;
+        if (!_serverRunning)
+        {
+            BtnCopyToken.IsEnabled = false;
+            BtnCopyLink.IsEnabled = false;
+            BtnOpenLink.IsEnabled = false;
+            BtnReset.IsEnabled = false;
+        }
+
+        // The list only refreshes itself while its own tab is shown;
+        // the Closed hook leaves no timer ticking behind the window.
+        _devicesTimer.Tick += (_, _) => _ = LoadDevicesAsync();
+        Closed += (_, _) => _devicesTimer.Stop();
 
         // The pill needs a real layout pass before its position is known.
         Opened += (_, _) => MoveTabPill(animate: false);
@@ -84,9 +148,26 @@ public partial class SettingsWindow : Window
         ShowPage(TabStorage, id, "storage");
         ShowPage(TabSecurity, id, "security");
         ShowPage(TabNetwork, id, "network");
+        ShowPage(TabDevices, id, "devices");
         ShowPage(TabAppearance, id, "appearance");
         ShowPage(TabUpdates, id, "updates");
         MoveTabPill(animate: true);
+
+        // The devices tab is the only one with live data behind it: it
+        // reloads on every visit (a device may have paired, the server
+        // may have been stopped or restarted since the last look) and
+        // then keeps itself fresh every 3 s until another tab - or the
+        // window itself - goes away.
+        if (id == "devices")
+        {
+            // LoadDevicesAsync swallows its own failures into the hint.
+            try { _ = LoadDevicesAsync(); } catch { }
+            _devicesTimer.Start();
+        }
+        else
+        {
+            _devicesTimer.Stop();
+        }
     }
 
     // Puts the highlight over the checked tab; on a switch it is driven
@@ -211,6 +292,9 @@ public partial class SettingsWindow : Window
         var index = ThemeCombo.SelectedIndex;
         if (index < 0 || index >= ThemeManager.Themes.Count) return;
         ThemeManager.Set(ThemeManager.Themes[index].Id);
+        // Device rows are code-built with brushes resolved at build
+        // time: drop the skip signature so the next load repaints them.
+        _lastRowsSignature = null;
     }
 
     private async void BtnBrowseShare_Click(object? sender, RoutedEventArgs e)
@@ -313,6 +397,10 @@ public partial class SettingsWindow : Window
                 // The theme names are translated: refresh the combo so it
                 // does not keep the previous language until the next open.
                 PopulateThemeCombo();
+                // Rows are code-built (button label, brushes): drop the
+                // skip signature so the next load rebuilds them in the
+                // new language.
+                _lastRowsSignature = null;
             }
 
             SettingsChanged = true;
@@ -463,6 +551,459 @@ public partial class SettingsWindow : Window
         }
         catch { return 0; }
     }
+
+    // ------------------------------------------------------------------------
+    // Appareils tab: the device-pairing API behind the task 10 shell.
+    // Everything goes through the loopback HttpClient (_http already
+    // accepts the self-signed certificate) and the main token from
+    // ServerManager; failures are muted into the hint line rather than
+    // raised as popups.
+
+    private string DevicesUrl(string path) =>
+        $"https://127.0.0.1:{_serverManager.Port}{path}?token={Uri.EscapeDataString(_serverManager.Token ?? "")}";
+
+    // One load at a time: the 3 s tick must never stack a second
+    // request on one already in flight. A reload asked for while a load
+    // runs (a reset, a dissociation) is queued and runs once more
+    // afterwards, so it is never dropped behind a concurrent tick.
+    private async Task LoadDevicesAsync()
+    {
+        if (_devicesBusy)
+        {
+            _devicesReloadQueued = true;
+            return;
+        }
+
+        _devicesBusy = true;
+        try
+        {
+            do
+            {
+                _devicesReloadQueued = false;
+                await LoadDevicesOnceAsync();
+            } while (_devicesReloadQueued);
+        }
+        finally
+        {
+            _devicesBusy = false;
+        }
+    }
+
+    // One load of the tab: the token label, the pair card it feeds, and
+    // one card per paired device. The stopped state is re-checked here
+    // on every call (the ctor snapshot would go stale as soon as the
+    // server restarts).
+    private async Task LoadDevicesOnceAsync()
+    {
+        if (!_serverManager.IsRunning || _serverManager.Port == null)
+        {
+            DeviceTokenValue = "";
+            DevicesToken.IsVisible = false;
+            BtnCopyToken.IsVisible = false;
+            BtnCopyToken.IsEnabled = false;
+            // Nothing can be paired, copied or reset without a server:
+            // the whole section goes away and the hint says why.
+            PairCard.IsVisible = false;
+            BtnCopyLink.IsEnabled = false;
+            BtnOpenLink.IsEnabled = false;
+            BtnReset.IsEnabled = false;
+            PairHintText.Text = Lang.T("Devices.Stopped");
+            DevicesList.Children.Clear();
+            _lastRowsSignature = null;
+            DevicesEmptyText.IsVisible = true;
+            return;
+        }
+
+        try
+        {
+            var response = await _http.GetAsync(DevicesUrl("/api/devices"));
+            if (!response.IsSuccessStatusCode)
+            {
+                PairHintText.Text = Lang.T("Err.Prefix");
+                return;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            // Token: truncated in the label, the full value kept in the
+            // field the copy button reads. Both appear together.
+            DeviceTokenValue = root.TryGetProperty("device_token", out var tokenProp)
+                ? tokenProp.GetString() ?? ""
+                : "";
+            if (DeviceTokenValue.Length > 0)
+            {
+                DevicesToken.Text = DeviceTokenValue[..8] + "…";
+                DevicesToken.IsVisible = true;
+                BtnCopyToken.IsVisible = true;
+                BtnCopyToken.IsEnabled = true;
+            }
+            else
+            {
+                DevicesToken.IsVisible = false;
+                BtnCopyToken.IsVisible = false;
+            }
+
+            // The pair card follows the token (and reappears after a
+            // restart); UpdatePairSection is a no-op while the link is
+            // the one already rendered.
+            BtnCopyLink.IsEnabled = true;
+            BtnOpenLink.IsEnabled = true;
+            BtnReset.IsEnabled = true;
+            UpdatePairSection();
+
+            // Rows are only rebuilt when the set they render changed:
+            // the 3 s auto-refresh would otherwise tear every row down
+            // under a pointer resting on its Dissocier button.
+            var rows = new List<(string Ip, string Details)>();
+            var marks = new List<string>();
+            if (root.TryGetProperty("devices", out var devices))
+            {
+                foreach (var device in devices.EnumerateArray())
+                {
+                    var ip = device.TryGetProperty("ip", out var ipProp)
+                        ? ipProp.GetString() ?? "" : "";
+                    var ua = device.TryGetProperty("ua", out var uaProp)
+                        ? uaProp.GetString() ?? "" : "";
+                    var shareInfo = device.TryGetProperty("share_info", out var shareProp)
+                        && shareProp.GetBoolean();
+                    var addedAt = device.TryGetProperty("added_at", out var addedProp)
+                        ? addedProp.GetString() ?? "" : "";
+
+                    var parts = new List<string>();
+                    // The user agent is personal data: its summary is
+                    // only shown when the device opted into sharing it.
+                    if (shareInfo)
+                    {
+                        var summary = UaSummary(ua);
+                        if (summary.Length > 0)
+                            parts.Add(summary);
+                    }
+                    var date = FormatAddedAt(addedAt);
+                    if (date.Length > 0)
+                        parts.Add(date);
+
+                    marks.Add($"{ip.Length}:{ip}:{(shareInfo ? '1' : '0')}");
+                    rows.Add((ip, string.Join(" · ", parts)));
+                }
+            }
+
+            var signature = rows.Count + "|" + string.Join("|", marks);
+            if (signature != _lastRowsSignature)
+            {
+                _lastRowsSignature = signature;
+                DevicesList.Children.Clear();
+                foreach (var (ip, details) in rows)
+                    DevicesList.Children.Add(BuildDeviceRow(ip, details));
+                DevicesEmptyText.IsVisible = DevicesList.Children.Count == 0;
+            }
+            PairHintText.Text = "";
+        }
+        catch
+        {
+            PairHintText.Text = Lang.T("Err.Prefix");
+        }
+    }
+
+    // One card per paired device: IP and details on the left, the way
+    // to remove it on the right. The button carries its IP in Tag; the
+    // click thunk below just unwraps it.
+    private Border BuildDeviceRow(string ip, string details)
+    {
+        var lines = new StackPanel();
+        lines.Children.Add(new TextBlock
+        {
+            Text = ip,
+            FontSize = 13,
+            Foreground = ResolveBrush("Brush.TextSecondary",
+                Color.FromRgb(0xcc, 0xcc, 0xcc))
+        });
+        if (details.Length > 0)
+        {
+            lines.Children.Add(new TextBlock
+            {
+                Text = details,
+                FontSize = 11,
+                Foreground = ResolveBrush("Brush.TextFaint",
+                    Color.FromRgb(0x8a, 0x8a, 0x8a)),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        var remove = new Button
+        {
+            Content = Lang.T("Devices.Dissociate"),
+            Tag = ip,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+        remove.Classes.Add("browse");
+        remove.Click += (s, _) =>
+        {
+            if (s is Button { Tag: string target })
+                BtnDissociate_Click(s, target);
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        Grid.SetColumn(lines, 0);
+        Grid.SetColumn(remove, 1);
+        grid.Children.Add(lines);
+        grid.Children.Add(remove);
+
+        return new Border
+        {
+            Classes = { "card" },
+            Margin = new Thickness(0, 0, 0, 8),
+            Padding = new Thickness(12, 8),
+            Child = grid
+        };
+    }
+
+    // Theme brushes resolved once at build time, same approach as Msg
+    // for its dialogs: a theme switch drops the row signature (see
+    // ThemeCombo_SelectionChanged), so the next load rebuilds the rows
+    // with the brushes of the new variant.
+    private static IBrush ResolveBrush(string key, Color fallback)
+    {
+        var app = Application.Current;
+        if (app != null &&
+            app.TryGetResource(key, app.ActualThemeVariant, out var value) &&
+            value is IBrush brush)
+            return brush;
+        return new SolidColorBrush(fallback);
+    }
+
+    // Best-effort browser/OS breakdown, mirroring the ordered keyword
+    // scan of src/opendrop/security/devices.py (parse_user_agent) —
+    // never a User-Agent library.
+    private static string UaSummary(string ua)
+    {
+        if (string.IsNullOrWhiteSpace(ua)) return "";
+
+        var device = ua.Contains("iPhone") ? "iPhone"
+            : ua.Contains("iPad") ? "iPad"
+            : ua.Contains("Android") ? "Android" : "";
+
+        var os = ua.Contains("Windows") ? "Windows"
+            : ua.Contains("Android") ? "Android"
+            : ua.Contains("Mac OS X") ? "macOS"
+            : ua.Contains("Linux") ? "Linux" : "";
+
+        var browser = ua.Contains("Edg/") ? "Edge"
+            : ua.Contains("OPR/") ? "Opera"
+            : ua.Contains("Chrome/") ? "Chrome"
+            : ua.Contains("Firefox") ? "Firefox"
+            : ua.Contains("Safari") ? "Safari" : "";
+
+        // Distinct: an Android UA would otherwise say it twice.
+        return string.Join(" · ",
+            new[] { device, os, browser }.Where(p => p.Length > 0).Distinct());
+    }
+
+    // added_at is an ISO-8601 UTC stamp from the server; shown as the
+    // local short date. Unparseable = no date line at all.
+    private static string FormatAddedAt(string addedAt)
+    {
+        return DateTimeOffset.TryParse(addedAt, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal, out var moment)
+            ? moment.ToLocalTime().ToString("d", CultureInfo.CurrentCulture)
+            : "";
+    }
+
+    // The link behind the QR: the web UI opens with this hash and
+    // pre-fills its pairing overlay (see web/app.js, #pair=). The clean
+    // origin WITHOUT "?token=" is deliberate (amendment 2026-10-15):
+    // the pairing page must open locked, so validating stays the access
+    // gate and the master token never sits in a QR on a settings screen.
+    private string PairLink =>
+        (_serverManager.Ip != null && _serverManager.Port != null)
+            ? $"https://{_serverManager.Ip}:{_serverManager.Port}/#pair={DeviceTokenValue}"
+            : "";
+
+    // Renders the pair card from PairLink: the text (with the same
+    // string as its tooltip, the link can wrap) plus the QR drawn from
+    // it. Nothing is re-rendered while the link is the one already on
+    // screen, and any failure (no link, QRCoder refusing the input)
+    // just hides the card instead of raising a popup.
+    private void UpdatePairSection()
+    {
+        var link = PairLink;
+        PairLinkText.Text = link;
+        // Attached property: the tooltip repeats the link in full, the
+        // TextBlock only wraps it.
+        ToolTip.SetTip(PairLinkText, link);
+
+        if (link == _lastPairLink && PairCard.IsVisible)
+            return;
+
+        if (link.Length == 0 || DeviceTokenValue.Length == 0 ||
+            _serverManager.Ip == null || _serverManager.Port == null)
+        {
+            PairCard.IsVisible = false;
+            return;
+        }
+
+        try
+        {
+            // Same QRCoder pattern as MainWindow.GenerateQrCode: ECC M,
+            // 8 px per module, PNG straight into an Avalonia bitmap.
+            using var qrGenerator = new QRCodeGenerator();
+            var qrData = qrGenerator.CreateQrCode(link, QRCodeGenerator.ECCLevel.M);
+            using var qrImage = new PngByteQRCode(qrData);
+            var qrBytes = qrImage.GetGraphic(8);
+
+            using var stream = new MemoryStream(qrBytes);
+            stream.Position = 0;
+            PairQrImage.Source = new Bitmap(stream);
+            _lastPairLink = link;
+            PairCard.IsVisible = true;
+        }
+        catch
+        {
+            PairCard.IsVisible = false;
+        }
+    }
+
+    // Rotates the device token server-side and drops every registered
+    // device with it (their sessions die too), so every phone paired
+    // through the old QR has to be paired again. Confirm only when that
+    // is about to cost something: with no device on the list the reset
+    // is a plain rotation behind the scenes.
+    private async void BtnReset_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!_serverManager.IsRunning || _serverManager.Port == null) return;
+
+        if (DevicesList.Children.Count > 0)
+        {
+            var answer = await Msg.ConfirmAsync(this, Lang.T("Devices.ResetConfirm"));
+            if (!answer) return;
+        }
+
+        try
+        {
+            var response = await _http.PostAsync(DevicesUrl("/api/device/reset"), null);
+            if (!response.IsSuccessStatusCode)
+            {
+                PairHintText.Text = Lang.T("Err.Prefix");
+                return;
+            }
+
+            // The answer carries the new token: show it right away
+            // rather than waiting for the reload's round trip.
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("device_token", out var tokenProp))
+            {
+                var rotated = tokenProp.GetString();
+                if (!string.IsNullOrEmpty(rotated))
+                    DeviceTokenValue = rotated;
+            }
+        }
+        catch
+        {
+            PairHintText.Text = Lang.T("Err.Prefix");
+            return;
+        }
+
+        UpdatePairSection();
+        await LoadDevicesAsync();
+    }
+
+    // The whole pairing link into the clipboard (the label wraps it),
+    // then the button says so for a moment - same pattern as the token
+    // copy just above.
+    private async void BtnCopyLink_Click(object? sender, RoutedEventArgs e)
+    {
+        var link = PairLink;
+        if (string.IsNullOrEmpty(link)) return;
+
+        try
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            // Avalonia 12: IClipboard takes an IAsyncDataTransfer, not a raw string.
+            var payload = new DataTransfer();
+            payload.Add(DataTransferItem.CreateText(link));
+            await clipboard.SetDataAsync(payload);
+
+            BtnCopyLink.Content = Lang.T("Btn.Copied");
+            await Task.Delay(1500);
+            BtnCopyLink.Content = Lang.T("Btn.Copy");
+        }
+        catch { }
+    }
+
+    // Opens the pairing link in the default browser, for whoever would
+    // rather type the URL on the other device than scan it. Silent on
+    // failure: no handler registered is not worth a popup.
+    private void BtnOpenLink_Click(object? sender, RoutedEventArgs e)
+    {
+        var link = PairLink;
+        if (string.IsNullOrEmpty(link)) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(link) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    // Full token into the clipboard (the label only shows its first 8
+    // characters), then the button says so for a moment — same pattern
+    // as the session-code copy in the main window.
+    private async void BtnCopyToken_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(DeviceTokenValue)) return;
+
+        try
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            // Avalonia 12: IClipboard takes an IAsyncDataTransfer, not a raw string.
+            var payload = new DataTransfer();
+            payload.Add(DataTransferItem.CreateText(DeviceTokenValue));
+            await clipboard.SetDataAsync(payload);
+
+            BtnCopyToken.Content = Lang.T("Btn.Copied");
+            await Task.Delay(1500);
+            BtnCopyToken.Content = Lang.T("Btn.Copy");
+        }
+        catch { }
+    }
+
+    // Removes the device record; the device token is left alone (only
+    // Réinitialiser rotates it, on the server), so the reload below
+    // just drops the row.
+    private async void BtnDissociate_Click(object? sender, string ip)
+    {
+        if (string.IsNullOrEmpty(ip)) return;
+
+        var answer = await Msg.ConfirmAsync(this, Lang.T("Devices.DissociateConfirm"));
+        if (!answer) return;
+
+        try
+        {
+            var url = DevicesUrl("/api/device/dissociate") +
+                      $"&ip={Uri.EscapeDataString(ip)}";
+            var response = await _http.PostAsync(url, null);
+            if (!response.IsSuccessStatusCode)
+            {
+                PairHintText.Text = Lang.T("Err.Prefix");
+                return;
+            }
+        }
+        catch
+        {
+            PairHintText.Text = Lang.T("Err.Prefix");
+            return;
+        }
+
+        await LoadDevicesAsync();
+    }
+
+    private async void BtnRefreshDevices_Click(object? sender, RoutedEventArgs e)
+        => await LoadDevicesAsync();
 
     private static string GetConfigPath()
     {

@@ -454,7 +454,7 @@ Homegrown test suites (no external framework), run from the repo root:
 
 ```powershell
 python -m tests.test_security     # 36/36 - tokens, paths, limits, origin, writes, logs
-python -m tests.test_routes       # 44/44 - route truth table
+python -m tests.test_routes       # 46/46 - route truth table
 python -m tests.test_paths        # 43/43 - no absolute paths in responses
 python -m tests.test_quota        # 40/40 - quota, simultaneous reservations, 507
 python -m tests.test_sessions     # 34/34 - sessions, expiration, code rotation
@@ -462,6 +462,7 @@ python -m tests.test_tls          # 15/15 - self-signed certificate, forced HTTP
 python -m tests.test_server       # 16/16 - general routes, theme fallback, port in use, TIME_WAIT probe
 python -m tests.test_beta         # 64/64 - full run-through
 python -m tests.test_beta --large # 76/76 - file batches, traversal attempts
+python -m tests.test_devices      # 62/62 - device pairing, registered IPs, reset
 ```
 
 Before building, close the desktop app: a running binary blocks

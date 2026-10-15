@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import time
 import urllib.request
 import urllib.error
@@ -16,8 +17,10 @@ from opendrop.server import multipart as multipart_mod
 from opendrop.server import server as server_module
 from opendrop.server.rate_limit import limiter_upload
 from opendrop.server.server import create_server
-from tests.conftest import (SSL_CONTEXT, _raw_upload, _start_server, _url, _upload,
-                            TestResult, cert_dir, dd, ip, sd, urlopen)
+from opendrop.security.devices import DeviceRegistry
+from tests.conftest import (SSL_CONTEXT, _WORKSPACE, _raw_upload, _start_server,
+                            _url, _upload, TestResult, cert_dir, dd, ip, sd,
+                            urlopen)
 
 r = TestResult()
 
@@ -346,8 +349,11 @@ def test_security():
         fh.write("ce fichier occupe la place d'un dossier")
     token_disk = "testtoken_disk_" + str(int(time.time() * 1000) % 100000)
     port_disk = find_available_port(10000 + int(time.time() * 1000) % 10000)
+    # Hermetic: temp config dir, never the real user config dir.
+    cfg = tempfile.mkdtemp(prefix="opendrop_cfg_", dir=_WORKSPACE)
     server_disk = create_server(ip, port_disk, token_disk, blocker, sd,
-                                tls_cert_dir=cert_dir)
+                                tls_cert_dir=cert_dir,
+                                devices=DeviceRegistry(cfg), config_dir=cfg)
     threading.Thread(target=server_disk.serve_forever, daemon=True).start()
     time.sleep(0.5)
     try:

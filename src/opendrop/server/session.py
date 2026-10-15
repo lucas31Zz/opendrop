@@ -6,11 +6,16 @@ from opendrop.security.tokens import generate_token
 
 
 class Session:
-    def __init__(self, token: str, expires_in: int = 3600):
+    def __init__(self, token: str, expires_in: int = 3600,
+                 ip: str | None = None):
         self.token = token
         self.created_at = time.monotonic()
         self.expires_in = expires_in
         self.active = True
+        # IP the session was created from (None for the main session,
+        # created before any request). Lets the desktop invalidate every
+        # session of one device (dissociate) without touching others.
+        self.ip = ip
 
     @property
     def expired(self) -> bool:
@@ -40,6 +45,9 @@ class SessionManager:
         # when provided, otherwise regenerated: it only changes on an
         # explicit reset.
         self._code = self._resolve_code(code)
+        # Main (QR) token: register() records it so invalidate_ip() can
+        # never delete its own session.
+        self._main_token: str | None = None
 
     @staticmethod
     def _resolve_code(code: str | None) -> str:
@@ -83,12 +91,28 @@ class SessionManager:
     def register(self, token: str) -> None:
         with self._lock:
             self._sessions[token] = Session(token, self._expires_in)
+            self._main_token = token
 
-    def create(self) -> str:
+    def create(self, ip: str | None = None) -> str:
         token = generate_token()
         with self._lock:
-            self._sessions[token] = Session(token, self._expires_in)
+            self._sessions[token] = Session(token, self._expires_in, ip=ip)
         return token
+
+    def invalidate_ip(self, ip: str) -> int:
+        """Delete every session created from `ip`; the main session survives.
+
+        Used by dissociate: one device's sessions die with its record,
+        the desktop's own (main/QR) session is never touched.
+        """
+        with self._lock:
+            doomed = [t for t, s in self._sessions.items()
+                      if t != self._main_token and s.ip == ip]
+            for t in doomed:
+                del self._sessions[t]
+        print(f"[OpenDrop] Sessions invalidated for {ip}: {len(doomed)}",
+              flush=True)
+        return len(doomed)
 
     def validate(self, token: str | None) -> tuple[bool, str]:
         if not token:

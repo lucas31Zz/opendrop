@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -18,8 +19,9 @@ from opendrop.server.errors import QuotaExceededError
 from opendrop.server.quota import QuotaTracker, directory_usage, format_size
 from opendrop.server.rate_limit import limiter_general, limiter_upload
 from opendrop.server.server import create_server
-from tests.conftest import (SSL_CONTEXT, _raw_upload, _upload, TestResult,
-                            cert_dir, dd, ip, sd)
+from opendrop.security.devices import DeviceRegistry
+from tests.conftest import (SSL_CONTEXT, _WORKSPACE, _raw_upload, _upload,
+                            TestResult, cert_dir, dd, ip, sd)
 
 r = TestResult()
 
@@ -33,8 +35,12 @@ def _start_quota(limit, name):
     os.makedirs(dl, exist_ok=True)
     port = find_available_port(15000 + int(time.time() * 1000) % 10000)
     token = "quotatoken_" + str(port)
+    # Hermetic: the device registry must live in a temp config dir, never
+    # in the real user config dir.
+    cfg = tempfile.mkdtemp(prefix="opendrop_cfg_", dir=_WORKSPACE)
     server = create_server(ip, port, token, dl, sd,
-                           tls_cert_dir=cert_dir, global_quota_bytes=limit)
+                           tls_cert_dir=cert_dir, global_quota_bytes=limit,
+                           devices=DeviceRegistry(cfg), config_dir=cfg)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     time.sleep(0.3)
     limiter_upload.reset()

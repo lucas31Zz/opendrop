@@ -5,6 +5,54 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.14.0] - 2026-10-15
+
+### Added
+
+- **Device pairing: pair once, open forever**. A phone that pairs once -
+  by pasting the device token, by scanning the desktop's QR/link, or by
+  accepting the pairing overlay the desktop used to push - has its IP
+  registered in `devices.json`; from then on it opens the web app
+  unlocked forever, with no code, no QR, and no live session needed. A
+  device ID travels with every request, so a browser that lost its
+  cookies heals the pairing by itself. The token itself changes only
+  through an explicit *Reset* (see Changed).
+- **An *Appareils* tab in the desktop Settings**: the device token with
+  a copy button, a *Pour parrainer :* section holding the QR code and
+  the pairing link of the moment (copy, or open it in the browser), one
+  *Réinitialiser* button that regenerates QR + link + token together -
+  with a confirmation whenever a device is registered - and the list of
+  paired devices (IP, user agent, shared-info, pairing date) refreshing
+  by itself while the tab is open, each row dissociable.
+- **A Settings page in the web app** (gear button, unlocked devices
+  only): *Appareil* - paired status, my own IP, the *Show what I send*
+  choice, self-dissociation, or the token field when not yet paired;
+  *Apparence* - light/dark; *Langue* - FR/EN. Theme and language are
+  pushed to the server and remembered per device, so the next visit
+  comes back the way it was left.
+- **Pairing links** (`#pair=<token>`): the QR and the link shown in the
+  desktop tab open the web app locked with the pairing token already in
+  the overlay's field - nothing is sent until the user validates, and
+  the copied link carries no master key.
+
+### Changed
+
+- **Dissociating a device no longer rotates the token**: it removes the
+  record and kills that IP's sessions only. Rotation is now the
+  exclusive job of *Reset*, which regenerates the device token and
+  clears every registered device at once (with their sessions) -
+  breaking the pairing of all of them, which is exactly what a reset is
+  for.
+
+### Security
+
+- **SECURITY.md tells the whole truth**: truth-table rows for every
+  pairing route (`/api/devices`, `/api/device/status`, `pair`,
+  `pairing`, `prefs`, `dissociate`, `reset`), the registered-IP trust
+  chain, the healing rules, and the pairing quotas.
+- Nine suites, 356 checks in total - the new `tests/test_devices.py`
+  alone carries 62 (registry, trust chain, quotas, dissociate vs reset).
+
 ## [0.13.0] - 2026-10-14
 
 ### Added

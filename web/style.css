@@ -819,6 +819,35 @@ body {
     margin-top: 0.6rem;
 }
 
+/* Pairing paste row on the lock screen: the same glass row as
+   .unlock-form, with a wider field for the 32-char device token. */
+.paste-form {
+    margin-top: 0.75rem;
+}
+
+.paste-input {
+    flex: 1;
+    max-width: 260px;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 14px;
+    background: var(--glass-1);
+    color: var(--text);
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+    font-family: inherit;
+}
+
+.paste-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.paste-input::placeholder {
+    color: var(--placeholder);
+}
+
 .btn-scan {
     display: block;
     width: 100%;
@@ -882,6 +911,7 @@ body {
    shows. Same selector list as the sheen below. */
 .glass-rim::before,
 .theme-toggle::before,
+.settings-btn::before,
 .tabs::before,
 .drop-zone::before,
 .transfer-info::before,
@@ -889,6 +919,9 @@ body {
 .error-msg::before,
 .file-list::before,
 .session-screen::before,
+.settings-card::before,
+.pair-card::before,
+.pair-banner::before,
 .quota-bar::before {
     content: "";
     position: absolute;
@@ -909,7 +942,10 @@ body {
    list: it is `position: fixed`, which is a containing block of its
    own - re-declaring `position: relative` on it here would drag it
    out of the top-right corner (it would flow as a flex sibling of
-   the container, and shove the column off-centre). */
+   the container, and shove the column off-centre). Same reason keeps
+   .settings-btn (fixed gear), .settings-screen (fixed veil) and
+   .pair-banner (fixed pill) out; only the cards, which are not fixed
+   themselves, join. */
 .tabs,
 .drop-zone,
 .transfer-info,
@@ -917,6 +953,8 @@ body {
 .error-msg,
 .file-list,
 .session-screen,
+.settings-card,
+.pair-card,
 .quota-bar {
     position: relative;
 }
@@ -1098,6 +1136,9 @@ body::-webkit-scrollbar {
     .error-msg,
     .file-list,
     .session-screen,
+    .settings-card,
+    .pair-card,
+    .pair-banner,
     .quota-bar {
         background: var(--surface);
     }
@@ -1555,4 +1596,352 @@ body::-webkit-scrollbar {
     .back-card {
         background: var(--surface-2);
     }
+}
+
+/* --- Settings (the gear and its overlay) ---------------------------- */
+
+/* Fixed circle one column left of the theme toggle: same material and
+   same bevel (it is in the .glass-rim::before list above). `position:
+   fixed` keeps it out of the position:relative list - the same call
+   the theme toggle gets. Hiding with the app needs no CSS: it lives
+   inside #app, whose display toggle hides the subtree. */
+.settings-btn {
+    position: fixed;
+    top: 14px;
+    right: 64px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--glass-edge);
+    border-radius: 50%;
+    background: var(--glass-2);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+    color: var(--text);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 10;
+    overflow: hidden;
+    transition: background 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-btn:hover {
+    background: var(--glass-3);
+}
+
+.settings-btn:active {
+    transform: scale(0.92);
+}
+
+/* Dimmed veil over everything: z-30 beats the z-10 toggles, the z-20
+   scroll pill and the page itself. A tap on the veil (not the card)
+   dismisses; the backdrop blur keeps the glass story going. */
+.settings-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    overscroll-behavior: contain;
+}
+
+/* The card: level-1 glass, the bevel rim (both selector lists), tall
+   enough for the three sections and scrollable on short screens. */
+.settings-card {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding: 1.3rem 1.3rem 1.5rem;
+    border-radius: 24px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+}
+
+.settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.settings-heading {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.settings-close {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--glass-edge);
+    border-radius: 50%;
+    background: var(--glass-2);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-close:hover {
+    background: var(--glass-3);
+    color: var(--text);
+}
+
+.settings-close:active {
+    transform: scale(0.92);
+}
+
+.settings-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+/* Three sections, hairline-separated like the desktop's settings. */
+.settings-section {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--glass-edge);
+}
+
+.settings-subtitle {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 0.6rem;
+}
+
+.settings-hint {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+}
+
+.token-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+}
+
+.token-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.device-token {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 12px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-family: monospace;
+    font-size: 0.8rem;
+    word-break: break-all;
+}
+
+.btn-copy {
+    flex: none;
+    padding: 0.45rem 0.95rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-2);
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-copy:hover {
+    background: var(--glass-3);
+}
+
+.btn-copy:active {
+    transform: scale(0.95);
+}
+
+.settings-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.settings-check input {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+/* Dissociate: the danger glass of .btn-cancel in pill form; the armed
+   state copies the folder delete's red tick ring. */
+.btn-dissociate {
+    display: block;
+    width: 100%;
+    margin-top: 0.85rem;
+    padding: 0.55rem 1.2rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--glass-danger-a), var(--glass-danger-b));
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s,
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-dissociate:hover {
+    background: linear-gradient(180deg, var(--glass-danger-a), var(--glass-danger-a));
+}
+
+.btn-dissociate:active {
+    transform: scale(0.98);
+}
+
+.btn-dissociate.armed {
+    color: #e5484d;
+    border-color: #e5484d;
+    box-shadow: 0 0 0 2px rgba(229, 72, 77, 0.35);
+}
+
+/* Theme + language choices: the active one wears the accent glass. */
+.settings-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.settings-choice {
+    flex: 1;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 14px;
+    background: var(--glass-2);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s,
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-choice:hover {
+    background: var(--glass-3);
+    color: var(--text);
+}
+
+.settings-choice:active {
+    transform: scale(0.97);
+}
+
+.settings-choice.active {
+    background: linear-gradient(180deg, var(--glass-accent-a), var(--glass-accent-b));
+    border-color: var(--glass-accent-edge);
+    color: var(--on-accent);
+}
+
+/* --- Pairing push: overlay + busy banner ---------------------------- */
+/* The veil sits one step above the settings one (z-40): a pairing
+   window is a pushed state and must win over any open overlay. Same
+   dismiss choreography as settings - tap the veil, Escape, or the
+   Close pill - but any of them counts as "not now" for this window. */
+.pair-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    overscroll-behavior: contain;
+}
+
+/* Level-1 glass card with the bevel rim (all three selector lists),
+   scrollable on short screens. */
+.pair-card {
+    width: 100%;
+    max-width: 380px;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding: 1.3rem;
+    border-radius: 24px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+}
+
+.pair-heading {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.pair-hint {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+}
+
+.pair-card .btn-refresh {
+    display: block;
+    width: 100%;
+    margin-top: 0.9rem;
+}
+
+/* Busy guard: a z-35 glass pill above the transfer UI but under the
+   overlay, pinned bottom-center so it never crowds the gear or the
+   theme toggle. */
+.pair-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 35;
+    max-width: calc(100vw - 2rem);
+    padding: 0.6rem 1.1rem;
+    border-radius: 999px;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-accent-edge);
+    box-shadow: var(--glass-shadow), var(--glass-inner);
+    color: var(--text);
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background 0.2s,
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pair-banner:hover {
+    background: var(--glass-3);
+}
+
+.pair-banner:active {
+    transform: translateX(-50%) scale(0.96);
 }

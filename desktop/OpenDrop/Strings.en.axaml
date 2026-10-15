@@ -61,8 +61,20 @@
     <x:String x:Key="Tab.Storage">Storage</x:String>
     <x:String x:Key="Tab.Security">Security</x:String>
     <x:String x:Key="Tab.Network">Network</x:String>
+    <x:String x:Key="Tab.Devices">Devices</x:String>
     <x:String x:Key="Tab.Appearance">Appearance</x:String>
     <x:String x:Key="Tab.Updates">Updates</x:String>
+
+    <!-- Device pairing (Appareils tab) -->
+    <x:String x:Key="Devices.Token">Device token</x:String>
+    <x:String x:Key="Devices.PourParrainer">To pair a device:</x:String>
+    <x:String x:Key="Devices.OpenBrowser">Open in browser</x:String>
+    <x:String x:Key="Devices.Reset">Reset</x:String>
+    <x:String x:Key="Devices.ResetConfirm">Reset will break pairing for all registered devices: they will have to be paired again. Continue?</x:String>
+    <x:String x:Key="Devices.Stopped">The server is stopped.</x:String>
+    <x:String x:Key="Devices.None">No paired devices.</x:String>
+    <x:String x:Key="Devices.Dissociate">Disconnect</x:String>
+    <x:String x:Key="Devices.DissociateConfirm">Remove this device?</x:String>
     <x:String x:Key="Field.Language">Language</x:String>
     <x:String x:Key="Field.ReceiveFolder">Receive folder</x:String>
     <x:String x:Key="Field.ShareFolder">Share folder</x:String>

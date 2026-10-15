@@ -1,5 +1,7 @@
 (function () {
     var TOKEN_KEY = "opendrop_token";
+    var DEVICE_KEY = "opendrop_device";
+    var DID_KEY = "opendrop_did";
 
     // --- Internationalization ---------------------------------------
     // English is the default (static HTML); French is applied at startup
@@ -37,6 +39,32 @@
             "unlock.tooMany": "Too many attempts. Wait a minute.",
             "unlock.invalid": "Invalid code.",
             "unlock.offline": "Server unreachable.",
+            "device.paste": "Pair",
+            "device.pastePlaceholder": "Paste the device token",
+            "device.invalid": "Invalid device token.",
+            "device.token": "Device token",
+            "device.copy": "Copy",
+            "device.copied": "Copied!",
+            "device.copyFailed": "Copy failed.",
+            "device.showInfo": "Share this device's info with the PC",
+            "device.dissociate": "Dissociate",
+            "device.needPair": "This device is not paired yet. Paste the device token below.",
+            "settings.open": "Settings",
+            "settings.title": "Settings",
+            "settings.close": "Close",
+            "settings.device": "Device",
+            "settings.appearance": "Appearance",
+            "settings.language": "Language",
+            "settings.forbidden": "Not allowed for this session. Pair this device first.",
+            "pair.title": "Pair this device",
+            "pair.hint": "Your PC just opened a pairing window. Paste the device token it displays to register this device (valid for one minute).",
+            "pair.submit": "Pair",
+            "pair.banner": "Pairing available \u2014 tap to pair",
+            "pair.showInfo": "Share this device's info with the PC",
+            "appearance.light": "Light",
+            "appearance.dark": "Dark",
+            "lang.fr": "Fran\u00e7ais",
+            "lang.en": "English",
             "qr.notOpendrop": "Unrecognized QR code: not an OpenDrop link.",
             "camera.blocked": "Camera unavailable: this browser blocks access (insecure " +
                 "context). Open the phone's camera app and scan the QR code: the " +
@@ -100,6 +128,32 @@
             "unlock.tooMany": "Trop de tentatives. Attendez une minute.",
             "unlock.invalid": "Code invalide.",
             "unlock.offline": "Serveur injoignable.",
+            "device.paste": "Associer",
+            "device.pastePlaceholder": "Collez le jeton d'appareil",
+            "device.invalid": "Jeton d'appareil invalide.",
+            "device.token": "Jeton d'appareil",
+            "device.copy": "Copier",
+            "device.copied": "Copi\u00e9 !",
+            "device.copyFailed": "La copie a \u00e9chou\u00e9.",
+            "device.showInfo": "Partager les informations de cet appareil avec le PC",
+            "device.dissociate": "Dissocier",
+            "device.needPair": "Cet appareil n'est pas encore associ\u00e9. Collez le jeton d'appareil ci-dessous.",
+            "settings.open": "Param\u00e8tres",
+            "settings.title": "Param\u00e8tres",
+            "settings.close": "Fermer",
+            "settings.device": "Appareil",
+            "settings.appearance": "Apparence",
+            "settings.language": "Langue",
+            "settings.forbidden": "Refus\u00e9 pour cette session. Associez d'abord cet appareil.",
+            "pair.title": "Associer cet appareil",
+            "pair.hint": "Votre PC vient d'ouvrir une fen\u00eatre d'association. Collez le jeton d'appareil qu'il affiche pour enregistrer cet appareil (valable une minute).",
+            "pair.submit": "Associer",
+            "pair.banner": "Association disponible \u2014 appuyez pour associer",
+            "pair.showInfo": "Partager les informations de cet appareil avec le PC",
+            "appearance.light": "Clair",
+            "appearance.dark": "Sombre",
+            "lang.fr": "Fran\u00e7ais",
+            "lang.en": "English",
             "qr.notOpendrop": "QR code non reconnu : ce n'est pas un lien OpenDrop.",
             "camera.blocked": "Cam\u00e9ra indisponible : ce navigateur bloque l'acc\u00e8s (contexte " +
                 "non s\u00e9curis\u00e9). Ouvrez l'appareil photo du t\u00e9l\u00e9phone et scannez " +
@@ -235,8 +289,13 @@
         }
         var attrs = document.querySelectorAll("[data-i18n-attr]");
         for (var j = 0; j < attrs.length; j++) {
-            var spec = attrs[j].getAttribute("data-i18n-attr").split(":");
-            if (spec.length === 2) attrs[j].setAttribute(spec[0], t(spec[1]));
+            // Comma-separated pairs: "aria-label:key.one,title:key.two".
+            // A single pair (the original form) still works.
+            var pairs = attrs[j].getAttribute("data-i18n-attr").split(",");
+            for (var k = 0; k < pairs.length; k++) {
+                var spec = pairs[k].split(":");
+                if (spec.length === 2) attrs[j].setAttribute(spec[0], t(spec[1]));
+            }
         }
         applyTheme();
     }
@@ -266,6 +325,9 @@
                 serverTheme = normalizeTheme(info.theme);
                 applyTheme();
             }
+            // Settings overlay (defined below, hoisted): refresh the
+            // active light/dark + lang buttons if it is already open.
+            syncSettingsChoices();
         })
         .catch(function () { /* server unreachable: keep the defaults */ });
 
@@ -303,6 +365,47 @@
         } catch (e) {
             return "";
         }
+    }
+
+    // --- Device plumbing ---------------------------------------------
+    // A paired phone keeps the long-lived device token in localStorage
+    // and sends it (plus a stable per-browser id) on every request: the
+    // server trusts a registered IP outright and re-registers a healed
+    // one, which is how pairing survives restarts and token rotations.
+
+    // One 32-char alnum id per browser, generated once and persisted.
+    function getDid() {
+        var did = storeRead(DID_KEY);
+        if (did) return did;
+        var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var out = "";
+        var rnd = new Uint8Array(1);
+        while (out.length < 32) {
+            if (window.crypto && window.crypto.getRandomValues) {
+                window.crypto.getRandomValues(rnd);
+            } else {
+                // Old-browser fallback: not a secret, only an identifier.
+                rnd[0] = Math.floor(Math.random() * 256);
+            }
+            // 62 does not divide 256: drop the tail so every character
+            // of the alphabet stays equally likely.
+            if (rnd[0] >= 248) continue;
+            out += alphabet.charAt(rnd[0] % 62);
+        }
+        storeWrite(DID_KEY, out);
+        return out;
+    }
+
+    // Query string for every authenticated request: the session token,
+    // the device token when this browser has one (heals/registers the
+    // caller's IP), and the stable per-browser id the server stores on
+    // the record. `extra` must bring its own leading "&" when present.
+    function authQuery(extra) {
+        var dev = storeRead(DEVICE_KEY) || "";
+        return "token=" + encodeURIComponent(token) +
+            (dev ? "&device=" + encodeURIComponent(dev) : "") +
+            "&did=" + encodeURIComponent(getDid()) +
+            (extra || "");
     }
 
     const token = getToken();
@@ -393,6 +496,366 @@
         if (e.key === "Enter") unlockWithCode();
     });
     btnUnlock.addEventListener("click", unlockWithCode);
+
+    // --- Pairing by pasting the device token --------------------------
+    // The desktop shows its device token (Settings > Devices). Pasting
+    // it here registers this IP with the server and hands back a fresh
+    // session token, so the page reloads straight into the app - no
+    // code, no QR, from then on this IP opens unlocked.
+    var pasteInput = document.getElementById("paste-input");
+    var btnPaste = document.getElementById("btn-paste");
+    var pasteError = document.getElementById("paste-error");
+
+    function showPasteError(message) {
+        pasteError.textContent = message;
+        pasteError.style.display = message ? "" : "none";
+    }
+
+    // `ctx` routes the in-flight button and the error line: the settings
+    // overlay passes its own pair (`btn-settings-paste` /
+    // `#settings-paste-error`); without it the lock-screen field is used.
+    function pairWithToken(value, shareInfo, ctx) {
+        var btn = (ctx && ctx.btn) || btnPaste;
+        var report = (ctx && ctx.report) || showPasteError;
+        var device = (value || "").trim();
+        // Obvious garbage never reaches the server: the pair endpoint is
+        // rate-limited to 5/min per IP.
+        if (!/^[A-Za-z0-9]{32}$/.test(device)) {
+            report(t("device.invalid"));
+            return;
+        }
+        report("");
+        btn.disabled = true;
+        fetchWithTimeout("/api/device/pair?device=" + encodeURIComponent(device) +
+            "&did=" + encodeURIComponent(getDid()) +
+            "&share_info=" + (shareInfo ? "1" : "0"),
+            { method: "POST" }, 10000)
+            .then(function (r) {
+                return r.json().then(function (data) { return { status: r.status, data: data }; });
+            })
+            .then(function (res) {
+                if (res.status === 200 && res.data.token) {
+                    storeToken(res.data.token);
+                    if (res.data.device) storeWrite(DEVICE_KEY, res.data.device);
+                    location.reload();
+                    return;
+                }
+                btn.disabled = false;
+                if (res.status === 429) {
+                    report(t("unlock.tooMany"));
+                } else {
+                    report(t("device.invalid"));
+                }
+            })
+            .catch(function () {
+                btn.disabled = false;
+                report(t("unlock.offline"));
+            });
+    }
+
+    btnPaste.addEventListener("click", function () {
+        pairWithToken(pasteInput.value, false);
+    });
+    pasteInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") pairWithToken(pasteInput.value, false);
+    });
+
+    // --- Settings overlay (the gear) ----------------------------------
+    // The gear lives inside #app, so the lock/unlock display toggle
+    // hides it with the rest of the app. The overlay sits at body level:
+    // a self-dissociate leaves it open over the lock screen, where its
+    // paste field is how this device pairs again.
+    // Opening fires ONE GET /api/device/status - a single render
+    // request, never a poll.
+    var settingsScreen = document.getElementById("settings-screen");
+    var settingsBtn = document.getElementById("settings-btn");
+    var settingsError = document.getElementById("settings-error");
+    var settingsAssociated = document.getElementById("settings-associated");
+    var settingsUnpaired = document.getElementById("settings-unpaired");
+    var deviceTokenEl = document.getElementById("device-token");
+    var btnCopyToken = document.getElementById("btn-copy-token");
+    var chkShareInfo = document.getElementById("chk-share-info");
+    var btnDissociate = document.getElementById("btn-dissociate");
+    var settingsPaste = document.getElementById("settings-paste");
+    var btnSettingsPaste = document.getElementById("btn-settings-paste");
+    var settingsPasteError = document.getElementById("settings-paste-error");
+    var settingsClose = document.getElementById("settings-close");
+    var copyTimer = 0;
+    var statusEpoch = 0;       // a re-open ignores the previous answer
+    var armedDissociate = 0;   // timer id: first tap arms, second acts
+
+    function showSettingsError(message) {
+        settingsError.textContent = message;
+        settingsError.style.display = message ? "" : "none";
+    }
+
+    function showSettingsPasteError(message) {
+        settingsPasteError.textContent = message;
+        settingsPasteError.style.display = message ? "" : "none";
+    }
+
+    // Active state on the theme/language choices. Called on open and
+    // from the /api/info handler (hoisted), so a late answer cannot
+    // leave stale buttons highlighted behind the overlay.
+    function syncSettingsChoices() {
+        var light = document.getElementById("set-theme-light");
+        var dark = document.getElementById("set-theme-dark");
+        if (light) light.classList.toggle("active", serverTheme === "light");
+        if (dark) dark.classList.toggle("active", serverTheme === "dark");
+        var fr = document.getElementById("set-lang-fr");
+        var en = document.getElementById("set-lang-en");
+        if (fr) fr.classList.toggle("active", LANG === "fr");
+        if (en) en.classList.toggle("active", LANG === "en");
+    }
+
+    function disarmDissociate() {
+        if (!armedDissociate) return;
+        window.clearTimeout(armedDissociate);
+        armedDissociate = 0;
+        btnDissociate.classList.remove("armed");
+        btnDissociate.textContent = t("device.dissociate");
+    }
+
+    function renderDeviceStatus(data) {
+        var associated = !!(data && data.associated);
+        disarmDissociate();
+        settingsAssociated.style.display = associated ? "" : "none";
+        settingsUnpaired.style.display = associated ? "none" : "";
+        if (!associated) return;
+        deviceTokenEl.textContent = data.device_token || "";
+        chkShareInfo.checked = !!data.share_info;
+    }
+
+    function openSettings() {
+        showSettingsError("");
+        showSettingsPasteError("");
+        settingsScreen.style.display = "flex";
+        syncSettingsChoices();
+        var epoch = ++statusEpoch;
+        fetchWithTimeout("/api/device/status?" + authQuery(), null, 10000)
+            .then(function (r) {
+                if (r.status === 401 || r.status === 403) return { forbidden: true };
+                if (!r.ok) throw new Error("http " + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                if (epoch !== statusEpoch) return;      // reopened meanwhile
+                if (data && data.forbidden) {
+                    // Stale session: pasting the device token re-pairs.
+                    renderDeviceStatus(null);
+                    showSettingsError(t("settings.forbidden"));
+                    return;
+                }
+                renderDeviceStatus(data);
+            })
+            .catch(function () {
+                if (epoch !== statusEpoch) return;
+                showSettingsError(t("quota.offline"));
+            });
+    }
+
+    function closeSettings() {
+        statusEpoch++;      // an in-flight answer must not repaint us
+        settingsScreen.style.display = "none";
+        disarmDissociate();
+        showSettingsError("");
+    }
+
+    // Every settings POST carries BOTH keys: the server normalizes a
+    // missing one to its default, so sending only what changed would
+    // silently reset the sibling setting (lang -> en, theme -> dark).
+    function postSettings(query, onOk) {
+        showSettingsError("");
+        fetchWithTimeout("/api/settings?" + query + "&" + authQuery(),
+            { method: "POST" }, 10000)
+            .then(function (r) {
+                return r.json().then(function (data) { return { status: r.status, data: data }; });
+            })
+            .then(function (res) {
+                if (res.status === 200) { onOk(res.data); return; }
+                if (res.status === 401 || res.status === 403) {
+                    showSettingsError(t("settings.forbidden"));
+                } else if (res.status === 429) {
+                    showSettingsError(t("unlock.tooMany"));
+                } else {
+                    showSettingsError(t("files.serverError"));
+                }
+            })
+            .catch(function () {
+                showSettingsError(t("quota.offline"));
+            });
+    }
+
+    // Apparence: live apply - no reload (the local override keys are
+    // dropped so the server's new choice is what the page resolves).
+    document.getElementById("set-theme-light").addEventListener("click", function () {
+        postSettings("lang=" + encodeURIComponent(LANG) + "&theme=light",
+            function (data) {
+                storeForget(THEME_KEY);
+                storeForget(THEME_BASE_KEY);
+                serverTheme = (data && data.theme) || "light";
+                applyTheme();
+                syncSettingsChoices();
+            });
+    });
+    document.getElementById("set-theme-dark").addEventListener("click", function () {
+        postSettings("lang=" + encodeURIComponent(LANG) + "&theme=dark",
+            function (data) {
+                storeForget(THEME_KEY);
+                storeForget(THEME_BASE_KEY);
+                serverTheme = (data && data.theme) || "dark";
+                applyTheme();
+                syncSettingsChoices();
+            });
+    });
+
+    // Langue: the server-side change only shows after a reload, so the
+    // page reloads right away and re-reads /api/info.
+    document.getElementById("set-lang-fr").addEventListener("click", function () {
+        postSettings("lang=fr&theme=" + encodeURIComponent(serverTheme),
+            function () { location.reload(); });
+    });
+    document.getElementById("set-lang-en").addEventListener("click", function () {
+        postSettings("lang=en&theme=" + encodeURIComponent(serverTheme),
+            function () { location.reload(); });
+    });
+
+    // Appareil / share_info: the checkbox posts the new preference; a
+    // refused write is rolled back so the box never lies.
+    chkShareInfo.addEventListener("change", function () {
+        var want = chkShareInfo.checked;
+        showSettingsError("");
+        fetchWithTimeout("/api/device/prefs?share_info=" + (want ? "1" : "0") +
+            "&" + authQuery(), { method: "POST" }, 10000)
+            .then(function (r) {
+                if (r.status === 200) return true;
+                if (r.status === 401 || r.status === 403) {
+                    showSettingsError(t("settings.forbidden"));
+                } else if (r.status === 429) {
+                    showSettingsError(t("unlock.tooMany"));
+                } else {
+                    showSettingsError(t("files.serverError"));
+                }
+                return false;
+            })
+            .then(function (ok) {
+                if (!ok) chkShareInfo.checked = !want;
+            })
+            .catch(function () {
+                chkShareInfo.checked = !want;
+                showSettingsError(t("quota.offline"));
+            });
+    });
+
+    // Appareil / dissociate: same two-tap arm as the folder delete -
+    // the first tap turns the label into a tick, the second one (within
+    // 3.5 s) posts. window.confirm() was rejected for folders and is
+    // equally wrong here.
+    function dissociateNow() {
+        disarmDissociate();
+        showSettingsError("");
+        fetchWithTimeout("/api/device/dissociate?" + authQuery(),
+            { method: "POST" }, 10000)
+            .then(function (r) {
+                if (r.status === 200) return true;
+                if (r.status === 401 || r.status === 403) {
+                    showSettingsError(t("settings.forbidden"));
+                } else if (r.status === 429) {
+                    showSettingsError(t("unlock.tooMany"));
+                } else {
+                    showSettingsError(t("files.serverError"));
+                }
+                return false;
+            })
+            .then(function (ok) {
+                if (!ok) return;
+                // The server killed this browser's credentials: drop
+                // them all and land on the lock screen. The overlay
+                // stays open on purpose - its paste field is the way
+                // back in.
+                storeForget(TOKEN_KEY);
+                storeForget(DEVICE_KEY);
+                storeForget(DID_KEY);
+                showSessionScreen("");
+                renderDeviceStatus(null);
+            })
+            .catch(function () {
+                showSettingsError(t("quota.offline"));
+            });
+    }
+
+    btnDissociate.addEventListener("click", function () {
+        if (armedDissociate) { dissociateNow(); return; }
+        btnDissociate.classList.add("armed");
+        btnDissociate.textContent = "\u2713";     // tick: "tap again"
+        armedDissociate = window.setTimeout(disarmDissociate, 3500);
+    });
+
+    // Appareil / copy: clipboard API first, execCommand fallback for
+    // browsers (or contexts) where the async API refuses.
+    function copyFeedback(message) {
+        window.clearTimeout(copyTimer);
+        btnCopyToken.textContent = message;
+        copyTimer = window.setTimeout(function () {
+            btnCopyToken.textContent = t("device.copy");
+        }, 1600);
+    }
+
+    function copyTokenFallback(text) {
+        try {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            return ok;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    btnCopyToken.addEventListener("click", function () {
+        var text = deviceTokenEl.textContent;
+        if (!text) return;
+        function ok() { copyFeedback(t("device.copied")); }
+        function fail() { showSettingsError(t("device.copyFailed")); }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(ok, function () {
+                if (copyTokenFallback(text)) ok();
+                else fail();
+            });
+        } else if (copyTokenFallback(text)) {
+            ok();
+        } else {
+            fail();
+        }
+    });
+
+    // Appareil / re-pair field (not-associated state).
+    var settingsPairCtx = {
+        btn: btnSettingsPaste,
+        report: showSettingsPasteError
+    };
+    btnSettingsPaste.addEventListener("click", function () {
+        pairWithToken(settingsPaste.value, false, settingsPairCtx);
+    });
+    settingsPaste.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") pairWithToken(settingsPaste.value, false, settingsPairCtx);
+    });
+
+    settingsBtn.addEventListener("click", openSettings);
+    settingsClose.addEventListener("click", closeSettings);
+    // Tap the dimmed backdrop (the overlay itself) to dismiss.
+    settingsScreen.addEventListener("click", function (e) {
+        if (e.target === settingsScreen) closeSettings();
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && settingsScreen.style.display !== "none") closeSettings();
+    });
 
     // --- QR scanner (mobile only) ---
     var btnScan = document.getElementById("btn-scan");
@@ -626,6 +1089,102 @@
 
     showScrollThumb();
 
+    // --- Pairing push: overlay + busy banner -------------------------
+    // Every quota tick reports the desktop's pairing window and whether
+    // this IP is registered. An unregistered page gets the pairing
+    // overlay pushed once per window - unless a transfer is running,
+    // where only the banner pill shows (a tap on it opens the overlay
+    // by hand: the only way in while busy). Closing the overlay by any
+    // path is a "not now" for the rest of the window; the flag resets
+    // when the window expires, so the NEXT window can push again.
+    var pairScreen = document.getElementById("pair-screen");
+    var pairBanner = document.getElementById("pair-banner");
+    var pairToken = document.getElementById("pair-token");
+    var btnPair = document.getElementById("btn-pair");
+    var btnPairClose = document.getElementById("btn-pair-close");
+    var chkPairShowInfo = document.getElementById("chk-pair-showinfo");
+    var pairError = document.getElementById("pair-error");
+    var PAIR_DISMISSED_KEY = "opendrop_pair_dismissed";
+    var pairManuallyOpened = false;   // banner-tap open: survives busy
+                                      // ticks (the only way in while busy)
+
+    // sessionStorage, not localStorage: the dismissal belongs to this
+    // tab's pairing window, not to the device's whole pairing life.
+    function pairDismissed() {
+        try { return sessionStorage.getItem(PAIR_DISMISSED_KEY) === "1"; }
+        catch (e) { return false; }
+    }
+
+    function setPairDismissed(value) {
+        try {
+            if (value) sessionStorage.setItem(PAIR_DISMISSED_KEY, "1");
+            else sessionStorage.removeItem(PAIR_DISMISSED_KEY);
+        } catch (e) { /* private mode: dismissal is per-page then */ }
+    }
+
+    function showPairError(message) {
+        pairError.textContent = message;
+        pairError.style.display = message ? "" : "none";
+    }
+
+    // `manual` marks a deliberate open (the banner tap): while the
+    // transfer runs, quota ticks must not step THAT overlay down -
+    // only an auto-pushed one yields to the busy guard.
+    function openPairScreen(manual) {
+        showPairError("");
+        pairToken.value = "";              // never prefill a secret
+        chkPairShowInfo.checked = false;   // share_info=0 unless opted in
+        pairManuallyOpened = !!manual;
+        pairScreen.style.display = "flex";
+    }
+
+    // Any manual close (Close pill, backdrop tap, Escape) is a "not
+    // now": the quota tick must not push the overlay again this window.
+    function closePairScreen() {
+        setPairDismissed(true);
+        pairManuallyOpened = false;
+        pairScreen.style.display = "none";
+    }
+
+    var pairPairCtx = {
+        btn: btnPair,
+        report: showPairError
+    };
+    btnPair.addEventListener("click", function () {
+        // Boolean, not "1"/"0": pairWithToken does its own ternary and
+        // the string "0" is truthy.
+        pairWithToken(pairToken.value, chkPairShowInfo.checked, pairPairCtx);
+    });
+    pairToken.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") btnPair.click();
+    });
+    btnPairClose.addEventListener("click", closePairScreen);
+    // The banner is the only way into the overlay while busy.
+    pairBanner.addEventListener("click", function () {
+        openPairScreen(true);
+    });
+    // Tap the dimmed backdrop (the overlay itself) to dismiss.
+    pairScreen.addEventListener("click", function (e) {
+        if (e.target === pairScreen) closePairScreen();
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && pairScreen.style.display !== "none") closePairScreen();
+    });
+
+    // Reads the pairing link/QR hash (desktop "Pour parrainer" section); nothing auto-submits.
+    (function () {
+        var m = /^#pair=([A-Za-z0-9]{32})$/.exec(location.hash || "");
+        if (!m) return;
+        var tok = m[1];
+        history.replaceState(null, "", location.pathname + location.search);
+        if (storeRead(DEVICE_KEY) === tok) return; // already paired with this token
+        openPairScreen(true);
+        var input = document.getElementById("pair-token");
+        if (input) input.value = tok; // after openPairScreen: it clears the field
+    })();
+
+    // The overlay wiring runs above the no-token gate below: the #pair=
+    // QR link opens this overlay on a locked page, Pair button included.
     if (!token) {
         showSessionScreen("");
         return;
@@ -815,12 +1374,45 @@
     var quotaBusy = false;
     var quotaFailures = 0;
 
+    // Runs on every quota tick (no new poll of its own).
+    function handlePairing(pairing, associated) {
+        if (!pairing) {
+            // Window expired: hide everything (manual open or not -
+            // expiry wins), arm the next window.
+            setPairDismissed(false);
+            pairManuallyOpened = false;
+            pairScreen.style.display = "none";
+            pairBanner.style.display = "none";
+            return;
+        }
+        if (associated) {
+            // Already registered: pairing is not this page's business.
+            // (Defensive hide - a successful pair reloads the page.)
+            pairScreen.style.display = "none";
+            pairBanner.style.display = "none";
+            return;
+        }
+        if (currentXhr !== null || sendQueue.length > 0) {
+            // Busy guard: a transfer runs - never cover its progress.
+            // An overlay AUTO-pushed before the upload started steps
+            // down; one the user opened from the banner stays up (the
+            // banner is the door in while busy, not a ≤5 s glimpse).
+            if (!pairManuallyOpened) pairScreen.style.display = "none";
+            pairBanner.style.display = "";
+            return;
+        }
+        pairBanner.style.display = "none";
+        if (!pairDismissed() && pairScreen.style.display === "none") {
+            openPairScreen();   // once per window: a close sets dismissed
+        }
+    }
+
     function refreshQuota() {
         if (appEl.style.display === "none") return;
         if (quotaBusy) return;
         quotaBusy = true;
 
-        fetchWithTimeout("/api/quota?token=" + encodeURIComponent(token), null, 8000)
+        fetchWithTimeout("/api/quota?" + authQuery(), null, 8000)
             .then(function (r) {
                 if (r.status === 401 || r.status === 403) {
                     endSession(t("session.expired"));
@@ -833,6 +1425,8 @@
                 if (!data || typeof data.usage_bytes !== "number") return;
                 quotaFailures = 0;
                 renderQuota(data.usage_bytes, data.limit_bytes || 0);
+                if (data.device) storeWrite(DEVICE_KEY, data.device);
+                handlePairing(!!data.pairing, !!data.device);
             })
             .catch(function () {
                 quotaFailures++;
@@ -1006,7 +1600,7 @@
             showSendView("error");
         });
 
-        xhr.open("POST", "/api/upload?token=" + encodeURIComponent(token));
+        xhr.open("POST", "/api/upload?" + authQuery());
         xhr.send(formData);
     }
 
@@ -1408,8 +2002,7 @@
     }
 
     function downloadUrl(name) {
-        return "/api/download/" + encodeURIComponent(name) +
-            "?token=" + encodeURIComponent(token);
+        return "/api/download/" + encodeURIComponent(name) + "?" + authQuery();
     }
 
     function buildFolderCard(folder, index) {
@@ -1825,7 +2418,7 @@
             fileList.style.display = "";
         }
 
-        fetchWithTimeout("/api/files?token=" + encodeURIComponent(token), null, 20000)
+        fetchWithTimeout("/api/files?" + authQuery(), null, 20000)
             .then(function (r) {
                 if (r.status === 429) {
                     throw new Error("rate limit");

@@ -24,6 +24,7 @@ _TEXT_FR: dict[str, str] = {
     "Session token expired": "Token de session expire",
     "Missing session token": "Token manquant",
     "Invalid session code": "Code de session invalide",
+    "Invalid device token": "Jeton d'appareil invalide",
     "Origin not allowed": "Origine non autorisee",
     # Rate limiting
     "Too many requests, try again in a moment":

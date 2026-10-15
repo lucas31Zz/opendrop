@@ -38,6 +38,8 @@ TOKEN_ROUTES_GET = [
     "/api/quota",
     "/api/download/test.txt",
     "/qr",
+    "/api/devices",
+    "/api/device/status",
 ]
 
 ASSETS_PUBLICS = ["/", "/style.css", "/app.js"]

@@ -14,6 +14,7 @@ import http.client
 import os
 import socket
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -26,7 +27,8 @@ sys.path.insert(0, _ROOT)
 from opendrop.network.interfaces import get_local_ip, find_available_port
 from opendrop.server.rate_limit import limiter_upload, limiter_download, limiter_general
 from opendrop.server.server import create_server
-from tests.conftest import cert_dir, dd, sd, urlopen, SSL_CONTEXT
+from opendrop.security.devices import DeviceRegistry
+from tests.conftest import _WORKSPACE, cert_dir, dd, sd, urlopen, SSL_CONTEXT
 
 ip = "127.0.0.1"
 
@@ -77,8 +79,11 @@ def _start(server_id="default", expires=3600):
     safe_id = server_id.replace(" ", "_")
     port = find_available_port(11000 + hash(server_id) % 9000)
     token = f"beta_{safe_id}_{port}"
+    # Hermetic: temp config dir, never the real user config dir.
+    cfg = tempfile.mkdtemp(prefix="opendrop_cfg_", dir=_WORKSPACE)
     server = create_server(ip, port, token, dd, sd, session_expires_in=expires,
-                           tls_cert_dir=cert_dir)
+                           tls_cert_dir=cert_dir,
+                           devices=DeviceRegistry(cfg), config_dir=cfg)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     time.sleep(0.3)

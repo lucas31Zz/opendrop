@@ -24,13 +24,14 @@ The suites are homegrown (no external framework), run from the repo root.
 
 ```powershell
 python -m tests.test_security     # 36
-python -m tests.test_routes       # 44
+python -m tests.test_routes       # 46
 python -m tests.test_paths        # 43
 python -m tests.test_quota        # 40
 python -m tests.test_sessions     # 34
 python -m tests.test_tls          # 15
 python -m tests.test_server       # 16
 python -m tests.test_beta         # 64
+python -m tests.test_devices      # 62
 ```
 
 - Every suite exits with a non-zero status when it fails.

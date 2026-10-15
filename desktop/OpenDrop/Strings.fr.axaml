@@ -61,8 +61,20 @@
     <x:String x:Key="Tab.Storage">Stockage</x:String>
     <x:String x:Key="Tab.Security">Sécurité</x:String>
     <x:String x:Key="Tab.Network">Réseau</x:String>
+    <x:String x:Key="Tab.Devices">Appareils</x:String>
     <x:String x:Key="Tab.Appearance">Apparence</x:String>
     <x:String x:Key="Tab.Updates">Mises à jour</x:String>
+
+    <!-- Appairage d'appareils (onglet Appareils) -->
+    <x:String x:Key="Devices.Token">Jeton d'appareil</x:String>
+    <x:String x:Key="Devices.PourParrainer">Pour parrainer :</x:String>
+    <x:String x:Key="Devices.OpenBrowser">Ouvrir dans le navigateur</x:String>
+    <x:String x:Key="Devices.Reset">Réinitialiser</x:String>
+    <x:String x:Key="Devices.ResetConfirm">Réinitialiser cassera le parrainage de tous les appareils appairés : ils devront être appairés à nouveau. Continuer ?</x:String>
+    <x:String x:Key="Devices.Stopped">Le serveur est arrêté.</x:String>
+    <x:String x:Key="Devices.None">Aucun appareil associé.</x:String>
+    <x:String x:Key="Devices.Dissociate">Dissocier</x:String>
+    <x:String x:Key="Devices.DissociateConfirm">Retirer cet appareil ?</x:String>
     <x:String x:Key="Field.Language">Langue</x:String>
     <x:String x:Key="Field.ReceiveFolder">Dossier de réception</x:String>
     <x:String x:Key="Field.ShareFolder">Dossier de partage</x:String>

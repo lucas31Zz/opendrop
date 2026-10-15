@@ -89,6 +89,14 @@ Truth table tested by `python -m tests.test_routes`:
 | `GET /api/download/*` | token required | rate limit 30/min per IP |
 | `GET /qr` | token required | rate limit 120/min (the PNG embeds the token) |
 | `POST /api/session/unlock` | 6-character code | rate limit 5/min per IP, response = token |
+| `GET /api/devices` | main token only | desktop device list; a session token (even code-unlocked) is refused |
+| `GET /api/device/status` | token or registered IP | `device_token` + `share_info` only go to a registered IP, never to a session-token caller |
+| `POST /api/device/pair` | device token | rate limit 5/min per IP, response = session token |
+| `POST /api/device/prefs` | token (registered IP included) | sets `share_info` on the caller's own device record |
+| `POST /api/device/dissociate` | main token + `ip=`, or own registered IP | removes the record, invalidates that IP's sessions (the main session survives) |
+| `POST /api/device/reset` | main token only | rotates device_token, removes ALL records, invalidates their sessions (main/QR kept) |
+| `POST /api/device/pairing` | main token only | opens the 60 s pairing window |
+| `POST /api/settings` | main token or registered IP | language + theme, normalized then persisted to config.json; a code-unlocked guest token is refused |
 | `GET /api/info` | public | discovery route (ip + port) for the desktop app and the probe; the `session` block (active session count, duration) only goes out to a valid token holder, and a bad token gives 403 |
 | `GET /`, `/style.css`, `/app.js` | public | web interface shell, no secrets |
 | unknown `/api/*` route | - | 404 JSON `{"error": ..., "code": 404}` |
@@ -97,6 +105,13 @@ Truth table tested by `python -m tests.test_routes`:
 - Neither the token nor the session code shows up in HTML pages, errors, or
   `/api/info`; only `/qr` (by design) and the `POST /api/session/unlock`
   response (delivered to whoever holds the code) carry the token
+- Device pairing state lives in `devices.json` (config folder): the
+  long-lived device token, one record per paired device (IP, user agent,
+  device id, `share_info`, pairing date) and nothing else. It is written
+  only by the device registry; a config save (e.g. the language/theme from
+  `POST /api/settings`) rewrites `config.json` and never touches this file
+  (tested: byte-identical after a settings write). The device token
+  changes only via `POST /api/device/reset`.
 - The download filename is encoded with an ASCII fallback first, then
   `filename*=UTF-8''...`: a non-Latin-1 name no longer breaks the header,
   and no control character (CR/LF) can be injected into it
@@ -116,9 +131,10 @@ Tested by `python -m tests.test_paths`:
 - Disk write errors (`DiskError`) only carry the system reason
   (`[Errno 28] No space left on device`): no file or folder name, so it
   shows up neither in the 507 response nor in the error message displayed
-- Server logs mask secrets: `?token=...` and `?code=...` are replaced with
-  `token=***` / `code=***` before printing. Piping the server's output to a
-  file therefore puts neither the token nor the code on disk
+- Server logs mask secrets: `?token=...`, `?code=...` and `?device=...`
+  are replaced with `token=***` / `code=***` / `device=***` before
+  printing. Piping the server's output to a file therefore puts neither
+  the token, the code nor the (long-lived) device token on disk
 - The assets (`/`, `/style.css`, `/app.js`) contain no local path: the
   interface only knows relative URLs
 - The receive folder and the share folder are shown in the app's Settings:
@@ -331,13 +347,16 @@ Python 3.12, no external framework):
 | Command | What it proves | Result |
 |---|---|---|
 | `python -m tests.test_security` | tokens, paths, size limits, origin, incomplete body, write failure, logs with no secrets | 36/36 |
-| `python -m tests.test_routes` | route truth table (section 5) | 44/44 |
+| `python -m tests.test_routes` | route truth table (section 5) | 46/46 |
 | `python -m tests.test_paths` | no absolute path in any response (section 6) | 43/43 |
 | `python -m tests.test_quota` | global quota, simultaneous reservations, exact fill, 507 | 40/40 |
 | `python -m tests.test_sessions` | sessions, expiration, session code, rotation through `opendrop.main` | 34/34 |
 | `python -m tests.test_tls` | self-signed certificate, key/cert, EKU, renewal, forced HTTPS | 15/15 |
-| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup | 14/14 |
+| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup | 16/16 |
 | `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 64/64 and 76/76 |
+| `python -m tests.test_devices` | device pairing: registry, registered-IP trust, pairing quotas, dissociate vs reset | 62/62 |
+
+Nine suites, 356 checks in total.
 
 ---
 
@@ -355,7 +374,7 @@ Python 3.12, no external framework):
 | DoS by requests | Rate limiting per IP | Done |
 | Stack trace leak | No tracebacks in responses | Done |
 | Absolute path leak | Responses with no server path (upload = name + size + hash), disk errors with no path | Done |
-| Secret leak in logs | `token=` and `code=` replaced with `***` in the server logs | Done |
+| Secret leak in logs | `token=`, `code=` and `device=` replaced with `***` in the server logs | Done |
 | Network interception | HTTPS enforced (TLS 1.2+), self-signed certificate | Done |
 | Encryption in transit | HTTPS enforced on every API route | Done |
 | Encryption at rest | Not protected | Future |

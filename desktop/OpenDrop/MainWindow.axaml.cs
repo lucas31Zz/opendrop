@@ -1316,7 +1316,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var settingsWindow = new SettingsWindow();
+            var settingsWindow = new SettingsWindow(_serverManager, _http, _isRunning);
             await settingsWindow.ShowDialog(this);
 
             if (settingsWindow.SettingsChanged)

@@ -39,6 +39,13 @@
                 <span class="quota-text" id="quota-text"></span>
             </div>
 
+            <!-- Settings gear: inside #app, so the lock/unlock display
+                 toggle hides it together with the app. Fixed top-right,
+                 one column left of the theme toggle. -->
+            <button id="settings-btn" class="settings-btn" type="button"
+                    aria-label="Settings" title="Settings"
+                    data-i18n-attr="aria-label:settings.open,title:settings.open">&#9881;&#65038;</button>
+
             <div class="tabs" id="tabs">
                 <!-- Slides between the two tabs on a spring, instead of
                      the background jumping from one side to the other. -->
@@ -159,6 +166,15 @@
             </div>
             <p class="unlock-error" id="unlock-error" style="display:none;"></p>
 
+            <div class="unlock-form paste-form">
+                <input type="text" class="paste-input" id="paste-input"
+                       placeholder="Paste the device token" autocomplete="off"
+                       autocorrect="off" spellcheck="false"
+                       data-i18n-attr="placeholder:device.pastePlaceholder">
+                <button class="btn-unlock" id="btn-paste" data-i18n="device.paste">Pair</button>
+            </div>
+            <p class="unlock-error" id="paste-error" style="display:none;"></p>
+
             <button class="btn-scan" id="btn-scan" style="display:none;" data-i18n="session.scan">&#128247; Scan QR code</button>
             <div class="scanner" id="scanner" style="display:none;">
                 <video id="scanner-video" playsinline autoplay muted></video>
@@ -168,6 +184,109 @@
             <button class="btn-refresh" id="btn-session-retry" data-i18n="session.retry">Try again</button>
         </div>
     </div>
+
+    <!-- Settings overlay: body level (NOT inside #app) so it survives
+         the lock/unlock display toggle - after a self-dissociate the
+         lock screen shows underneath while the overlay stays open for
+         the re-pair paste. -->
+    <div class="settings-screen" id="settings-screen" style="display:none;"
+         role="dialog" aria-modal="true" aria-label="Settings"
+         data-i18n-attr="aria-label:settings.title">
+        <div class="settings-card">
+            <div class="settings-head">
+                <h2 class="settings-heading" data-i18n="settings.title">Settings</h2>
+                <button class="settings-close" id="settings-close" type="button"
+                        aria-label="Close" title="Close"
+                        data-i18n-attr="aria-label:settings.close,title:settings.close">&#10005;</button>
+            </div>
+            <p class="settings-error" id="settings-error" style="display:none;"></p>
+
+            <section class="settings-section">
+                <h3 class="settings-subtitle" data-i18n="settings.device">Device</h3>
+                <div id="settings-associated" style="display:none;">
+                    <p class="token-label" data-i18n="device.token">Device token</p>
+                    <div class="token-row">
+                        <code class="device-token" id="device-token"></code>
+                        <button class="btn-copy" id="btn-copy-token" type="button"
+                                data-i18n="device.copy">Copy</button>
+                    </div>
+                    <label class="settings-check">
+                        <input type="checkbox" id="chk-share-info">
+                        <span data-i18n="device.showInfo">Share this device's info with the PC</span>
+                    </label>
+                    <button class="btn-dissociate" id="btn-dissociate" type="button"
+                            data-i18n="device.dissociate">Dissociate</button>
+                </div>
+                <div id="settings-unpaired" style="display:none;">
+                    <p class="settings-hint" data-i18n="device.needPair">This device is not paired yet. Paste the device token below.</p>
+                    <div class="unlock-form paste-form">
+                        <input type="text" class="paste-input" id="settings-paste"
+                               placeholder="Paste the device token" autocomplete="off"
+                               autocorrect="off" spellcheck="false"
+                               data-i18n-attr="placeholder:device.pastePlaceholder">
+                        <button class="btn-unlock" id="btn-settings-paste" type="button"
+                                data-i18n="device.paste">Pair</button>
+                    </div>
+                    <p class="unlock-error" id="settings-paste-error" style="display:none;"></p>
+                </div>
+            </section>
+
+            <section class="settings-section">
+                <h3 class="settings-subtitle" data-i18n="settings.appearance">Appearance</h3>
+                <div class="settings-row">
+                    <button class="settings-choice" id="set-theme-light" type="button"
+                            data-i18n="appearance.light">Light</button>
+                    <button class="settings-choice" id="set-theme-dark" type="button"
+                            data-i18n="appearance.dark">Dark</button>
+                </div>
+            </section>
+
+            <section class="settings-section">
+                <h3 class="settings-subtitle" data-i18n="settings.language">Language</h3>
+                <div class="settings-row">
+                    <button class="settings-choice" id="set-lang-fr" type="button"
+                            data-i18n="lang.fr">Fran&ccedil;ais</button>
+                    <button class="settings-choice" id="set-lang-en" type="button"
+                            data-i18n="lang.en">English</button>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Pairing overlay: a pushed state, not a user action. Body level
+         like the settings veil, one step above it (z-40): the desktop
+         opened a pairing window and this device is not registered yet.
+         Closing it silences the rest of this window; the next one can
+         push again. -->
+    <div class="pair-screen" id="pair-screen" style="display:none;"
+         role="dialog" aria-modal="true" aria-label="Pair this device"
+         data-i18n-attr="aria-label:pair.title">
+        <div class="pair-card">
+            <h2 class="pair-heading" data-i18n="pair.title">Pair this device</h2>
+            <p class="pair-hint" data-i18n="pair.hint">Your PC just opened a pairing window. Paste the device token it displays to register this device (valid for one minute).</p>
+            <div class="unlock-form paste-form">
+                <input type="text" class="paste-input" id="pair-token"
+                       placeholder="Paste the device token" autocomplete="off"
+                       autocorrect="off" spellcheck="false"
+                       data-i18n-attr="placeholder:device.pastePlaceholder">
+                <button class="btn-unlock" id="btn-pair" type="button"
+                        data-i18n="pair.submit">Pair</button>
+            </div>
+            <p class="unlock-error" id="pair-error" style="display:none;"></p>
+            <label class="settings-check">
+                <input type="checkbox" id="chk-pair-showinfo">
+                <span data-i18n="pair.showInfo">Share this device's info with the PC</span>
+            </label>
+            <button class="btn-refresh" id="btn-pair-close" type="button"
+                    data-i18n="settings.close">Close</button>
+        </div>
+    </div>
+
+    <!-- Pairing banner: the busy guard. While a transfer runs the
+         overlay must never cover the progress UI, so the unpaired page
+         only gets this pill - tapping it opens the overlay by hand. -->
+    <button class="pair-banner" id="pair-banner" type="button"
+            style="display:none;" data-i18n="pair.banner">Pairing available &#8212; tap to pair</button>
 
     <!-- Liquid Glass refraction: a gentle turbulence fed into the
          backdrop filter of .tabs and .drop-zone (see style.css).

@@ -3,15 +3,17 @@ import json
 import os
 import socket
 import sys
+import tempfile
 import time
 import urllib.request
 import urllib.error
 
 from opendrop.network.interfaces import _port_is_free, find_available_port
 from opendrop.server.server import PortInUseError, create_server
+from opendrop.security.devices import DeviceRegistry
 from opendrop.themes import THEMES
-from tests.conftest import (_start_server, _url, _upload, TestResult, cert_dir,
-                            dd, ip, sd, urlopen)
+from tests.conftest import (_WORKSPACE, _start_server, _url, _upload,
+                            TestResult, cert_dir, dd, ip, sd, urlopen)
 
 r = TestResult()
 
@@ -96,7 +98,9 @@ def test_server():
     # Double bind: a second server on the same port is rejected, and the
     # server already in place is correctly identified as OpenDrop.
     try:
-        create_server(ip, port, "token_doublon", dd, sd, tls_cert_dir=cert_dir)
+        cfg = tempfile.mkdtemp(prefix="opendrop_cfg_", dir=_WORKSPACE)
+        create_server(ip, port, "token_doublon", dd, sd, tls_cert_dir=cert_dir,
+                      devices=DeviceRegistry(cfg), config_dir=cfg)
         r.check("Second server on same port rejected", False, "no exception")
     except PortInUseError as e:
         r.check("Second server on same port rejected", "OpenDrop" in str(e), str(e))
@@ -110,7 +114,9 @@ def test_server():
     busy_port = busy.getsockname()[1]
     busy.listen(5)
     try:
-        create_server(ip, busy_port, "token_etranger", dd, sd, tls_cert_dir=cert_dir)
+        cfg = tempfile.mkdtemp(prefix="opendrop_cfg_", dir=_WORKSPACE)
+        create_server(ip, busy_port, "token_etranger", dd, sd, tls_cert_dir=cert_dir,
+                      devices=DeviceRegistry(cfg), config_dir=cfg)
         r.check("Port occupied by another program rejected", False, "no exception")
     except PortInUseError as e:
         r.check("Port occupied by another program rejected", "another program" in str(e), str(e))

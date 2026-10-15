@@ -13,6 +13,9 @@ from socketserver import ThreadingMixIn, TCPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote, quote
 
+from opendrop.config.config import get_config_dir, load_config, save_config
+from opendrop.security.devices import DeviceRegistry
+from opendrop.security.tokens import validate_token
 from opendrop.security.validation import is_safe_path
 from opendrop.network.interfaces import _port_is_free
 from opendrop.security.tls_cert import ensure_certificate
@@ -150,10 +153,12 @@ def _content_disposition(filename: str) -> str:
             f"filename*=UTF-8''{quote(filename)}")
 
 
-# The token and the backup code travel in the query string, and the request
-# line is printed by BaseHTTPRequestHandler: without this filter, a simple
-# log redirection would put the secrets on disk.
-_SENSITIVE_QUERY = re.compile(r"(?i)\b(token|code)=[^&\s\"']+")
+# The token, the backup code and the device (pairing) token travel in the
+# query string, and the request line is printed by BaseHTTPRequestHandler:
+# without this filter, a simple log redirection would put the secrets on
+# disk. The device token is long-lived (it survives until rotation), so
+# leaking it in a log file matters even more than a session token.
+_SENSITIVE_QUERY = re.compile(r"(?i)\b(token|code|device)=[^&\s\"']+")
 
 
 def _redact_secrets(message: str) -> str:
@@ -167,11 +172,13 @@ class OpenDropHandler(BaseHTTPRequestHandler):
     sys_version = ""
 
     def __init__(self, *args, token: str = "", download_dir: str = "", share_dir: str = "",
-                 sessions: SessionManager | None = None, **kwargs):
+                 sessions: SessionManager | None = None,
+                 devices: DeviceRegistry | None = None, **kwargs):
         self._token = token
         self._download_dir = download_dir
         self._share_dir = share_dir
         self._sessions = sessions
+        self._devices = devices
         super().__init__(*args, **kwargs)
 
     def send_error(self, code, message=None, explain=None):
@@ -287,7 +294,27 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         if origin != allowed and origin != allowed_local:
             raise OriginForbiddenError()
 
-    def _check_token(self, query: dict) -> None:
+    def _check_token(self, query: dict, ip: str) -> None:
+        # 1) A device already paired from this IP is always accepted,
+        #    even with a stale/invalid device param: that is what lets a
+        #    paired page keep working (and resync its device token via
+        #    /api/quota) after the desktop rotates the token.
+        if self._devices and self._devices.is_registered(ip):
+            return
+        # 2) The pairing token in the query heals this IP (a new IP for a
+        #    known device, or a lost registry record). An invalid one
+        #    falls through to the session-token check below - it never
+        #    authenticates on its own.
+        device = query.get("device", [None])[0]
+        if device and self._devices and validate_token(device, self._devices.token):
+            # ua/did passed explicitly: register() with the defaults
+            # would wipe them on an existing record.
+            self._devices.register(ip,
+                                   ua=self.headers.get("User-Agent", ""),
+                                   did=query.get("did", [""])[0])
+            print(f"[OpenDrop] Device healed: {ip}", flush=True)
+            return
+        # 3) Session / main token (unchanged).
         t = query.get("token", [None])[0]
         if not t:
             raise TokenInvalidError("Missing session token")
@@ -298,9 +325,14 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                     raise TokenExpiredError()
                 raise TokenInvalidError()
         else:
-            from opendrop.security.tokens import validate_token
             if not validate_token(t, self._token):
                 raise TokenInvalidError()
+
+    def _require_main_token(self, query: dict) -> None:
+        # Device management (desktop UI only): the main/QR token, never
+        # a session token issued to a paired device.
+        if not validate_token(query.get("token", [""])[0], self._token):
+            raise TokenInvalidError()
 
     def _send_json(self, data: dict, status: int = 200) -> None:
         body = json.dumps(data).encode()
@@ -375,13 +407,17 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 if not limiter_general.allow(ip):
                     raise RateLimitError()
                 if path == "/api/progress":
-                    self._route_progress(query)
+                    self._route_progress(query, ip)
                 elif path == "/api/info":
-                    self._route_info(query)
+                    self._route_info(query, ip)
                 elif path == "/api/files":
                     self._route_files(query, ip)
                 elif path == "/api/quota":
-                    self._route_quota(query)
+                    self._route_quota(query, ip)
+                elif path == "/api/device/status":
+                    self._route_device_status(query, ip)
+                elif path == "/api/devices":
+                    self._route_devices(query, ip)
                 elif path.startswith("/api/download/"):
                     self._route_download(query, path, ip)
                 else:
@@ -422,6 +458,30 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 # connection on some systems.
                 self._drain_left_body()
                 self._route_session_unlock(query, ip)
+            elif path == "/api/device/pair":
+                # Same body-drain as unlock above.
+                self._drain_left_body()
+                self._route_device_pair(query, ip)
+            elif path == "/api/device/prefs":
+                # Same body-drain as unlock above.
+                self._drain_left_body()
+                self._route_device_prefs(query, ip)
+            elif path == "/api/device/reset":
+                # Same body-drain as unlock above.
+                self._drain_left_body()
+                self._route_device_reset(query, ip)
+            elif path == "/api/device/dissociate":
+                # Same body-drain as unlock above.
+                self._drain_left_body()
+                self._route_device_dissociate(query, ip)
+            elif path == "/api/device/pairing":
+                # Same body-drain as unlock above.
+                self._drain_left_body()
+                self._route_device_pairing(query, ip)
+            elif path == "/api/settings":
+                # Same body-drain as unlock above.
+                self._drain_left_body()
+                self._route_settings(query, ip)
             else:
                 self._drain_left_body()
                 self._send_json({"error": t("Unknown route", lang), "code": 404}, 404)
@@ -475,7 +535,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         # unbounded, and it hands out the token embedded in the image.
         if not limiter_general.allow(ip):
             raise RateLimitError()
-        self._check_token(query)
+        self._check_token(query, ip)
         url = f"{getattr(self.server, 'scheme', SCHEME)}://{self.server.local_ip}:{self.server.port}/?token={self._token}"
         img = generate_qr_png(url)
         if img is None:
@@ -489,8 +549,8 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(img)
 
-    def _route_progress(self, query: dict) -> None:
-        self._check_token(query)
+    def _route_progress(self, query: dict, ip: str) -> None:
+        self._check_token(query, ip)
         with transfer_lock:
             state = dict(transfer_state)
         if state["active"] and state["started_at"] and state["received"] > 0:
@@ -505,11 +565,11 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                     state["eta"] = None
         self._send_json(state)
 
-    def _route_info(self, query: dict) -> None:
+    def _route_info(self, query: dict, ip: str) -> None:
         # Discovery route: the desktop (status poll) and the probe that
         # identifies an OpenDrop server call it before any authentication.
         # So it must not leak anything sensitive: session state is only
-        # returned to a valid token bearer.
+        # returned to a valid token bearer or a registered device IP.
         data = {
             "ip": self.server.local_ip,
             "port": self.server.port,
@@ -519,21 +579,151 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             "theme": getattr(self.server, "theme", DEFAULT_THEME),
         }
         if "token" in query:
-            self._check_token(query)
+            self._check_token(query, ip)
             if self._sessions:
                 data["session"] = self._sessions.get_info()
         self._send_json(data)
 
-    def _route_quota(self, query: dict) -> None:
-        self._check_token(query)
+    def _route_quota(self, query: dict, ip: str) -> None:
+        self._check_token(query, ip)
+        # Pairing extras on both branches: the window flag always, the
+        # device token only for an already-paired IP.
+        extras = {
+            "pairing": time.time() < getattr(self.server, "pairing_until", 0.0),
+        }
+        if self._devices and self._devices.is_registered(ip):
+            extras["device"] = self._devices.token
         quota = getattr(self.server, "quota", None)
         if quota is None:
-            self._send_json({"usage_bytes": 0, "limit_bytes": 0})
+            self._send_json({"usage_bytes": 0, "limit_bytes": 0, **extras})
             return
         self._send_json({
             "usage_bytes": quota.usage(),
             "limit_bytes": quota.limit_bytes,
+            **extras,
         })
+
+    def _route_device_status(self, query: dict, ip: str) -> None:
+        self._check_token(query, ip)
+        data = {"my_ip": ip, "associated": bool(self._devices and
+                                                self._devices.is_registered(ip))}
+        if data["associated"]:
+            # Only a paired device gets the pairing token and its
+            # share_info flag: the status page must not leak them to a
+            # merely authenticated (session-token) caller.
+            rec = self._devices.get(ip) or {}
+            data["device_token"] = self._devices.token
+            data["share_info"] = bool(rec.get("share_info"))
+        self._send_json(data)
+
+    def _route_device_pair(self, query: dict, ip: str) -> None:
+        # Pairing is brute-forced like a session code: limiter_session
+        # raises RateLimitError (429) on denial, never caught here.
+        if not limiter_session.allow(ip):
+            raise RateLimitError()
+        device = query.get("device", [""])[0]
+        if not self._devices or not validate_token(device, self._devices.token):
+            print(f"[OpenDrop] Rejected device pairing ({ip})", flush=True)
+            raise TokenInvalidError("Invalid device token")
+        share_info = query.get("share_info", ["0"])[0] == "1"
+        # ua/did passed explicitly: register() with the defaults would
+        # wipe them on an existing record.
+        self._devices.register(ip,
+                               ua=self.headers.get("User-Agent", ""),
+                               did=query.get("did", [""])[0],
+                               share_info=share_info)
+        print(f"[OpenDrop] Device paired: {ip}", flush=True)
+        # A fresh session token, not the QR/main one: the paired page is
+        # limited to the routes a device needs.
+        self._send_json({"success": True, "token": self._sessions.create(ip=ip),
+                         "device": self._devices.token})
+
+    def _route_device_prefs(self, query: dict, ip: str) -> None:
+        self._check_token(query, ip)
+        share_info = query.get("share_info", ["0"])[0] == "1"
+        if not self._devices or not self._devices.set_share_info(ip, share_info):
+            # After _check_token the IP is registered (or healed) in
+            # every pairing flow; a false here means no device record at
+            # all (session token without pairing) - nothing to record.
+            raise OpenDropError()
+        self._send_json({"success": True})
+
+    def _route_devices(self, query: dict, ip: str) -> None:
+        # Desktop device list: main token only, no registered-IP or
+        # session-token shortcut (it hands out the device token).
+        self._require_main_token(query)
+        self._send_json({
+            "device_token": self._devices.token if self._devices else None,
+            "pairing": time.time() < getattr(self.server, "pairing_until", 0.0),
+            "devices": self._devices.list_devices() if self._devices else [],
+        })
+
+    def _route_device_reset(self, query: dict, ip: str) -> None:
+        # Desktop reset (main token only, no rate limiter: same class as
+        # dissociate). The pairing token changes ONLY here: rotate it,
+        # drop every device record, and kill those IPs' sessions.
+        self._require_main_token(query)
+        ips = [rec["ip"] for rec in self._devices.list_devices()]
+        new = self._devices.rotate()
+        for target in ips:
+            self._devices.remove(target)
+            if self._sessions:
+                # Kills those devices' sessions; the main (ip=None)
+                # session survives - the desktop never locks itself out.
+                self._sessions.invalidate_ip(target)
+        self._send_json({"success": True, "device_token": new})
+
+    def _route_device_dissociate(self, query: dict, ip: str) -> None:
+        target = query.get("ip", [""])[0]
+        if target:
+            # Another device's IP: the main/QR token only.
+            self._require_main_token(query)
+        else:
+            # Self-dissociation: an authenticated caller whose own IP is
+            # registered (session token or registered IP alike).
+            target = ip
+            self._check_token(query, ip)
+            if not self._devices or not self._devices.is_registered(ip):
+                raise TokenInvalidError("Not a registered device")
+        if self._devices:
+            self._devices.remove(target)
+        if self._sessions:
+            # Kills that device's sessions; the main (ip=None) session
+            # survives - the desktop never locks itself out.
+            self._sessions.invalidate_ip(target)
+        self._send_json({"success": True})
+
+    def _route_device_pairing(self, query: dict, ip: str) -> None:
+        self._require_main_token(query)
+        # time.time(), not time.monotonic(): _route_quota compares this
+        # deadline against time.time().
+        self.server.pairing_until = time.time() + 60
+        self._send_json({"success": True, "expires_in": 60})
+
+    def _route_settings(self, query: dict, ip: str) -> None:
+        # Desktop language/theme: the main/QR token or an already
+        # registered device IP (a paired device may follow or set the
+        # choice). A code-unlocked guest session token is NOT enough
+        # (it's handed to anyone who knows the backup code).
+        if not validate_token(query.get("token", [""])[0], self._token):
+            if not (self._devices and self._devices.is_registered(ip)):
+                raise TokenInvalidError()
+        # Missing params normalize to the defaults, still 200.
+        lang = normalize_lang(query.get("lang", [""])[0])
+        theme = normalize_theme(query.get("theme", [""])[0])
+        self.server.language = lang
+        self.server.theme = theme
+        quota = getattr(self.server, "quota", None)
+        if quota is not None:
+            quota.lang = lang
+        # Persist in the server's config dir (temp dir in tests), never
+        # in the real user config. Only config.json is touched:
+        # devices.json belongs to the DeviceRegistry alone.
+        cfg = load_config(self.server.config_dir)
+        cfg["language"] = lang
+        cfg["theme"] = theme
+        save_config(cfg, self.server.config_dir)
+        self._send_json({"success": True, "lang": lang, "theme": theme})
 
     def _route_session_unlock(self, query: dict, ip: str) -> None:
         if not limiter_session.allow(ip):
@@ -544,24 +734,25 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             raise TokenInvalidError("Invalid session code")
         # The code opens a new session: already-connected devices are left
         # alone, and unlocking stays possible even after the main session
-        # has expired.
-        self._send_json({"success": True, "token": self._sessions.create()})
+        # has expired. The session records the caller's IP so dissociate
+        # can invalidate it later.
+        self._send_json({"success": True, "token": self._sessions.create(ip=ip)})
 
     def _route_files(self, query: dict, ip: str) -> None:
-        self._check_token(query)
+        self._check_token(query, ip)
         if not limiter_download.allow(ip):
             raise RateLimitError()
         self._handle_list_files()
 
     def _route_download(self, query: dict, path: str, ip: str) -> None:
-        self._check_token(query)
+        self._check_token(query, ip)
         if not limiter_download.allow(ip):
             raise RateLimitError()
         filename = unquote(path[len("/api/download/"):])
         self._handle_download_file(filename)
 
     def _route_upload(self, query: dict, ip: str) -> None:
-        self._check_token(query)
+        self._check_token(query, ip)
         if not limiter_upload.allow(ip):
             raise RateLimitError("Too many uploads, try again in a moment")
         self._handle_upload()
@@ -738,9 +929,19 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
                   tls_cert_dir: str | Path | None = None,
                   global_quota_bytes: int = 0,
                   language: str = "en",
-                  theme: str = DEFAULT_THEME) -> ThreadedHTTPServer:
+                  theme: str = DEFAULT_THEME,
+                  devices: DeviceRegistry | None = None,
+                  config_dir: str | Path | None = None) -> ThreadedHTTPServer:
     language = normalize_lang(language)
     theme = normalize_theme(theme)
+    # Pairing state: the device registry lives in the config dir (the
+    # real one in production, a temp dir in tests), so pairing survives
+    # restarts. pairing_until is the pairing window deadline (0 = closed);
+    # the web tasks open it.
+    if config_dir is None:
+        config_dir = get_config_dir()
+    if devices is None:
+        devices = DeviceRegistry(config_dir)
     sessions = SessionManager(expires_in=session_expires_in, code=session_code)
     sessions.register(token)
     sessions.start_cleanup()
@@ -748,7 +949,8 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
 
     def patched_init(self, *args, **kwargs):
         original_init(self, *args, token=token, download_dir=download_dir,
-                      share_dir=share_dir, sessions=sessions, **kwargs)
+                      share_dir=share_dir, sessions=sessions,
+                      devices=devices, **kwargs)
 
     handler = type("Handler", (OpenDropHandler,), {"__init__": patched_init})
 
@@ -769,6 +971,10 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     server.local_ip = ip
     server.port = port
     server.sessions = sessions
+    # Device pairing (task 2): registry + config dir + window deadline.
+    server.devices = devices
+    server.config_dir = config_dir
+    server.pairing_until = 0.0
     server.trust_proxy = trust_proxy
     server.scheme = SCHEME
     server.language = language

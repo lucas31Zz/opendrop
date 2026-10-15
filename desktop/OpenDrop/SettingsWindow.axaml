@@ -254,6 +254,8 @@
                                  Content="{DynamicResource Tab.Security}" Click="Tab_Click"/>
                     <RadioButton Classes="tab" GroupName="settings-tabs" Tag="network"
                                  Content="{DynamicResource Tab.Network}" Click="Tab_Click"/>
+                    <RadioButton Classes="tab" GroupName="settings-tabs" Tag="devices"
+                                 Content="{DynamicResource Tab.Devices}" Click="Tab_Click"/>
                     <RadioButton Classes="tab" GroupName="settings-tabs" Tag="appearance"
                                  Content="{DynamicResource Tab.Appearance}" Click="Tab_Click"/>
                     <RadioButton Classes="tab" GroupName="settings-tabs" Tag="updates"
@@ -373,6 +375,81 @@
                                 <TextBlock Classes="field" Text="{DynamicResource Field.NetworkInterface}"/>
                                 <TextBlock x:Name="InterfaceText" Text="{DynamicResource Interface.Auto}"
                                            FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Devices (pairing): token first, then the card the
+                         phone scans (QR + link, rebuilt in code whenever
+                         the token changes), then the registered devices.
+                         Everything loads over HTTP from the Appareils tab
+                         code-behind; the pair card is hidden while the
+                         server is stopped. -->
+                    <StackPanel x:Name="TabDevices" IsVisible="False">
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Classes="field" Text="{DynamicResource Devices.Token}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Classes="input">
+                                        <TextBlock x:Name="DevicesToken" Text="" IsVisible="False"
+                                                   FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    </Border>
+                                    <Button Grid.Column="1" x:Name="BtnCopyToken" Content="{DynamicResource Btn.Copy}"
+                                            Margin="8,0,0,0" Classes="browse" IsVisible="False"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Pour parrainer : the QR is the pairing link
+                             itself (the clean origin https://ip:port/
+                             plus #pair=<device token>, no ?token= so
+                             the page opens locked — see the PairLink
+                             comment in code). The label lives in the
+                             card so hiding the card on the stopped
+                             state takes the whole section with it. -->
+                        <Border x:Name="PairCard" Classes="card" Margin="0,0,0,12" IsVisible="False">
+                            <StackPanel>
+                                <TextBlock Classes="field" Text="{DynamicResource Devices.PourParrainer}"/>
+                                <Image x:Name="PairQrImage" Width="160" Height="160"
+                                       HorizontalAlignment="Center" Margin="0,2,0,8"/>
+                                <TextBlock x:Name="PairLinkText" Text=""
+                                           FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" x:Name="BtnCopyLink" Content="{DynamicResource Btn.Copy}"
+                                            Classes="browse" Margin="0,0,4,0" Padding="0,8"/>
+                                    <Button Grid.Column="1" x:Name="BtnOpenLink" Content="{DynamicResource Devices.OpenBrowser}"
+                                            Classes="browse" Margin="4,0,0,0" Padding="0,8"/>
+                                </Grid>
+                                <Button x:Name="BtnReset" Content="{DynamicResource Devices.Reset}"
+                                        HorizontalAlignment="Stretch" Classes="browse" Padding="0,8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Classes="field" Text="{DynamicResource Tab.Devices}"/>
+                                <TextBlock x:Name="DevicesEmptyText" Text="{DynamicResource Devices.None}"
+                                           FontSize="12" Foreground="{DynamicResource Brush.TextMuted}"
+                                           TextWrapping="Wrap"/>
+                                <StackPanel x:Name="DevicesList"/>
+                                <Button x:Name="BtnRefreshDevices" Content="{DynamicResource Btn.Refresh}"
+                                        HorizontalAlignment="Stretch" Classes="browse"
+                                        Margin="0,10,0,0" Padding="0,8"/>
+                                <!-- Muted status line: stopped state, request
+                                     failures. Empty while all is well. -->
+                                <TextBlock x:Name="PairHintText" Text=""
+                                           FontSize="11" Foreground="{DynamicResource Brush.TextFaint}"
+                                           Margin="0,8,0,0" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>

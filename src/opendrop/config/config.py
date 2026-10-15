@@ -27,8 +27,10 @@ def get_default_share_dir() -> Path:
 CONFIG_FILE = "config.json"
 
 
-def load_config() -> dict:
-    config_dir = get_config_dir()
+def load_config(directory: str | Path | None = None) -> dict:
+    # `directory` lets the server read/write the config of its own config
+    # dir (temp dir in tests); None keeps the production behavior.
+    config_dir = Path(directory) if directory is not None else get_config_dir()
     config_path = config_dir / CONFIG_FILE
     defaults = {
         "download_directory": str(get_default_download_dir()),
@@ -55,8 +57,9 @@ def load_config() -> dict:
     return defaults
 
 
-def save_config(config: dict) -> None:
-    config_dir = get_config_dir()
+def save_config(config: dict, directory: str | Path | None = None) -> None:
+    # Same `directory` contract as load_config: None = production dir.
+    config_dir = Path(directory) if directory is not None else get_config_dir()
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / CONFIG_FILE
     with open(config_path, "w", encoding="utf-8") as f:

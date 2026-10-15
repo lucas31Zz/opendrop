@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from opendrop.network.interfaces import get_local_ip, find_available_port
 from opendrop.server.server import create_server
+from opendrop.security.devices import DeviceRegistry
 
 # --- Test isolation ------------------------------------------------------
 # Tests ALWAYS work in a temporary folder created here.
@@ -53,13 +54,22 @@ def _cleanup_workspace():
 atexit.register(_cleanup_workspace)
 
 
-def _start_server(session_expires_in=3600, session_code=None, **kwargs):
+def _start_server(session_expires_in=3600, session_code=None,
+                  devices=None, config_dir=None, **kwargs):
+    # Test isolation: each server gets its own temporary config dir, so
+    # the real user config (%LOCALAPPDATA%\OpenDrop) is never read nor
+    # written by a test (devices.json lives there in production).
+    if config_dir is None:
+        config_dir = tempfile.mkdtemp(prefix="opendrop_cfg_", dir=_WORKSPACE)
+    if devices is None:
+        devices = DeviceRegistry(config_dir)
     port = find_available_port(10000 + int(time.time() * 1000) % 10000)
     token = "testtoken_" + str(port)
     server = create_server(ip, port, token, dd, sd,
                            session_expires_in=session_expires_in,
                            session_code=session_code,
                            tls_cert_dir=cert_dir,
+                           devices=devices, config_dir=config_dir,
                            **kwargs)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
