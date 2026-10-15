@@ -23,6 +23,8 @@ TestResults/
 # Divers / local
 .opencode/
 opencode.json
+.agents/
+skills-lock.json
 projet.txt
 Nouveau Document texte.txt
 tableau DES MAJ .png

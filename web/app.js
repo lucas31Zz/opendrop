@@ -43,6 +43,7 @@
             "device.pastePlaceholder": "Paste the device token",
             "device.invalid": "Invalid device token.",
             "device.token": "Device token",
+            "device.myIp": "My IP",
             "device.copy": "Copy",
             "device.copied": "Copied!",
             "device.copyFailed": "Copy failed.",
@@ -132,6 +133,7 @@
             "device.pastePlaceholder": "Collez le jeton d'appareil",
             "device.invalid": "Jeton d'appareil invalide.",
             "device.token": "Jeton d'appareil",
+            "device.myIp": "Mon IP",
             "device.copy": "Copier",
             "device.copied": "Copi\u00e9 !",
             "device.copyFailed": "La copie a \u00e9chou\u00e9.",
@@ -573,6 +575,7 @@
     var settingsAssociated = document.getElementById("settings-associated");
     var settingsUnpaired = document.getElementById("settings-unpaired");
     var deviceTokenEl = document.getElementById("device-token");
+    var settingsMyIp = document.getElementById("settings-my-ip");
     var btnCopyToken = document.getElementById("btn-copy-token");
     var chkShareInfo = document.getElementById("chk-share-info");
     var btnDissociate = document.getElementById("btn-dissociate");
@@ -623,6 +626,7 @@
         settingsUnpaired.style.display = associated ? "none" : "";
         if (!associated) return;
         deviceTokenEl.textContent = data.device_token || "";
+        settingsMyIp.textContent = data.my_ip || "";
         chkShareInfo.checked = !!data.share_info;
     }
 

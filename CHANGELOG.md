@@ -27,9 +27,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 - **A Settings page in the web app** (gear button, unlocked devices
   only): *Appareil* - paired status, my own IP, the *Show what I send*
   choice, self-dissociation, or the token field when not yet paired;
-  *Apparence* - light/dark; *Langue* - FR/EN. Theme and language are
-  pushed to the server and remembered per device, so the next visit
-  comes back the way it was left.
+  *Apparence* - light/dark; *Langue* - FR/EN. Both are pushed to the
+  server and persisted in config.json - the theme also keeps a
+  per-device override, the language is shared by every visitor.
 - **Pairing links** (`#pair=<token>`): the QR and the link shown in the
   desktop tab open the web app locked with the pairing token already in
   the overlay's field - nothing is sent until the user validates, and
@@ -48,8 +48,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
 - **SECURITY.md tells the whole truth**: truth-table rows for every
   pairing route (`/api/devices`, `/api/device/status`, `pair`,
-  `pairing`, `prefs`, `dissociate`, `reset`), the registered-IP trust
-  chain, the healing rules, and the pairing quotas.
+  `pairing`, `prefs`, `dissociate`, `reset`) with their auth rules and
+  quotas, and the `devices.json` data model - what the registry stores
+  and what may (and may not) rewrite it.
 - Nine suites, 356 checks in total - the new `tests/test_devices.py`
   alone carries 62 (registry, trust chain, quotas, dissociate vs reset).
 
