@@ -5,6 +5,98 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.15.0] - 2026-10-16
+
+### Added
+
+- **Live zip progress with a Cancel button** on the transfer card: the
+  silent "Preparing..." line became a real bar - `Compression... 42 %
+  (6.0/14.0 GB)` - updated per chunk while the browser zips, and Cancel
+  aborts the build at any point in the batch.
+- **ZIP64 throughout the browser zip**: entry sizes, archive size and
+  entry count all carry the extended headers, so the old 4 GB ceiling
+  and its bare `tooLarge` error are gone - a 14 GB folder zips and
+  uploads.
+- **A password for folder zips**: a checkbox in the batch's options
+  panel (unchecked by default) reveals a password field before any zip
+  work starts; the archives are encrypted with classic ZipCrypto -
+  hand-rolled in `web/zip.js`, no dependency - so Windows Explorer,
+  7-Zip and the phone zip apps open them, with an honest hint that it
+  keeps the curious out, not attackers.
+- **Standard or Rapide, your choice**: the same panel offers *Standard*
+  (streamed deflate) or *Rapide* (store - near-instant, same weight) for
+  every folder of the batch, defaulting to Standard. Nothing is zipped
+  or sent until *Commencer* is pressed; batches of plain files skip the
+  panel and go straight up as before.
+- **One clear refusal when the batch cannot fit**: right after the drop
+  is walked (metadata only, before a single byte is read or zipped) the
+  batch total is compared to the remaining quota; too big and a single
+  error card names the batch's weight, the space left and the shortfall,
+  and the whole batch is refused - nothing zipped, nothing sent. A
+  failed quota fetch fails open; the server still enforces the exact
+  quota at reservation anyway.
+- **One honest button on the drop zone** - *Choisir des fichiers*,
+  centered; the whole zone still accepts file AND folder drops (folders
+  travel by drag-and-drop); the old "Choose a file" headline with its
+  small hidden folder link - and then the interim two-button row - are
+  both gone (the user's call, after testing).
+
+### Changed
+
+- **The zip engine streams**: files are read in 1-4 MB chunks
+  (`file.stream()`), the CRC is computed as bytes pass, and deflated
+  output lands in disk-backed Blob parts - one huge file no longer means
+  one huge ArrayBuffer in memory. The Download tab's multi-select zip
+  rides the same engine and gains ZIP64 for free (only the Send card
+  gets a bar).
+- **The server's 10 GB per-request cap is gone** (`MAX_UPLOAD_SIZE`
+  deleted): the receive quota is the only ceiling, checked where it
+  always was - at reservation, with the 507 that never changed. The
+  client-side pre-check above is UX only, never a policy.
+
+### Fixed
+
+- **Multi-gigabyte sends now work in every browser, including Zen and
+  Firefox**: a giant composed Blob in a single request is what Gecko
+  refuses to drain - the bar reaches 100% and the server never sees the
+  end of the body (a 5 GB plain file uploads fine, the same bytes as a
+  browser-built zip do not). Every upload now travels as a sequence of
+  128 MiB slices appended in order into a staging file
+  (`<name>.<uploadId>.part`), which the server verifies, hashes and
+  renames to its final name when the last slice lands. A slice that
+  stalls, drops or loses its response retries itself (3 attempts) off
+  the byte count the server actually committed, so the retry is
+  idempotent; progress reports bytes acknowledged rather than bytes
+  queued, cancel is immediate, and a same-name complete file is never
+  clobbered (the final name uniquifies exactly as before). Legacy
+  requests without the staging params keep the old code path unchanged.
+  Found by the author's manual 4.75 GB folder test in Zen.
+- **A stalled big upload no longer dies as "Cannot read the uploaded
+  file"**: the connection carried a 30 s idle timeout on every read, so
+  any real network gap in a multi-minute multi-gigabyte upload (Wi-Fi
+  hiccup, the browser pacing a huge Blob) aborted it near the end - a
+  4.7 GB folder zipped fine and then failed on the way up. While an
+  upload body is being read a dedicated 120 s idle window now applies
+  (the usual timeout is restored afterwards, keep-alive unchanged), and
+  a genuine stall answers with an honest "Transfer interrupted (the
+  connection stalled)" instead of the misleading read error. Found by
+  the author's manual test, reproduced with a controlled mid-body stall.
+- **The web Settings *Appareil* section now shows my own IP**: the
+  answer to `/api/device/status` has always carried `my_ip`, the page
+  simply ignored it - the line renders under the device token, FR and EN
+  alike (caught by the 0.14.0 review, riding into this release).
+
+### Security
+
+- Ten suites, 416 checks in total - the new `tests/test_zip_web.py`
+  alone carries 47: every archive the browser builds (both modes,
+  password or not) is byte-compared after extraction by Python's
+  independent `zipfile`, and wrong passwords are rejected; the security
+  suite now proves the per-request cap is gone instead of enforcing it,
+  and the server suite pins the chunked-upload staging rules (append,
+  truncate-to-offset, 409 resync, uniquify-at-rename, cancel) that make
+  multi-gigabyte sends survive a retry.
+
 ## [0.14.0] - 2026-10-15
 
 ### Added

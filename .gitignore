@@ -39,3 +39,10 @@ tests screen/
 # Private docs: local only, never published
 OpenDrop_Checklist_*.pdf
 CHECKLIST_v1.0.0.md
+.superpowers/
+
+# Local test scratch output, never published
+test_output.txt
+
+# Local dev mini-app: start/kill the server on port 8080, never published
+kill 8080 port app/

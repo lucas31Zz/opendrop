@@ -14,8 +14,7 @@ import urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from tests.conftest import (TestResult, urlopen, _start_server, _upload,
-                            _raw_upload, ip)
+from tests.conftest import (TestResult, urlopen, _start_server, _upload, ip)
 
 LEAK_PATTERNS = [
     (re.compile(r"[A-Za-z]:[\\/]"), "Windows path with drive letter"),
@@ -166,10 +165,6 @@ def _error_tests(r, port, token):
         port, "/api/upload", None, method="POST", data=b"x",
         headers={"Content-Length": "1"})
     _check_clean(r, "403 upload without token", status, headers, body, 403)
-
-    # File beyond the limit -> 400, body bounded by the header
-    status, body = _raw_upload(port, token, 11 * 1024 ** 3)
-    _check_clean(r, "400 file too large", status, {}, body, 400)
 
 
 def _download_header_tests(r, port, token):

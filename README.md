@@ -49,8 +49,8 @@ server running on your machine, nothing goes over the internet.
   downloads as a single zip
 - **Global receive quota** (optional): rejected with a 507 before anything
   is written, live indicator (green under the limit, red once reached)
-- **Safety limits**: 10 GB per file, per-IP rate limits, sanitized file
-  names, validated paths, no server path leaks
+- **Safety limits**: storage quota (the real ceiling), per-IP rate limits,
+  sanitized file names, validated paths, no server path leaks
 - **Desktop app for Windows and Linux** (Avalonia, .NET 8): QR code,
   address, session code, quota, folders, settings, one-click server
   start/stop
@@ -373,7 +373,6 @@ To regenerate the certificate: quit OpenDrop, delete the
 | *Session locked* on the phone | Type the 6-character code shown in the desktop app. The code rotates when the token does |
 | *Port already in use* at start | An older server is still running: stop it (Stop server, or close the app), then start again. Otherwise OpenDrop moves to the next free port automatically |
 | Upload rejected with **507** (quota bar red) | The receive folder is full against the quota: raise it or set `0` (unlimited) in *Settings > Storage* |
-| *File too large (max 10 GB)* | Hard cap per file; split the file |
 | No update is offered | Only releases tagged `vX.Y.Z` are offered (never a draft or pre-release), GitHub must be reachable, and *Skip this version* silences that version only |
 | A second window opens instead of the running one | The single-instance signal failed; the second instance runs anyway as a fallback. Close one of them |
 | The QR code never opens | Open the printed `https://<ip>:<port>` URL by hand (`xdg-open`/`startfile` may be missing) |
@@ -408,7 +407,8 @@ Received files land in the *Receive folder*, files to share are read from
 the *Share folder*. Both are changed in *Settings*.
 
 **How large can a file be?**
-10 GB per file, plus the optional global receive quota.
+No fixed per-file cap: the optional global receive quota is the only
+ceiling (0 = unlimited).
 
 **Can I run it on macOS?**
 The server only (`opendrop`): the desktop app targets Windows and Linux.
@@ -444,7 +444,8 @@ code.
   again.
 - **Windows installer**: Python 3.10+ must already be installed (the
   installer only ships the wheels).
-- **10 GB per file** and per-IP rate limits (5 unlock attempts/minute).
+- **Per-IP rate limits** (5 unlock attempts/minute) and the optional
+  global receive quota.
 
 ---
 
@@ -453,16 +454,17 @@ code.
 Homegrown test suites (no external framework), run from the repo root:
 
 ```powershell
-python -m tests.test_security     # 36/36 - tokens, paths, limits, origin, writes, logs
+python -m tests.test_security     # 35/35 - tokens, paths, origin, writes, logs
 python -m tests.test_routes       # 46/46 - route truth table
-python -m tests.test_paths        # 43/43 - no absolute paths in responses
+python -m tests.test_paths        # 41/41 - no absolute paths in responses
 python -m tests.test_quota        # 40/40 - quota, simultaneous reservations, 507
 python -m tests.test_sessions     # 34/34 - sessions, expiration, code rotation
 python -m tests.test_tls          # 15/15 - self-signed certificate, forced HTTPS
-python -m tests.test_server       # 16/16 - general routes, theme fallback, port in use, TIME_WAIT probe
-python -m tests.test_beta         # 64/64 - full run-through
-python -m tests.test_beta --large # 76/76 - file batches, traversal attempts
+python -m tests.test_server       # 33/33 - general routes, theme fallback, port in use, TIME_WAIT probe, upload idle window, chunked-upload staging
+python -m tests.test_beta         # 63/63 - full run-through
+python -m tests.test_beta --large # 75/75 - file batches, traversal attempts
 python -m tests.test_devices      # 62/62 - device pairing, registered IPs, reset
+python -m tests.test_zip_web      # 47/47 - ZIP64, password zips, browser zip engine
 ```
 
 Before building, close the desktop app: a running binary blocks

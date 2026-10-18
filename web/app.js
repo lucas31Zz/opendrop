@@ -12,7 +12,6 @@
         en: {
             "tab.send": "Send",
             "tab.receive": "Download",
-            "drop.choose": "Choose a file",
             "drop.hint": "or drop it here",
             "transfer.cancel": "Cancel",
             "success.title": "Transfer complete",
@@ -79,10 +78,21 @@
             "theme.toggle": "Switch theme",
             "upload.serverError": "Server error ({0})",
             "upload.unreachable": "Could not reach the server.",
-            "drop.chooseFolder": "Choose a folder",
+            "upload.finalizing": "Finalizing…",
+            "drop.chooseFiles": "Choose files",
             "drop.folderHint": "folders arrive zipped",
             "send.preparing": "Preparing...",
             "send.preparingError": "Could not read the folder.",
+            "send.optionsTitle": "Before sending",
+            "send.zipPassword": "Protect the zips with a password",
+            "send.zipPasswordPlaceholder": "Password",
+            "send.compression": "Compression",
+            "send.modeStandard": "Standard",
+            "send.modeFast": "Fast",
+            "send.start": "Start",
+            "send.zipping": "Compressing\u2026 {0} ({1} / {2})",
+            "send.tooBig": "Too big for the space left: {0} to send, {1} available ({2} over).",
+            "send.zipFailed": "Could not compress the folder.",
             "success.multiple": "{0} files sent",
             "files.search": "Search files...",
             "files.newFolder": "New folder",
@@ -102,8 +112,7 @@
         fr: {
             "tab.send": "Envoyer",
             "tab.receive": "T\u00e9l\u00e9charger",
-            "drop.choose": "Choisir un fichier",
-            "drop.hint": "ou glisser ici",
+            "drop.hint": "ou d\u00e9posez ici",
             "transfer.cancel": "Annuler",
             "success.title": "Transfert termin\u00e9",
             "success.new": "Envoyer un autre fichier",
@@ -169,10 +178,21 @@
             "theme.toggle": "Changer de th\u00e8me",
             "upload.serverError": "Erreur serveur ({0})",
             "upload.unreachable": "Impossible de contacter le serveur.",
-            "drop.chooseFolder": "Choisir un dossier",
+            "upload.finalizing": "Finalisation\u2026",
+            "drop.chooseFiles": "Choisir des fichiers",
             "drop.folderHint": "les dossiers arrivent compress\u00e9s en zip",
             "send.preparing": "Pr\u00e9paration...",
             "send.preparingError": "Impossible de lire le dossier.",
+            "send.optionsTitle": "Avant d'envoyer",
+            "send.zipPassword": "Prot\u00e9ger les zip par un mot de passe",
+            "send.zipPasswordPlaceholder": "Mot de passe",
+            "send.compression": "Compression",
+            "send.modeStandard": "Standard",
+            "send.modeFast": "Rapide",
+            "send.start": "Commencer",
+            "send.zipping": "Compression\u2026 {0} ({1} / {2})",
+            "send.tooBig": "Trop grand pour l'espace restant : {0} \u00e0 envoyer, {1} disponible(s) ({2} de trop).",
+            "send.zipFailed": "Impossible de compresser le dossier.",
             "success.multiple": "{0} fichiers envoy\u00e9s",
             "files.search": "Rechercher des fichiers...",
             "files.newFolder": "Nouveau dossier",
@@ -191,12 +211,15 @@
         }
     };
 
-    function t(key, arg) {
+    // Variadic: t("key", a, b, ...) replaces {0}, {1}, ... in order.
+    function t(key) {
         var dict = T[LANG] || T.en;
         var text = dict[key];
         if (text === undefined) text = T.en[key];
         if (text === undefined) text = key;
-        if (arg !== undefined) text = text.replace("{0}", arg);
+        for (var i = 1; i < arguments.length; i++) {
+            text = text.replace("{" + (i - 1) + "}", arguments[i]);
+        }
         return text;
     }
 
@@ -1453,7 +1476,7 @@
     var dropZone = document.getElementById("drop-zone");
     var fileInput = document.getElementById("file-input");
     var folderInput = document.getElementById("folder-input");
-    var btnChooseFolder = document.getElementById("btn-choose-folder");
+    var btnChooseFiles = document.getElementById("btn-choose-files");
     var transferInfo = document.getElementById("transfer-info");
     var successMsg = document.getElementById("success-msg");
     var errorMsg = document.getElementById("error-msg");
@@ -1471,7 +1494,19 @@
     var successHash = document.getElementById("success-hash");
     var errorDetail = document.getElementById("error-detail");
 
+    // Options panel: one pre-flight screen per batch that needs zipping.
+    var sendOptions = document.getElementById("send-options");
+    var sendOptionsList = document.getElementById("send-options-list");
+    var chkZipPassword = document.getElementById("chk-zip-password");
+    var zipPasswordInput = document.getElementById("zip-password-input");
+    var zipMode = document.getElementById("zip-mode");
+    var btnStart = document.getElementById("btn-start");
+    var progressWrap = document.getElementById("progress-wrap");
+
     var currentXhr = null;
+    var currentZip = null;     // AbortController of the zip run in flight
+    var pendingBatch = null;   // batch waiting behind the options panel
+    var pendingEpoch = 0;      // epoch the pending batch was prepared at
 
     // --- Send queue: many files (and zipped folders) travel one after
     // the other; the badge counts them (2 / 5) while they run, and the
@@ -1531,6 +1566,12 @@
             dropZone.style.display = "";
         } else if (view === "transfer") {
             dropZone.style.display = "none";
+            // The panel is a pre-flight screen: only showOptionsPanel
+            // brings it back up; every upload view starts without it,
+            // with the progress elements back to their default state.
+            sendOptions.style.display = "none";
+            progressWrap.style.display = "";
+            progressText.style.display = "";
             transferInfo.style.display = "";
         } else if (view === "success") {
             dropZone.style.display = "none";
@@ -1541,6 +1582,44 @@
         }
     }
 
+    // One send travels as a sequence of small multipart slices (128 MiB):
+    // a giant composed Blob in a single request is what Gecko refuses to
+    // drain (the user's Zen shows 100% and the server never sees the end
+    // of the body), while small requests are proven to work everywhere.
+    // The server appends the slices in order into a staging file and
+    // answers with the byte count it has committed; that count is the
+    // only thing that advances our offset, which is what makes a retry
+    // after a lost response safe (the server truncates any stale tail
+    // back to our offset before appending).
+    var SLICE_SIZE = 128 * 1024 * 1024;
+
+    function makeUploadId() {
+        var bytes = new Uint8Array(8);
+        if (window.crypto && window.crypto.getRandomValues) {
+            window.crypto.getRandomValues(bytes);
+        } else {
+            for (var i = 0; i < 8; i++) bytes[i] = Math.floor(Math.random() * 256);
+        }
+        var id = "";
+        for (var j = 0; j < 8; j++) id += ("0" + bytes[j].toString(16)).slice(-2);
+        return id;
+    }
+
+    // The send currently in flight ({id, name}) so cancel and terminal
+    // failures can tell the server to drop the staging file it may have
+    // left behind.
+    var currentSend = null;
+
+    function sendCleanup() {
+        if (!currentSend) return;
+        var url = "/api/upload?" + authQuery() +
+            "&cancel=1&upload=" + currentSend.id +
+            "&name=" + encodeURIComponent(currentSend.name);
+        currentSend = null;
+        // Best-effort: the page stays open, a plain fetch is enough.
+        fetch(url, { method: "POST", keepalive: true }).catch(function () {});
+    }
+
     function uploadFile(file) {
         filenameEl.textContent = file.name;
         filesizeEl.textContent = formatSize(file.size);
@@ -1548,64 +1627,147 @@
         progressText.textContent = "0%";
         showSendView("transfer");
 
-        var formData = new FormData();
-        formData.append("file", file);
-
-        var xhr = new XMLHttpRequest();
-        currentXhr = xhr;
+        var uploadId = makeUploadId();
+        var committed = 0;   // bytes the server has confirmed
+        var attempts = 0;    // retries of the current slice
+        var resyncs = 0;     // consecutive 409s that made no progress
         var uploadStart = performance.now();
+        currentSend = { id: uploadId, name: file.name };
 
-        xhr.upload.addEventListener("progress", function (e) {
-            if (e.lengthComputable) {
-                var pct = Math.round((e.loaded / e.total) * 100);
+        function failTerminal(msg) {
+            sendCleanup();
+            currentXhr = null;
+            sendQueue = [];
+            finishQueue();
+            errorDetail.textContent = msg;
+            showSendView("error");
+        }
+
+        function sendSlice() {
+            // A cancelled or superseded send must not resume from a
+            // retry still waiting on its timer.
+            if (!currentSend || currentSend.id !== uploadId) return;
+
+            var end = Math.min(committed + SLICE_SIZE, file.size);
+            var isLast = end === file.size ? 1 : 0;
+            var slice = file.slice(committed, end);
+
+            var formData = new FormData();
+            // The explicit name matters: Blob.slice drops the name, and
+            // the server keys the staging file off it.
+            formData.append("file", slice, file.name);
+
+            var xhr = new XMLHttpRequest();
+            currentXhr = xhr;
+
+            xhr.upload.addEventListener("progress", function (e) {
+                if (!e.lengthComputable) return;
+                var overall = committed + e.loaded;
+                // A 0-byte file has no denominator (0/0 is NaN): it goes
+                // out as a single empty slice, so report it as complete.
+                var pct = file.size > 0
+                    ? Math.min(100, Math.round((overall / file.size) * 100))
+                    : 100;
                 progressBar.style.width = pct + "%";
                 var txt = pct + "%";
-                var speed = formatSpeed(e.loaded / ((performance.now() - uploadStart) / 1000));
-                var remaining = (e.total - e.loaded) / (e.loaded / ((performance.now() - uploadStart) / 1000));
+                var elapsed = (performance.now() - uploadStart) / 1000;
+                var speed = formatSpeed(overall / elapsed);
+                var remaining = file.size > 0
+                    ? (file.size - overall) / (overall / elapsed) : 0;
                 if (speed) txt += " - " + speed;
                 if (remaining > 0 && remaining < 86400) txt += " - " + formatEta(Math.round(remaining));
+                // The last slice's answer carries a whole-file hash read
+                // back from disk; say so while that is computed.
+                if (pct === 100 && isLast) txt = t("upload.finalizing");
                 progressText.textContent = txt;
-            }
-        });
+            });
 
-        xhr.addEventListener("load", function () {
-            currentXhr = null;
-            if (xhr.status === 401 || xhr.status === 403) {
-                sendQueue = [];
-                endSession(t("session.expired"));
-                return;
-            }
-            try {
-                var resp = JSON.parse(xhr.responseText);
-                if (xhr.status === 200 && resp.success) {
-                    queueDone++;
-                    if (sendQueue.length) {
-                        pumpQueue();    // next file, badge follows along
-                        return;
-                    }
-                    showBatchSuccess(resp);
-                    finishQueue();
+            xhr.addEventListener("load", function () {
+                currentXhr = null;
+                if (!currentSend || currentSend.id !== uploadId) return; // cancelled
+                if (xhr.status === 401 || xhr.status === 403) {
+                    sendQueue = [];
+                    currentSend = null;
+                    endSession(t("session.expired"));
                     return;
                 }
-                errorDetail.textContent = resp.error || t("upload.serverError", xhr.status);
-            } catch (err) {
-                errorDetail.textContent = t("upload.serverError", xhr.status);
-            }
-            sendQueue = [];
-            finishQueue();
-            showSendView("error");
-        });
 
-        xhr.addEventListener("error", function () {
-            currentXhr = null;
-            sendQueue = [];
-            finishQueue();
-            errorDetail.textContent = t("upload.unreachable");
-            showSendView("error");
-        });
+                var resp = null;
+                try { resp = JSON.parse(xhr.responseText); } catch (err) { resp = null; }
 
-        xhr.open("POST", "/api/upload?" + authQuery());
-        xhr.send(formData);
+                if (xhr.status === 409) {
+                    // Resync, not a failure: the server reports how much
+                    // of the staging file survived; continue from there.
+                    resyncs++;
+                    if (resyncs >= 3) {
+                        failTerminal(t("upload.serverError", 409));
+                        return;
+                    }
+                    committed = (resp && resp.size) || 0;
+                    sendSlice();
+                    return;
+                }
+
+                if (xhr.status === 200 && resp && resp.success) {
+                    attempts = 0;
+                    resyncs = 0;
+                    if (isLast) {
+                        currentSend = null;
+                        queueDone++;
+                        if (sendQueue.length) {
+                            pumpQueue();    // next file, badge follows along
+                            return;
+                        }
+                        showBatchSuccess(resp);
+                        finishQueue();
+                        return;
+                    }
+                    // The committed count comes only from the server: a
+                    // success that omits it is a protocol violation, and
+                    // guessing forward with our own arithmetic would
+                    // desync the staging file.
+                    if (typeof resp.size !== "number") {
+                        failTerminal(t("upload.serverError", xhr.status));
+                        return;
+                    }
+                    committed = resp.size;
+                    sendSlice();
+                    return;
+                }
+
+                // An honest stall (400), a hiccup (408/5xx) or the part
+                // limiter (429) are recoverable: same slice, same offset.
+                var retryable = xhr.status === 400 || xhr.status === 408 ||
+                    xhr.status === 429 || xhr.status >= 500;
+                if (retryable && attempts < 3) {
+                    attempts++;
+                    setTimeout(sendSlice, xhr.status === 429 ? 3000 : 1000);
+                    return;
+                }
+                failTerminal((resp && resp.error) || t("upload.serverError", xhr.status));
+            });
+
+            xhr.addEventListener("error", function () {
+                currentXhr = null;
+                if (!currentSend || currentSend.id !== uploadId) return; // cancelled
+                if (attempts < 3) {
+                    attempts++;
+                    setTimeout(sendSlice, 1000);
+                    return;
+                }
+                failTerminal(t("upload.unreachable"));
+            });
+
+            xhr.open("POST", "/api/upload?" + authQuery() +
+                "&upload=" + uploadId +
+                "&name=" + encodeURIComponent(file.name) +
+                "&offset=" + committed +
+                "&total=" + file.size +
+                "&last=" + isLast);
+            xhr.send(formData);
+        }
+
+        sendSlice();
     }
 
     // One file keeps its detailed screen; a batch reports the count and
@@ -1628,10 +1790,15 @@
         showSendView("success");
     }
 
-    // --- Folder support: a dropped or picked folder is zipped here, in
-    // the browser - the PC's share folder only ever receives a plain
-    // .zip. Entry walking is async and batched: readEntries hands out
-    // chunks, so it loops until a chunk comes back empty.
+    // --- Folder support: a dropped or picked folder travels as one
+    // .zip built here, in the browser - the PC's share folder only ever
+    // receives a plain .zip. Entry walking is async and batched:
+    // readEntries hands out chunks, so it loops until a chunk comes
+    // back empty. Preparing only WALKS metadata and builds a batch
+    // descriptor; nothing is zipped until the user starts.
+    // batch = { items: [{kind:"file", file} | {kind:"folder", name,
+    // entries: [{name, file}], rawSize}], totalRaw }; items keep the
+    // original drop order end to end.
     function readAllEntries(reader) {
         return new Promise(function (resolve, reject) {
             var all = [];
@@ -1666,10 +1833,11 @@
         });
     }
 
-    function zipFolder(name, entries) {
-        return OpenDropZip.buildZip(entries).then(function (blob) {
-            return new File([blob], name + ".zip", { type: "application/zip" });
-        });
+    function addFolderItem(batch, name, entries) {
+        var rawSize = 0;
+        entries.forEach(function (e) { rawSize += (e.file && e.file.size) || 0; });
+        batch.items.push({ kind: "folder", name: name, entries: entries, rawSize: rawSize });
+        batch.totalRaw += rawSize;
     }
 
     function prepareDropped(dataTransfer) {
@@ -1681,25 +1849,33 @@
             var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
             if (entry) entries.push(entry);
         }
+        var batch = { items: [], totalRaw: 0 };
         if (!entries.length) {
             // No entry API, or a plain file drop: the files go as they are.
             var plain = dataTransfer && dataTransfer.files ?
                 Array.prototype.slice.call(dataTransfer.files) : [];
-            return Promise.resolve(plain);
+            plain.forEach(function (f) {
+                batch.items.push({ kind: "file", file: f });
+                batch.totalRaw += f.size || 0;
+            });
+            return Promise.resolve(batch);
         }
-        var chain = Promise.resolve([]);
+        var chain = Promise.resolve(batch);
         entries.forEach(function (entry) {
-            chain = chain.then(function (acc) {
+            chain = chain.then(function (b) {
                 if (entry.isFile) {
                     return new Promise(function (resolve, reject) {
-                        entry.file(function (f) { resolve(acc.concat(f)); }, reject);
+                        entry.file(function (f) {
+                            b.items.push({ kind: "file", file: f });
+                            b.totalRaw += f.size || 0;
+                            resolve(b);
+                        }, reject);
                     });
                 }
                 return collectFolderFiles(entry, "").then(function (found) {
-                    if (!found.length) return acc;
-                    return zipFolder(entry.name, found).then(function (zip) {
-                        return acc.concat(zip);
-                    });
+                    // An empty folder still travels nowhere (as before).
+                    if (found.length) addFolderItem(b, entry.name, found);
+                    return b;
                 });
             });
         });
@@ -1708,7 +1884,7 @@
 
     function preparePickedFolders(fileListIn) {
         // <input webkitdirectory>: every file carries webkitRelativePath,
-        // grouped per top-level folder and zipped as one.
+        // grouped per top-level folder and zipped as one on Start.
         var files = Array.prototype.slice.call(fileListIn || []);
         var groups = {};
         var order = [];
@@ -1719,15 +1895,9 @@
             if (!groups[top]) { groups[top] = []; order.push(top); }
             groups[top].push({ name: slash >= 0 ? rel.slice(slash + 1) : f.name, file: f });
         });
-        var chain = Promise.resolve([]);
-        order.forEach(function (top) {
-            chain = chain.then(function (acc) {
-                return zipFolder(top, groups[top]).then(function (zip) {
-                    return acc.concat(zip);
-                });
-            });
-        });
-        return chain;
+        var batch = { items: [], totalRaw: 0 };
+        order.forEach(function (top) { addFolderItem(batch, top, groups[top]); });
+        return Promise.resolve(batch);
     }
 
     function startPreparing(label) {
@@ -1738,12 +1908,67 @@
         progressText.textContent = t("send.preparing");
     }
 
+    // --- Batch pre-flight: quota check first (fail-open: a flaky
+    // usage fetch must never block a send - the server enforces the
+    // exact quota at reservation anyway), then ONE options panel for
+    // the whole batch when at least one folder needs zipping. A
+    // folderless batch travels exactly as before: straight into the
+    // upload queue, no panel, no pre-check.
+
+    // Same endpoint and payload shape as the header gauge.
+    function fetchQuotaNow() {
+        return fetchWithTimeout("/api/quota?" + authQuery(), null, 8000)
+            .then(function (r) {
+                if (!r.ok) throw new Error("http " + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                if (!data || typeof data.usage_bytes !== "number") {
+                    throw new Error("bad quota payload");
+                }
+                return { usage: data.usage_bytes, limit: data.limit_bytes || 0 };
+            });
+    }
+
+    // limit 0 = unlimited; a batch exactly filling the remaining space
+    // passes (the server refuses only past the line).
+    function quotaAllows(totalRaw, usage, limit) {
+        if (!limit) return true;
+        return totalRaw <= limit - usage;
+    }
+
+    // One refusal covers the whole batch: nothing zipped, nothing sent.
+    function refuseBatch(totalRaw, quota) {
+        var remaining = Math.max(0, quota.limit - quota.usage);
+        finishQueue();
+        errorDetail.textContent = t("send.tooBig",
+            formatSize(totalRaw), formatSize(remaining), formatSize(totalRaw - remaining));
+        showSendView("error");
+    }
+
     function prepareThenSend(promise, label) {
         var epoch = ++prepareEpoch;
         startPreparing(label);
-        promise.then(function (files) {
+        promise.then(function (batch) {
             if (epoch !== prepareEpoch) return;    // cancelled meanwhile
-            enqueueFiles(files);
+            var hasFolder = false;
+            batch.items.forEach(function (it) { if (it.kind === "folder") hasFolder = true; });
+            if (!hasFolder) {
+                enqueueFiles(batch.items.map(function (it) { return it.file; }));
+                return;
+            }
+            fetchQuotaNow().then(function (quota) {
+                if (epoch !== prepareEpoch) return;
+                if (!quotaAllows(batch.totalRaw, quota.usage, quota.limit)) {
+                    refuseBatch(batch.totalRaw, quota);
+                    return;
+                }
+                showOptionsPanel(batch, epoch);
+            }).catch(function (err) {
+                // Fail open: log and show the panel anyway.
+                console.warn("quota pre-check failed, proceeding", err);
+                if (epoch === prepareEpoch) showOptionsPanel(batch, epoch);
+            });
         }).catch(function () {
             if (epoch !== prepareEpoch) return;
             finishQueue();
@@ -1752,15 +1977,141 @@
         });
     }
 
+    // The panel lists what the batch carries: loose files by name,
+    // folders with name + raw size (metadata only - nothing read yet).
+    function renderOptionsList(batch) {
+        sendOptionsList.textContent = "";
+        batch.items.forEach(function (it) {
+            var li = document.createElement("li");
+            var name = document.createElement("span");
+            name.textContent = it.kind === "folder" ? "\ud83d\udcc1 " + it.name : it.name;
+            li.appendChild(name);
+            if (it.kind === "folder") {
+                var size = document.createElement("span");
+                size.className = "send-options-size";
+                size.textContent = formatSize(it.rawSize);
+                li.appendChild(size);
+            }
+            sendOptionsList.appendChild(li);
+        });
+    }
+
+    function updateStartButton() {
+        // Box checked with an empty password keeps Start disabled: a
+        // forgotten password would mean a lost zip.
+        btnStart.disabled = !!(chkZipPassword.checked && !zipPasswordInput.value);
+    }
+
+    function showOptionsPanel(batch, epoch) {
+        pendingBatch = batch;
+        pendingEpoch = epoch;
+        renderOptionsList(batch);
+        chkZipPassword.checked = false;
+        zipPasswordInput.value = "";
+        zipPasswordInput.style.display = "none";
+        zipMode.value = "deflate";
+        updateStartButton();
+        showSendView("transfer");   // hides the panel...
+        progressWrap.style.display = "none";   // ...and the bar: no work yet
+        progressText.style.display = "none";
+        sendOptions.style.display = "";
+    }
+
+    if (chkZipPassword) {
+        chkZipPassword.addEventListener("change", function () {
+            zipPasswordInput.style.display = chkZipPassword.checked ? "" : "none";
+            updateStartButton();
+            if (chkZipPassword.checked) zipPasswordInput.focus();
+        });
+    }
+
+    if (zipPasswordInput) {
+        zipPasswordInput.addEventListener("input", updateStartButton);
+    }
+
+    // Commencer: build the folder zips one after the other under one
+    // shared AbortController; the bar counts RAW bytes consumed over
+    // the folders' raw totals (same denominator in both modes). Each
+    // finished zip takes its folder's place in the batch, so the queue
+    // uploads the batch in its original drop order.
+    function startZipping() {
+        var batch = pendingBatch;
+        var epoch = pendingEpoch;
+        if (!batch || epoch !== prepareEpoch) return;
+        var password = chkZipPassword.checked ? zipPasswordInput.value : "";
+        var mode = zipMode.value === "store" ? "store" : "deflate";
+        pendingBatch = null;
+
+        var folderIdx = [];
+        var totalZipRaw = 0;
+        batch.items.forEach(function (it, i) {
+            if (it.kind === "folder") { folderIdx.push(i); totalZipRaw += it.rawSize; }
+        });
+
+        var controller = typeof AbortController !== "undefined" ?
+            new AbortController() : null;
+        currentZip = controller;
+
+        showSendView("transfer");   // hides the panel
+        filesizeEl.textContent = formatSize(batch.totalRaw);
+        progressWrap.style.display = "";
+        progressText.style.display = "";
+        progressBar.style.width = "0%";
+        progressText.textContent = t("send.zipping", "0%",
+            formatSize(0), formatSize(totalZipRaw));
+
+        var doneBefore = 0;
+        var chain = Promise.resolve();
+        folderIdx.forEach(function (idx) {
+            chain = chain.then(function () {
+                var item = batch.items[idx];
+                var base = doneBefore;
+                return OpenDropZip.buildZip(item.entries, {
+                    mode: mode,
+                    password: password || undefined,
+                    signal: controller ? controller.signal : undefined,
+                    onProgress: function (doneRaw) {
+                        if (epoch !== prepareEpoch) return;
+                        var done = Math.min(base + doneRaw, totalZipRaw);
+                        var pct = totalZipRaw ? Math.round((done / totalZipRaw) * 100) : 100;
+                        progressBar.style.width = pct + "%";
+                        progressText.textContent = t("send.zipping",
+                            pct + "%", formatSize(done), formatSize(totalZipRaw));
+                    }
+                }).then(function (blob) {
+                    doneBefore = base + item.rawSize;
+                    batch.items[idx] = { kind: "file", file:
+                        new File([blob], item.name + ".zip", { type: "application/zip" }) };
+                });
+            });
+        });
+        chain.then(function () {
+            if (epoch !== prepareEpoch) return;
+            currentZip = null;
+            enqueueFiles(batch.items.map(function (it) { return it.file; }));
+        }).catch(function (err) {
+            currentZip = null;
+            if (err && err.cancelled) return;   // btnCancel already reset the view
+            if (epoch !== prepareEpoch) return;
+            finishQueue();
+            errorDetail.textContent = t("send.zipFailed");
+            showSendView("error");
+        });
+    }
+
+    if (btnStart) {
+        btnStart.addEventListener("click", startZipping);
+    }
+
     dropZone.addEventListener("click", function () {
         fileInput.click();
     });
 
-    if (btnChooseFolder) {
-        btnChooseFolder.addEventListener("click", function (e) {
+    if (btnChooseFiles) {
+        btnChooseFiles.addEventListener("click", function (e) {
             // The drop zone would open the file picker too.
             e.stopPropagation();
-            folderInput.click();
+            fileInput.click();
         });
     }
 
@@ -1775,8 +2126,10 @@
         folderInput.addEventListener("change", function () {
             if (folderInput.files.length > 0) {
                 var rel = folderInput.files[0].webkitRelativePath || "";
+                // webkitRelativePath is set for every folder pick; the
+                // "..." fallback mirrors the drop handler's label.
                 prepareThenSend(preparePickedFolders(folderInput.files),
-                    rel ? rel.split("/")[0] : t("drop.chooseFolder"));
+                    rel ? rel.split("/")[0] : "...");
             }
             folderInput.value = "";
         });
@@ -1801,10 +2154,18 @@
 
     btnCancel.addEventListener("click", function () {
         prepareEpoch++;     // a zip still being built must not start
+        pendingBatch = null;
+        if (currentZip) {
+            currentZip.abort();     // buildZip rejects with cancelled
+            currentZip = null;
+        }
         if (currentXhr) {
             currentXhr.abort();
             currentXhr = null;
         }
+        // Tell the server to drop the staging file this send left, so a
+        // cancelled multi-gigabyte send does not park its bytes on disk.
+        sendCleanup();
         finishQueue();
         showSendView("drop");
         fileInput.value = "";
@@ -1812,12 +2173,14 @@
     });
 
     btnNew.addEventListener("click", function () {
+        pendingBatch = null;
         showSendView("drop");
         fileInput.value = "";
         if (folderInput) folderInput.value = "";
     });
 
     btnRetry.addEventListener("click", function () {
+        pendingBatch = null;
         showSendView("drop");
         fileInput.value = "";
         if (folderInput) folderInput.value = "";

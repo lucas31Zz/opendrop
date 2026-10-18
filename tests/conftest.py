@@ -102,12 +102,56 @@ def _upload(port, token, filename="upload.txt", content=b"upload data"):
     return urlopen(req)
 
 
+def _upload_slice(port, token, name, content, upload_id, offset, total, last=0,
+                  part_name=None):
+    """One chunked-upload slice: same body shape as _upload, staging params in the URL.
+
+    part_name overrides the multipart disposition filename only - the
+    protocol pins the QUERY name as authoritative, so a test can send
+    both and prove the disposition one is ignored.
+    """
+    from urllib.parse import quote
+    boundary = "----TEST"
+    body = (
+        b"--" + boundary.encode() + b"\r\n"
+        b'Content-Disposition: form-data; name="file"; filename="'
+        + (part_name or name).encode() + b'"\r\n'
+        b"Content-Type: application/octet-stream\r\n\r\n"
+        + content
+        + b"\r\n--" + boundary.encode() + b"--\r\n"
+    )
+    url = (_url(port, "/api/upload", token)
+           + f"&upload={upload_id}&name={quote(name)}"
+           + f"&offset={offset}&total={total}&last={last}")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        },
+        method="POST",
+    )
+    return urlopen(req)
+
+
+def _upload_cancel(port, token, name, upload_id):
+    """cancel=1: body-less request that unlinks this send's staging file."""
+    from urllib.parse import quote
+    url = (_url(port, "/api/upload", token)
+           + f"&cancel=1&upload={upload_id}&name={quote(name)}")
+    req = urllib.request.Request(url, data=b"", headers={
+        "Content-Length": "0"}, method="POST")
+    return urlopen(req)
+
+
 def _raw_upload(port, token, content_length):
     """POST /api/upload with a declared Content-Length, sending no body.
 
-    The server must decide from the header alone (size, quota) before
-    reading anything: no byte is written then, and the client cannot be
-    cut off in the middle of writing.
+    The quota answers from the header alone (507) before anything is
+    read: no byte is written then, and the client cannot be cut off in
+    the middle of writing. If the quota allows the upload, the server
+    simply waits for the body: there is no per-request size cap anymore.
     """
     conn = http.client.HTTPSConnection("127.0.0.1", port, context=SSL_CONTEXT, timeout=20)
     try:

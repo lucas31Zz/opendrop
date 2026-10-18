@@ -441,6 +441,13 @@ body {
     margin-top: 0.3rem;
 }
 
+/* The single explicit choice, centred in the column under the hints. */
+.drop-btn-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.7rem;
+}
+
 .transfer-info {
     margin-top: 1.5rem;
     padding: 1.3rem 1.4rem;
@@ -521,7 +528,8 @@ body {
 .btn-refresh,
 .btn-download,
 .btn-unlock,
-.btn-scan {
+.btn-scan,
+.drop-btn {
     display: inline-block;
     padding: 0.62rem 1.45rem;
     border: 1px solid var(--glass-edge);
@@ -536,7 +544,8 @@ body {
 .btn-refresh:active,
 .btn-download:active,
 .btn-unlock:active,
-.btn-scan:active {
+.btn-scan:active,
+.drop-btn:active {
     transform: scale(0.95);
 }
 
@@ -570,14 +579,16 @@ body {
 }
 
 .btn-refresh,
-.btn-scan {
+.btn-scan,
+.drop-btn {
     background: var(--glass-2);
     color: var(--text);
     box-shadow: var(--glass-inner);
 }
 
 .btn-refresh:hover,
-.btn-scan:hover {
+.btn-scan:hover,
+.drop-btn:hover {
     background: var(--glass-3);
     color: var(--text);
 }
@@ -585,6 +596,13 @@ body {
 .btn-refresh {
     margin-top: 1rem;
     font-size: 0.85rem;
+}
+
+/* Drop-zone choice: the neutral glass pill, kept one step smaller than
+   the main action pills so it reads as an inline affordance. */
+.drop-btn {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.88rem;
 }
 
 .success-msg {
@@ -1170,23 +1188,6 @@ body::-webkit-scrollbar {
 /* No backdrop-filter on any of the small controls (the performance
    rule): they sit on glass or on the page's own mesh, and their
    gradients read fine either way. */
-
-.link-folder {
-    display: inline-block;
-    margin-top: 0.55rem;
-    padding: 0.3rem 0.85rem;
-    border: 1px solid var(--glass-edge);
-    border-radius: 999px;
-    background: var(--glass-2);
-    color: var(--text);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.link-folder:hover {
-    background: var(--glass-3);
-}
 
 .queue-count {
     display: inline-block;
@@ -1944,4 +1945,48 @@ body::-webkit-scrollbar {
 
 .pair-banner:active {
     transform: translateX(-50%) scale(0.96);
+}
+
+/* --- Send options panel: the pre-flight screen of a batch that needs
+   zipping. Thin layout inside the transfer card - reuses the existing
+   glass controls, no new surface. */
+.send-options-title {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+}
+
+.send-options-list {
+    list-style: none;
+    margin: 0 0 0.3rem;
+    padding: 0;
+    max-height: 30vh;
+    overflow-y: auto;
+}
+
+.send-options-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.12rem 0;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    word-break: break-all;
+}
+
+.send-options-size {
+    flex: none;
+}
+
+.send-options .paste-input {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin-top: 0.5rem;
+}
+
+.send-options .btn-unlock {
+    display: block;
+    width: 100%;
+    margin-top: 0.85rem;
 }

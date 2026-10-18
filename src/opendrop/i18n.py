@@ -37,8 +37,6 @@ _TEXT_FR: dict[str, str] = {
     "Invalid request format": "Format de requete invalide",
     "Invalid file name": "Nom de fichier invalide",
     "File name not allowed": "Nom de fichier non autorise",
-    "File too large": "Fichier trop volumineux",
-    "File too large (max 10 GB)": "Fichier trop volumineux (max 10 Go)",
     "Cannot read the uploaded file": "Impossible de lire le fichier envoye",
     "File read error": "Erreur de lecture du fichier",
     # Download

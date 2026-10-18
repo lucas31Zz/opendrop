@@ -51,10 +51,6 @@ class FilenameUnsafeError(UploadError):
     message = "File name not allowed"
 
 
-class FileTooLargeError(UploadError):
-    message = "File too large"
-
-
 class DownloadError(OpenDropError):
     status = 404
     message = "File not found"

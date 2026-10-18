@@ -1,9 +1,8 @@
 """Quota for the receive folder as a whole.
 
-MAX_UPLOAD_SIZE bounds each file individually; this module adds the
-cumulative limit: on every upload the receive folder is scanned (total size
-of the files), and the space announced by Content-Length is reserved for the
-duration of the upload.
+The cumulative limit is the only ceiling: on every upload the receive
+folder is scanned (total size of the files), and the space announced by
+Content-Length is reserved for the duration of the upload.
 
 The reservation is exact: the request body is strictly bounded by
 Content-Length, so a file can never write more than the reserved value, even

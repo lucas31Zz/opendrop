@@ -18,7 +18,7 @@ from opendrop.server import server as server_module
 from opendrop.server.rate_limit import limiter_upload
 from opendrop.server.server import create_server
 from opendrop.security.devices import DeviceRegistry
-from tests.conftest import (SSL_CONTEXT, _WORKSPACE, _raw_upload, _start_server,
+from tests.conftest import (SSL_CONTEXT, _WORKSPACE, _start_server,
                             _url, _upload, TestResult, cert_dir, dd, ip, sd,
                             urlopen)
 
@@ -191,41 +191,21 @@ def test_security():
     except Exception as e:
         r.check("HTTP origin rejected", False, str(e))
 
-    # --- Upload size: per-file limit, no global quota -----
+    # --- No fixed per-request cap: the quota is the ceiling -----
     limiter_upload.reset()
 
-    limit = server_module.MAX_UPLOAD_SIZE
+    r.check("10 GB per-request cap removed",
+            not hasattr(server_module, "MAX_UPLOAD_SIZE"),
+            "server_module.MAX_UPLOAD_SIZE still exists")
+
+    # Regression: a plain small upload still succeeds on the path the
+    # cap removal must not touch.
     try:
-        status, body = _raw_upload(port, token, limit + 1)
-        data = json.loads(body)
-        r.check("Upload > 10 GB rejected on header",
-                status == 400 and "too large" in data.get("error", ""),
-                f"{status} {data}")
+        data = json.loads(
+            _upload(port, token, "sans_cap.bin", b"no fixed cap").read())
+        r.check("Plain upload still succeeds", data.get("success"), data)
     except Exception as e:
-        r.check("Upload > 10 GB rejected on header", False, str(e))
-
-    # The real limit is indeed the server's (checked with a reduced
-    # value: 5000 > 4096 must be rejected).
-    old_limit = server_module.MAX_UPLOAD_SIZE
-    server_module.MAX_UPLOAD_SIZE = 4096
-    try:
-        status, body = _raw_upload(port, token, 5000)
-        data = json.loads(body)
-        r.check("Configured size limit enforced",
-                status == 400 and "too large" in data.get("error", ""),
-                f"{status} {data}")
-
-        # Two 3000-byte files pass while 6000 > 4096: the limit is
-        # indeed per file and no global quota is applied.
-        try:
-            a = json.loads(_upload(port, token, "quota_a.bin", b"A" * 3000).read())
-            b = json.loads(_upload(port, token, "quota_b.bin", b"B" * 3000).read())
-            r.check("Limit is per file, no global quota",
-                    bool(a.get("success")) and bool(b.get("success")), f"{a} {b}")
-        except Exception as e:
-            r.check("Limit is per file, no global quota", False, str(e))
-    finally:
-        server_module.MAX_UPLOAD_SIZE = old_limit
+        r.check("Plain upload still succeeds", False, str(e))
 
     # --- Incomplete body: rejected, no file, no hash ----------------------
     # HTTP case: the body stops before the final boundary.
@@ -262,7 +242,7 @@ def test_security():
     full_body = (head + b"Y" * 2048 + b"\r\n--" + boundary.encode() + b"--\r\n")
     try:
         reader = io.BytesIO(full_body[:len(head) + 512])
-        name, error, digest = multipart_mod.parse_multipart_upload(
+        name, error, digest, _committed = multipart_mod.parse_multipart_upload(
             reader, f"multipart/form-data; boundary={boundary}",
             len(full_body), cut_dir)
         r.check("Reader cut mid-stream: error returned",

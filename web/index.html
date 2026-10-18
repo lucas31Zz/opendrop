@@ -58,21 +58,42 @@
                 <div class="drop-zone" id="drop-zone">
                     <div class="drop-zone-content">
                         <span class="drop-icon">&#128194;</span>
-                        <p data-i18n="drop.choose">Choose a file</p>
                         <p class="drop-hint" data-i18n="drop.hint">or drop it here</p>
-                        <button type="button" class="link-folder" id="btn-choose-folder"
-                                data-i18n="drop.chooseFolder">Choose a folder</button>
                         <p class="drop-hint" data-i18n="drop.folderHint">folders arrive zipped</p>
+                        <div class="drop-btn-row">
+                            <button type="button" class="drop-btn" id="btn-choose-files"
+                                    data-i18n="drop.chooseFiles">Choose files</button>
+                        </div>
                     </div>
                     <input type="file" id="file-input" multiple>
                     <input type="file" id="folder-input" webkitdirectory multiple>
                 </div>
 
                 <div class="transfer-info" id="transfer-info" style="display:none;">
+                    <div class="send-options" id="send-options" style="display:none;">
+                        <p class="send-options-title" data-i18n="send.optionsTitle">Before sending</p>
+                        <ul class="send-options-list" id="send-options-list"></ul>
+                        <label class="settings-check">
+                            <input type="checkbox" id="chk-zip-password">
+                            <span data-i18n="send.zipPassword">Protect the zips with a password</span>
+                        </label>
+                        <input type="password" class="paste-input" id="zip-password-input"
+                               style="display:none;" autocomplete="new-password"
+                               placeholder="Password"
+                               data-i18n-attr="placeholder:send.zipPasswordPlaceholder">
+                        <label class="settings-check">
+                            <span data-i18n="send.compression">Compression</span>
+                            <select class="move-select" id="zip-mode">
+                                <option value="deflate" data-i18n="send.modeStandard">Standard</option>
+                                <option value="store" data-i18n="send.modeFast">Fast</option>
+                            </select>
+                        </label>
+                        <button class="btn-unlock" id="btn-start" data-i18n="send.start">Start</button>
+                    </div>
                     <p class="filename" id="filename"></p>
                     <p class="filesize" id="filesize"></p>
                     <p class="queue-count" id="queue-count" style="display:none;"></p>
-                    <div class="progress-bar-container">
+                    <div class="progress-bar-container" id="progress-wrap">
                         <div class="progress-bar" id="progress-bar"></div>
                     </div>
                     <p class="progress-text" id="progress-text">0%</p>

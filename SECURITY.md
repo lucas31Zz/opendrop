@@ -56,11 +56,11 @@ Install and getting started: see [README.md](README.md).
   - Download: 30 requests / minute
   - General (all /api/ and /qr routes): 120 requests / minute
   - Session unlock: 5 requests / minute
-- Size limit: 10 GB per file (MAX_UPLOAD_SIZE). The request body is
-  strictly bounded by Content-Length: lying about the length doesn't let you
-  go past the limit, and a truncated upload is rejected then deleted
-- That limit applies per file, not to everything received: see the "Filling
-  the disk" section (optional global quota) for the rest
+- No fixed size limit: the optional global quota (507) is the only
+  size-based refusal, and the rate limits above still apply. The request
+  body is strictly bounded by Content-Length: lying about the length
+  doesn't let you go past the quota reservation, and a truncated upload
+  is rejected then deleted
 - Uploads are read and written as a stream (64 KB chunks): a 10 GB file is
   never loaded into memory all at once
 - The client IP is always the one on the TCP connection; X-Forwarded-For is
@@ -179,9 +179,8 @@ Tested by `python -m tests.test_paths`:
 
 ### Filling the disk
 
-- The 10 GB limit is per file, not across all the files received: nothing
-  stops someone from sending dozens of files under 10 GB until the
-  destination disk is full
+- There is no per-file limit: without the optional quota, nothing stops
+  someone from sending files until the destination disk is full
 - Optional global quota on the receive folder
   (`global_quota_bytes` in config.json, in bytes; 0 or missing key =
   unlimited). Set in the app's Settings, "Global quota for the receive
@@ -346,17 +345,18 @@ Python 3.12, no external framework):
 
 | Command | What it proves | Result |
 |---|---|---|
-| `python -m tests.test_security` | tokens, paths, size limits, origin, incomplete body, write failure, logs with no secrets | 36/36 |
+| `python -m tests.test_security` | tokens, paths, origin, incomplete body, write failure, the per-request cap being gone, logs with no secrets | 35/35 |
 | `python -m tests.test_routes` | route truth table (section 5) | 46/46 |
-| `python -m tests.test_paths` | no absolute path in any response (section 6) | 43/43 |
+| `python -m tests.test_paths` | no absolute path in any response (section 6) | 41/41 |
 | `python -m tests.test_quota` | global quota, simultaneous reservations, exact fill, 507 | 40/40 |
 | `python -m tests.test_sessions` | sessions, expiration, session code, rotation through `opendrop.main` | 34/34 |
 | `python -m tests.test_tls` | self-signed certificate, key/cert, EKU, renewal, forced HTTPS | 15/15 |
-| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup | 16/16 |
-| `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 64/64 and 76/76 |
+| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup, upload idle window, chunked-upload staging (append rules, 409 resync, uniquify-at-rename, cancel, query-name-wins, traversal containment, idempotent final retry) | 33/33 |
+| `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 63/63 and 75/75 |
 | `python -m tests.test_devices` | device pairing: registry, registered-IP trust, pairing quotas, dissociate vs reset | 62/62 |
+| `python -m tests.test_zip_web` | browser zip engine: streaming ZIP64, progress/cancel, ZipCrypto round-trip verified by Python's `zipfile` | 47/47 |
 
-Nine suites, 356 checks in total.
+Ten suites, 416 checks in total.
 
 ---
 
@@ -370,7 +370,7 @@ Nine suites, 356 checks in total.
 | Token brute-force | 32 random characters (62^32 combinations) | Done |
 | Expired token | Configurable expiration + automatic cleanup; the backup code keeps working | Done |
 | Path traversal | Path validation with is_safe_path | Done |
-| Filling the disk | 10 GB per file + optional global quota (507, atomic reservation) | Partial |
+| Filling the disk | Optional global quota (507, atomic reservation); no per-file cap | Partial |
 | DoS by requests | Rate limiting per IP | Done |
 | Stack trace leak | No tracebacks in responses | Done |
 | Absolute path leak | Responses with no server path (upload = name + size + hash), disk errors with no path | Done |

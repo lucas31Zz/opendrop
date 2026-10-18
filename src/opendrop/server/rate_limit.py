@@ -31,5 +31,10 @@ class RateLimiter:
 limiter_general = RateLimiter(max_requests=120, window=60)
 limiter_upload = RateLimiter(max_requests=10, window=60)
 limiter_download = RateLimiter(max_requests=30, window=60)
+# Slices of a chunked upload (offset>0): the per-minute budget is much
+# higher than a new upload (128 MiB per slice at LAN speed can exceed
+# limiter_upload's 10/min for a multi-gigabyte send), but still bounds
+# token guessing on this path (applied before _check_token in do_POST).
+limiter_part = RateLimiter(max_requests=240, window=60)
 # Brute-force protection for the session code (6 characters).
 limiter_session = RateLimiter(max_requests=5, window=60)

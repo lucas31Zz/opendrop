@@ -16,21 +16,23 @@ from urllib.parse import urlparse, parse_qs, unquote, quote
 from opendrop.config.config import get_config_dir, load_config, save_config
 from opendrop.security.devices import DeviceRegistry
 from opendrop.security.tokens import validate_token
-from opendrop.security.validation import is_safe_path
+from opendrop.security.validation import is_safe_path, sanitize_filename
 from opendrop.network.interfaces import _port_is_free
 from opendrop.security.tls_cert import ensure_certificate
 from opendrop.i18n import t, normalize_lang
 from opendrop.qr.generator import generate_qr_png
-from opendrop.server.multipart import parse_multipart_upload, CHUNK_SIZE
+from opendrop.server.multipart import (parse_multipart_upload, open_dest_exclusive,
+                                       sha256_file, CHUNK_SIZE)
 from opendrop.server.quota import QuotaTracker
-from opendrop.server.rate_limit import limiter_general, limiter_upload, limiter_download, limiter_session
+from opendrop.server.rate_limit import (limiter_general, limiter_upload, limiter_download,
+                                        limiter_session, limiter_part)
 from opendrop.server.session import SessionManager
 from opendrop.themes import DEFAULT_THEME, normalize_theme
 from opendrop.server.errors import (
     OpenDropError, TokenInvalidError, TokenExpiredError, OriginForbiddenError,
     RateLimitError,
     MultipartParseError, FilenameInvalidError, FilenameUnsafeError,
-    FileTooLargeError, FileDeletedError, DownloadError, DiskError,
+    FileDeletedError, DownloadError, DiskError,
     format_error_response, log_error,
 )
 
@@ -40,12 +42,15 @@ WEB_DIR = Path(__file__).resolve().parent.parent.parent.parent / "web"
 # traffic must stay encrypted).
 SCHEME = "https"
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
-
-# An upload rejected before reading (size, quota) leaves the client still
+# An upload rejected before reading (quota) leaves the client still
 # writing: we absorb a chunk of the body before answering, otherwise the
 # connection drops mid-write and the client loses the error message.
-MAX_DRAIN_BYTES = 64 * 1024 * 1024
+# One 128 MiB upload slice plus its multipart framing: the drain must be
+# able to absorb a whole slice, otherwise a rejected full-size slice still
+# has unread bytes at close and the kernel's reset can eat the response
+# the client is waiting for (the resync 409, the quota 507). The time
+# bound below stays the real ceiling for slow links.
+MAX_DRAIN_BYTES = 129 * 1024 * 1024
 MAX_DRAIN_SECONDS = 2.0
 
 # "Normal" socket noise: a phone probing the port, a client closing during
@@ -63,6 +68,12 @@ TLS_HANDSHAKE_TIMEOUT = 10.0
 # Idle budget for an established connection. Long enough for a screen-off
 # hiccup during an upload, short enough to release a dead client quickly.
 REQUEST_TIMEOUT = 30.0
+# Idle window while an upload BODY is being read. A multi-gigabyte body
+# takes minutes: the short REQUEST_TIMEOUT reaps dead small requests, but
+# any real network gap mid-transfer (Wi-Fi hiccup, browser Blob pacing)
+# would otherwise abort a big upload ("Cannot read the uploaded file").
+# 120 s rides out realistic stalls while still reaping abandoned clients.
+UPLOAD_IDLE_TIMEOUT = 120.0
 
 
 class PortInUseError(RuntimeError):
@@ -133,9 +144,70 @@ transfer_state = {
     "done": False,
     "error": None,
     "started_at": 0,
+    "upload_id": None,
 }
 
 transfer_lock = threading.Lock()
+
+# Short-lived completion records, keyed by upload id. After the final
+# rename the staging file is gone, so a retry of the last slice (its 200
+# lost in flight) would otherwise answer 409 "size 0" and make the client
+# restart a multi-gigabyte send from zero - paying twice and dropping a
+# duplicate file next to the first one. Bounded by age and count; a miss
+# simply falls back to the 409 resync, so this only removes a double
+# cost, it never carries correctness on its own.
+COMPLETED_TTL = 300.0
+COMPLETED_MAX = 64
+completed_uploads = {}    # upload_id -> (filename, size, sha256, monotonic ts)
+
+
+def _completed_record(upload_id: str, filename: str, size: int, digest: str) -> None:
+    """Remember a finished send (call before the success response is sent)."""
+    now = time.monotonic()
+    with transfer_lock:
+        for k in [k for k, v in completed_uploads.items()
+                  if now - v[3] > COMPLETED_TTL]:
+            completed_uploads.pop(k, None)
+        while len(completed_uploads) >= COMPLETED_MAX:
+            oldest = min(completed_uploads, key=lambda k: completed_uploads[k][3])
+            completed_uploads.pop(oldest, None)
+        completed_uploads[upload_id] = (filename, size, digest, now)
+
+
+def _completed_lookup(upload_id: str):
+    """Fresh completion record for this send, or None."""
+    with transfer_lock:
+        rec = completed_uploads.get(upload_id)
+        if rec is None:
+            return None
+        if time.monotonic() - rec[3] > COMPLETED_TTL:
+            completed_uploads.pop(upload_id, None)
+            return None
+        return rec
+
+
+def _log_received(safe_name: str, file_size: int, dest: Path) -> None:
+    """Print the 'File received' line, falling back to ASCII on encodable names."""
+    try:
+        print(f"[OpenDrop] File received: {safe_name} ({file_size} bytes) -> {dest}", flush=True)
+    except UnicodeEncodeError:
+        name_ascii = safe_name.encode("ascii", errors="replace").decode("ascii")
+        dest_ascii = str(dest).encode("ascii", errors="replace").decode("ascii")
+        print(f"[OpenDrop] File received: {name_ascii} ({file_size} bytes) -> {dest_ascii}", flush=True)
+
+
+def _int_param(query: dict, key: str, default: int) -> int:
+    """One non-negative integer query param; malformed or negative is a 400."""
+    raw = query.get(key, [""])[0]
+    if raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise MultipartParseError("Invalid upload parameter")
+    if value < 0:
+        raise MultipartParseError("Invalid upload parameter")
+    return value
 
 
 def _content_disposition(filename: str) -> str:
@@ -443,12 +515,16 @@ class OpenDropHandler(BaseHTTPRequestHandler):
 
         try:
             self._check_origin()
-            if not limiter_general.allow(ip):
-                raise RateLimitError()
-
             parsed = urlparse(self.path)
             path = parsed.path
             query = parse_qs(parsed.query)
+
+            # /api/upload enforces its own stricter limiters (before the
+            # token check, in _route_upload); every other POST route keeps
+            # the generic per-IP budget.
+            if path != "/api/upload":
+                if not limiter_general.allow(ip):
+                    raise RateLimitError()
 
             if path == "/api/upload":
                 self._route_upload(query, ip)
@@ -752,10 +828,97 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         self._handle_download_file(filename)
 
     def _route_upload(self, query: dict, ip: str) -> None:
+        upload_id = query.get("upload", [""])[0]
+        cancel = query.get("cancel", [""])[0] == "1"
+        # Lenient offset read, only to pick the right limiter bucket; the
+        # strict parse (a 400 on malformed or negative) runs AFTER the
+        # limiters below, so junk params cannot bypass the per-IP budgets
+        # that do_POST no longer applies to this route. Malformed values
+        # are classified as a fresh upload (the expensive bucket).
+        try:
+            offset_hint = int(query.get("offset", ["0"])[0] or 0)
+        except ValueError:
+            offset_hint = 0
+        if offset_hint < 0:
+            offset_hint = 0
+
+        # Limiters replace the generic per-IP budget for this path, and
+        # they run BEFORE validation and _check_token so junk requests and
+        # token guessing both stay bounded. A new upload (offset 0, or a
+        # legacy whole-file request) is the expensive one and keeps
+        # limiter_upload; a continuation or a cancel is cheap and goes
+        # through limiter_part, which still bounds guessing at a sane rate.
+        if upload_id and (offset_hint > 0 or cancel):
+            if not limiter_part.allow(ip):
+                raise RateLimitError()
+        else:
+            if not limiter_upload.allow(ip):
+                raise RateLimitError("Too many uploads, try again in a moment")
+
+        # The id is a routing key, not a secret: reject malformed values
+        # (cheap regex, no I/O) now that the budget is charged.
+        if upload_id and not re.fullmatch(r"[0-9a-f]{8,32}", upload_id):
+            raise MultipartParseError("Invalid upload id")
+        offset = _int_param(query, "offset", 0)
+
         self._check_token(query, ip)
-        if not limiter_upload.allow(ip):
-            raise RateLimitError("Too many uploads, try again in a moment")
-        self._handle_upload()
+
+        if cancel:
+            self._handle_upload_cancel(upload_id, query)
+            return
+        if not upload_id:
+            # Legacy whole-file request (no staging params): byte-for-byte
+            # the old path, so a cached page keeps working.
+            self._handle_upload()
+            return
+
+        name = query.get("name", [""])[0]
+        safe_name = sanitize_filename(name)
+        if not safe_name or not is_safe_path(self._download_dir, safe_name):
+            raise FilenameUnsafeError("File name not allowed")
+        total = _int_param(query, "total", 0)
+        last = query.get("last", ["0"])[0] == "1"
+        self._handle_upload(upload_id=upload_id, safe_name=safe_name,
+                            offset=offset, total=total, last=last)
+
+    def _handle_upload_cancel(self, upload_id: str, query: dict) -> None:
+        """Unlink this send's staging file (a body-less best-effort cleanup).
+
+        Only a `.part` staging file is ever removed, and only one whose
+        name was already validated, so a cancel can never touch a real
+        received file.
+        """
+        name = query.get("name", [""])[0]
+        safe_name = sanitize_filename(name)
+        if not upload_id or not safe_name or not is_safe_path(self._download_dir, safe_name):
+            raise FilenameUnsafeError("File name not allowed")
+        staging = Path(self._download_dir) / f"{safe_name}.{upload_id}.part"
+        # The aborted slice's thread - or a Windows AV scanner - can still
+        # hold the file for a few milliseconds, and on Windows an open
+        # handle denies the unlink. A few short retries turn that race
+        # into a clean cancel instead of an orphaned .part (the client's
+        # cleanup is fire-and-forget and will not try again).
+        last_err = None
+        for _ in range(3):
+            try:
+                staging.unlink()
+                last_err = None
+                break
+            except FileNotFoundError:
+                last_err = None    # already gone: the goal is met
+                break
+            except OSError as e:
+                last_err = e
+                time.sleep(0.1)
+        if last_err is not None:
+            log_error(last_err, "upload cancel")
+            raise DiskError("Cannot remove the partial upload")
+        with transfer_lock:
+            # Only clear a transfer that is actually this send's: never
+            # lie about someone else's in-flight upload.
+            if transfer_state.get("upload_id") == upload_id:
+                transfer_state.update({"active": False, "done": False, "error": None})
+        self._send_json({"success": True})
 
     def _drain_body(self, content_length: int) -> None:
         """Absorb (without writing to disk) part of a rejected body.
@@ -789,15 +952,62 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             except OSError:
                 pass
 
-    def _handle_upload(self):
+    def _handle_upload(self, upload_id=None, safe_name=None, offset=0, total=0,
+                       last=False):
         content_type = self.headers.get("Content-Type", "")
         content_length = int(self.headers.get("Content-Length", 0))
 
         if "multipart/form-data" not in content_type:
             raise MultipartParseError("Invalid request format")
 
-        if content_length > MAX_UPLOAD_SIZE:
-            raise FileTooLargeError("File too large (max 10 GB)")
+        staging = None
+        staging_path = None
+        if upload_id is not None:
+            # Chunked slice: the destination is the staging file, named
+            # from the already-validated query name + this send's id.
+            dest_dir = Path(self._download_dir)
+            staging_path = dest_dir / f"{safe_name}.{upload_id}.part"
+            staging = (staging_path, offset)
+            # This send already completed and its final response was lost:
+            # answer the retried slice with the recorded result instead of
+            # rebuilding the file. A single-slice send (the common case)
+            # retries at offset 0, where the resync branch below never
+            # runs, so the check has to happen here - otherwise the file
+            # completes a second time and a duplicate lands next to it.
+            rec = _completed_lookup(upload_id)
+            if rec is not None:
+                fname, fsize, fdigest, _ts = rec
+                with transfer_lock:
+                    transfer_state.update({
+                        "active": False, "filename": fname,
+                        "size": fsize, "received": fsize,
+                        "done": True, "error": None,
+                        "upload_id": None,
+                    })
+                self._send_json({"success": True, "filename": fname,
+                                 "size": fsize, "sha256": fdigest})
+                return
+            # Fast resyncs, answered before the body is read: a slice that
+            # points past the staging file (or at one that is gone) is
+            # healed by the client restarting from the size we report.
+            if offset > 0:
+                try:
+                    actual = staging_path.stat().st_size
+                except OSError:
+                    actual = 0
+                if actual < offset:
+                    # The slice was refused before it started: keep the
+                    # desktop progress honest by reporting the size the
+                    # client is about to resync to, not the offset it
+                    # asked for.
+                    with transfer_lock:
+                        transfer_state.update({
+                            "active": True, "received": actual,
+                            "size": total, "done": False, "error": None,
+                            "upload_id": upload_id,
+                        })
+                    self._send_json({"success": False, "size": actual}, status=409)
+                    return
 
         # Global quota: scan the folder + reserve the announced space
         # (raises 507 if the upload would exceed the quota).
@@ -805,25 +1015,54 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         if quota is not None:
             quota.reserve(content_length)
 
+        # A slice reports the whole file's size (from the query) so the
+        # progress math is stable across slices; a legacy request reports
+        # the body length as before.
+        state_size = total if upload_id is not None else content_length
         with transfer_lock:
             transfer_state.update({
-                "active": True, "filename": "", "size": content_length,
-                "received": 0, "done": False, "error": None,
-                "started_at": time.monotonic(),
+                "active": True, "filename": "", "size": state_size,
+                "received": offset, "done": False, "error": None,
+                "upload_id": upload_id,
             })
+            # Keep the clock from a first slice so speed/ETA stay coherent
+            # across the whole send rather than restarting every slice.
+            if offset == 0 or upload_id is None:
+                transfer_state["started_at"] = time.monotonic()
 
         def on_progress(received):
             with transfer_lock:
-                transfer_state["received"] = received
+                # Across slices, progress is committed-plus-current bytes.
+                transfer_state["received"] = offset + received
 
         # From here the body is being consumed: any later error must not
         # try to re-read it (see `_drain_left_body`).
         self._body_drained = True
+        # While the body is being read, the longer upload idle window
+        # applies; the connection's usual timeout is restored in the
+        # finally below, so keep-alive and small requests are unchanged.
+        old_timeout = self.connection.gettimeout()
+        self.connection.settimeout(UPLOAD_IDLE_TIMEOUT)
         try:
-            safe_name, error, file_hash = parse_multipart_upload(
+            parsed_name, error, file_hash, committed = parse_multipart_upload(
                 self.rfile, content_type, content_length,
-                self._download_dir, on_progress=on_progress,
+                self._download_dir, on_progress=on_progress, staging=staging,
             )
+            if upload_id is None:
+                # Legacy mode: the parser uniquified the name on create, so
+                # its answer is the real final name. In staging mode the
+                # parser's name is just the .part file's — the query name
+                # (already validated above) stays authoritative for the
+                # completion rename.
+                safe_name = parsed_name
+        except TimeoutError as e:
+            # The client stopped sending for longer than the idle window.
+            # Honest message: nothing was read, and no path is leaked.
+            with transfer_lock:
+                transfer_state.update({"active": False, "error": "Transfer interrupted"})
+            log_error(e, "upload parse")
+            raise MultipartParseError(
+                "Transfer interrupted (the connection stalled)")
         except DiskError as e:
             with transfer_lock:
                 transfer_state.update({"active": False, "error": e.message})
@@ -834,19 +1073,90 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             log_error(e, "upload parse")
             raise MultipartParseError("Cannot read the uploaded file")
         finally:
+            try:
+                self.connection.settimeout(old_timeout)
+            except OSError:
+                pass
             # The reservation only covers the write itself: a failed
             # upload does not block the next ones.
             if quota is not None:
                 quota.release(content_length)
 
         if error:
+            if error == "offset mismatch":
+                # Race fallback: the staging file shrank between our pre-check
+                # and the append. Answer a resync; the client adopts this
+                # size and continues from there.
+                self._send_json({"success": False, "size": committed}, status=409)
+                return
             with transfer_lock:
                 transfer_state.update({"active": False, "error": error})
             if "unsafe" in error:
                 raise FilenameUnsafeError(error)
             raise MultipartParseError(error)
 
-        dest = Path(self._download_dir) / safe_name
+        dest_dir = Path(self._download_dir)
+
+        if upload_id is not None and not last:
+            # A middle slice: stay active so the desktop progress keeps
+            # moving, and answer the committed byte count (the client's
+            # single source of truth for the next offset).
+            with transfer_lock:
+                transfer_state.update({
+                    "active": True, "received": committed, "size": total,
+                    "done": False, "error": None,
+                })
+            self._send_json({"success": True, "size": committed})
+            return
+
+        if upload_id is not None and last:
+            # Final slice: verify the staging file is exactly the promised
+            # size, hash the whole thing, then move it onto a freshly
+            # claimed (uniquified) final name.
+            if committed != total:
+                self._send_json({"success": False, "size": committed}, status=409)
+                return
+            try:
+                file_hash = sha256_file(staging_path)
+            except OSError as e:
+                log_error(e, "upload hash")
+                raise DiskError("Cannot read the uploaded file")
+            claim, final_name = open_dest_exclusive(dest_dir, safe_name)
+            try:
+                claim.close()
+            except OSError:
+                pass
+            try:
+                os.replace(staging_path, dest_dir / final_name)
+            except OSError as e:
+                # The claimed name is still an empty file we own: take it
+                # back, or a failed finalize parks junk next to the
+                # staging file forever.
+                try:
+                    (dest_dir / final_name).unlink()
+                except OSError:
+                    pass
+                log_error(e, "upload rename")
+                raise DiskError("Cannot finalize the uploaded file")
+            dest = dest_dir / final_name
+            file_size = committed
+            with transfer_lock:
+                transfer_state.update({
+                    "active": False, "filename": final_name, "size": file_size,
+                    "received": file_size, "done": True, "error": None,
+                    "upload_id": None,
+                })
+            # Remember the result before answering: if this 200 is lost,
+            # the retried last slice must land on the same outcome (see
+            # completed_uploads).
+            _completed_record(upload_id, final_name, file_size, file_hash)
+            _log_received(final_name, file_size, dest)
+            self._send_json({"success": True, "filename": final_name,
+                             "size": file_size, "sha256": file_hash})
+            return
+
+        # Legacy whole-file upload (unchanged behavior).
+        dest = dest_dir / safe_name
         try:
             file_size = dest.stat().st_size
         except OSError:
@@ -858,12 +1168,7 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 "received": file_size, "done": True, "error": None,
             })
 
-        try:
-            print(f"[OpenDrop] File received: {safe_name} ({file_size} bytes) -> {dest}", flush=True)
-        except UnicodeEncodeError:
-            safe_name_ascii = safe_name.encode("ascii", errors="replace").decode("ascii")
-            dest_ascii = str(dest).encode("ascii", errors="replace").decode("ascii")
-            print(f"[OpenDrop] File received: {safe_name_ascii} ({file_size} bytes) -> {dest_ascii}", flush=True)
+        _log_received(safe_name, file_size, dest)
         # Never the server's real path: the client only needs the name,
         # size and hash (see SECURITY.md, "Routes and paths").
         resp = {"success": True, "filename": safe_name, "size": file_size}

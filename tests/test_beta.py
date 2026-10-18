@@ -462,11 +462,6 @@ def test_failure_cases(r):
         except urllib.error.HTTPError as e:
             r.ok(f"Path traversal blocked ({t[:20]}...)", e.code in (400, 403, 404), f"code={e.code}")
 
-    # File too large (simulated: Content-Length > MAX)
-    # We cannot really send 11 GB, but we test the server-side check
-    # The server checks Content-Length before reading
-    r.ok("Configured size limit (10 GB)", True, "checked in code")
-
     # POST request without multipart Content-Type
     try:
         req = urllib.request.Request(

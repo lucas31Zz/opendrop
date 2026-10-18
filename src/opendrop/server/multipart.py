@@ -92,8 +92,12 @@ def _os_reason(e: OSError) -> str:
     return f"[Errno {e.errno}] {reason}" if e.errno else reason
 
 
-def _open_dest(dest_dir: Path, safe_name: str):
-    """Create the destination file, excluding competing writers (mode "xb")."""
+def open_dest_exclusive(dest_dir: Path, safe_name: str):
+    """Create the destination file, excluding competing writers (mode "xb").
+
+    Public: the server also claims the final name with it when a chunked
+    upload completes (before os.replace of the staging file).
+    """
     stem, ext = os.path.splitext(safe_name)
     counter = 0
     name = safe_name
@@ -111,8 +115,8 @@ def _open_dest(dest_dir: Path, safe_name: str):
 def _copy_file(reader: _BodyReader, out, end_marker: bytes, on_progress=None):
     """Write the file content in blocks up to end_marker.
 
-    Returns the SHA-256 hash, or None if the body ended before the final
-    boundary (truncated upload).
+    Returns (SHA-256 hash, bytes written); the hash is None if the body
+    ended before the final boundary (truncated upload).
     """
     pending = bytearray()
     sha256 = hashlib.sha256()
@@ -141,14 +145,14 @@ def _copy_file(reader: _BodyReader, out, end_marker: bytes, on_progress=None):
             follow = bytes(pending[after:after + 2])
             if not follow or reader.eof or follow[:2] == b"--" or follow[:1] in (b"\r", b"\n"):
                 write(bytes(pending[:idx]))
-                return sha256.hexdigest()
+                return sha256.hexdigest(), written
             # false positive: the sequence found is part of the file
             write(bytes(pending[:after]))
             del pending[:after]
             continue
 
         if reader.eof:
-            return None
+            return None, written
 
         if len(pending) > margin:
             cut = len(pending) - margin
@@ -158,10 +162,57 @@ def _copy_file(reader: _BodyReader, out, end_marker: bytes, on_progress=None):
         pending += reader.read_some(CHUNK_SIZE)
 
 
-def parse_multipart_upload(rfile, content_type, content_length, download_dir, on_progress=None):
+def _open_staging(dest_path: Path, offset: int):
+    """Open a chunked-upload staging file for append at `offset`.
+
+    Returns (handle, actual) where a success has actual=None, and a file
+    shorter than offset has handle=None with actual set to its real size
+    (the caller answers a 409 resync carrying that size). A tail left by
+    a lost response or a killed write is truncated back to offset, which
+    is what makes a slice retry idempotent.
+    """
+    if offset == 0:
+        try:
+            return open(dest_path, "w+b"), None      # truncate or create
+        except OSError as e:
+            raise DiskError(f"Cannot create file: {_os_reason(e)}") from e
+    try:
+        f = open(dest_path, "r+b")
+    except FileNotFoundError:
+        return None, 0
+    except OSError as e:
+        raise DiskError(f"Cannot open file: {_os_reason(e)}") from e
+    try:
+        actual = f.seek(0, os.SEEK_END)
+        if actual < offset:
+            _close_quiet(f)
+            return None, actual
+        if actual > offset:
+            f.truncate(offset)
+        f.seek(offset)
+    except OSError as e:
+        _close_quiet(f)
+        raise DiskError(f"Disk write error: {_os_reason(e)}") from e
+    return f, None
+
+
+def parse_multipart_upload(rfile, content_type, content_length, download_dir,
+                           on_progress=None, staging=None):
+    """Parse one multipart upload request.
+
+    staging=None is the legacy single-shot: the destination is created
+    exclusively (uniquified) from the part's filename and removed on any
+    failure. staging=(dest_path, offset) is one slice of a chunked send:
+    dest_path (already validated by the caller) is appended at offset,
+    a shorter file answers a resync, and committed bytes always survive
+    a failure so the next slice can retry.
+
+    Returns (safe_name, error, digest, committed): `committed` is the
+    byte count on disk after the request (the final size in legacy mode).
+    """
     boundary = extract_boundary(content_type)
     if not boundary:
-        return None, "no boundary", None
+        return None, "no boundary", None, 0
 
     sep = b"--" + boundary.encode()
     end_marker = b"\r\n" + sep
@@ -169,27 +220,29 @@ def parse_multipart_upload(rfile, content_type, content_length, download_dir, on
 
     # 1) first boundary (any preamble is ignored)
     if reader.read_until(sep, MAX_PREAMBLE) is None:
-        return None, "no start boundary", None
+        return None, "no start boundary", None, 0
 
     # 2) end of the boundary line (or final boundary with no part)
     line = reader.read_until(b"\n", MAX_LINE)
     if line is None:
-        return None, "no header separator", None
+        return None, "no header separator", None, 0
     if line.rstrip(b"\r") == b"--":
-        return None, "no filename", None
+        return None, "no filename", None, 0
 
     # 3) part headers
     headers_raw = reader.read_until(b"\r\n\r\n", MAX_HEADERS)
     if headers_raw is None:
         headers_raw = reader.read_until(b"\n\n", MAX_HEADERS)
         if headers_raw is None:
-            return None, "no header separator", None
+            return None, "no header separator", None, 0
 
+    # The stream must advance in every mode, but a slice's filename is
+    # the query's (the server validated it and built dest_path from it):
+    # the part's own disposition is not trusted here.
     filename = _extract_filename(headers_raw.decode("utf-8", errors="replace"))
-    if not filename:
-        return None, "no filename", None
+    if not filename and staging is None:
+        return None, "no filename", None, 0
 
-    safe_name = sanitize_filename(filename)
     dest_dir = Path(download_dir)
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -197,17 +250,31 @@ def parse_multipart_upload(rfile, content_type, content_length, download_dir, on
         raise DiskError(
             f"Cannot create receive folder: {_os_reason(e)}") from e
 
-    if not is_safe_path(str(dest_dir), safe_name):
-        return None, "unsafe filename", None
-
-    out, safe_name = _open_dest(dest_dir, safe_name)
-    dest = dest_dir / safe_name
+    if staging is not None:
+        dest_path, offset = staging
+        dest = dest_path
+        safe_name = dest_path.name
+        if not is_safe_path(str(dest_dir), safe_name):
+            return None, "unsafe filename", None, 0
+        out, actual = _open_staging(dest_path, offset)
+        if out is None:
+            return safe_name, "offset mismatch", None, actual
+    else:
+        offset = 0
+        safe_name = sanitize_filename(filename)
+        if not is_safe_path(str(dest_dir), safe_name):
+            return None, "unsafe filename", None, 0
+        out, safe_name = open_dest_exclusive(dest_dir, safe_name)
+        dest = dest_dir / safe_name
 
     try:
-        digest = _copy_file(reader, out, end_marker, on_progress)
+        digest, written = _copy_file(reader, out, end_marker, on_progress)
     except BaseException:
         _close_quiet(out)
-        _remove_quiet(dest)
+        # A slice keeps whatever landed: the retry re-truncates to its
+        # offset. Only a legacy upload cleans up after itself.
+        if staging is None:
+            _remove_quiet(dest)
         raise
 
     # The final flush sometimes fails on the last block (disk full): the file
@@ -218,14 +285,21 @@ def parse_multipart_upload(rfile, content_type, content_length, download_dir, on
         out.close()
     except OSError as e:
         _close_quiet(out)
-        _remove_quiet(dest)
+        if staging is None:
+            _remove_quiet(dest)
         raise DiskError(f"Disk write error: {_os_reason(e)}") from e
 
     if digest is None:
-        _remove_quiet(dest)
-        return None, "Transfer interrupted or incomplete", None
+        if staging is None:
+            _remove_quiet(dest)
+        return None, "Transfer interrupted or incomplete", None, 0
 
-    return safe_name, None, digest
+    try:
+        committed = dest.stat().st_size
+    except OSError:
+        committed = written + offset
+
+    return safe_name, None, digest, committed
 
 
 def _close_quiet(f) -> None:
@@ -240,3 +314,21 @@ def _remove_quiet(path: Path) -> None:
         path.unlink()
     except OSError:
         pass
+
+
+def sha256_file(path: Path) -> str:
+    """SHA-256 of a whole file, read back in blocks.
+
+    Used for the final slice of a chunked upload: the per-slice digests
+    cannot be combined, and the server is stateless between requests, so
+    the one honest way to answer with the whole-file hash is a pass over
+    what landed on disk.
+    """
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            block = f.read(CHUNK_SIZE)
+            if not block:
+                break
+            h.update(block)
+    return h.hexdigest()
