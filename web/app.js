@@ -223,6 +223,45 @@
         return text;
     }
 
+    // --- Transfer guard: beforeunload + tab title --------------------
+    // While a zip or a send is really in flight the tab title carries
+    // the percentage - "<pct>% · OpenDrop", a language-neutral format
+    // on purpose - and beforeunload asks for confirmation instead of
+    // dropping the transfer. The title is restored to BASE_TITLE on
+    // EVERY exit path (success, cancel, zip cancel, errors), so a
+    // finished transfer never leaves a "leave site?" prompt behind.
+    // No Notification API: the permission prompt is not worth the UI.
+    var BASE_TITLE = document.title;
+    var transferActive = false;
+
+    // on = a real transfer starts/ends; pct (optional) is the
+    // percentage displayed next to the base title while it runs.
+    function setTransferActive(on, pct) {
+        transferActive = !!on;
+        document.title = transferActive
+            ? (typeof pct === "number" ? pct : 0) + "% \u00b7 OpenDrop"
+            : BASE_TITLE;
+    }
+
+    // ONE listener, registered once at module level: it only checks
+    // the flag, so nothing but a real transfer arms the prompt.
+    window.addEventListener("beforeunload", function (e) {
+        if (!transferActive) return;
+        e.preventDefault();
+        e.returnValue = "Transfer in progress";
+        return e.returnValue;
+    });
+
+    // --- Service worker -----------------------------------------------
+    // Registers only in a secure context (https or localhost): the API
+    // simply does not exist elsewhere, so the feature check comes
+    // first. Registration failures are silent BY DESIGN - an old
+    // browser, a disabled worker or a refused registration must never
+    // disturb the app; it just runs without the offline shell.
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js").catch(function () {});
+    }
+
     // --- theme -------------------------------------------------------
     // The desktop app publishes its light/dark choice on /api/info. This
     // page follows it by default; the button overrides it for this device
@@ -1611,6 +1650,13 @@
     var currentSend = null;
 
     function sendCleanup() {
+        // Disarm FIRST, before the early return: a cancel with nothing
+        // to tell the server (zip or pre-flight) must still restore the
+        // title and silence beforeunload. Every cleanup path funnels
+        // through here - the terminal failure above, btnCancel below -
+        // and the success/session paths disarm at their own
+        // currentSend = null, so no exit can leave the guard armed.
+        setTransferActive(false);
         if (!currentSend) return;
         var url = "/api/upload?" + authQuery() +
             "&cancel=1&upload=" + currentSend.id +
@@ -1628,6 +1674,7 @@
         showSendView("transfer");
 
         var uploadId = makeUploadId();
+        setTransferActive(true);   // the send starts now: 0% in the title
         var committed = 0;   // bytes the server has confirmed
         var attempts = 0;    // retries of the current slice
         var resyncs = 0;     // consecutive 409s that made no progress
@@ -1669,6 +1716,7 @@
                     ? Math.min(100, Math.round((overall / file.size) * 100))
                     : 100;
                 progressBar.style.width = pct + "%";
+                if (transferActive) setTransferActive(true, pct);
                 var txt = pct + "%";
                 var elapsed = (performance.now() - uploadStart) / 1000;
                 var speed = formatSpeed(overall / elapsed);
@@ -1688,6 +1736,7 @@
                 if (xhr.status === 401 || xhr.status === 403) {
                     sendQueue = [];
                     currentSend = null;
+                    setTransferActive(false);   // session gone: title back
                     endSession(t("session.expired"));
                     return;
                 }
@@ -1713,6 +1762,10 @@
                     resyncs = 0;
                     if (isLast) {
                         currentSend = null;
+                        // Landed: title back to base. The next queued
+                        // upload re-arms inside pumpQueue -> uploadFile,
+                        // so a batch keeps its guard continuously.
+                        setTransferActive(false);
                         queueDone++;
                         if (sendQueue.length) {
                             pumpQueue();    // next file, badge follows along
@@ -2059,6 +2112,7 @@
         progressBar.style.width = "0%";
         progressText.textContent = t("send.zipping", "0%",
             formatSize(0), formatSize(totalZipRaw));
+        setTransferActive(true);   // the zip flight starts: 0% in the title
 
         var doneBefore = 0;
         var chain = Promise.resolve();
@@ -2075,6 +2129,7 @@
                         var done = Math.min(base + doneRaw, totalZipRaw);
                         var pct = totalZipRaw ? Math.round((done / totalZipRaw) * 100) : 100;
                         progressBar.style.width = pct + "%";
+                        if (transferActive) setTransferActive(true, pct);
                         progressText.textContent = t("send.zipping",
                             pct + "%", formatSize(done), formatSize(totalZipRaw));
                     }
@@ -2088,11 +2143,19 @@
         chain.then(function () {
             if (epoch !== prepareEpoch) return;
             currentZip = null;
+            // Zipping finished: the uploads that follow re-arm one by
+            // one (a cancelled batch already disarmed in btnCancel).
+            setTransferActive(false);
             enqueueFiles(batch.items.map(function (it) { return it.file; }));
         }).catch(function (err) {
-            currentZip = null;
-            if (err && err.cancelled) return;   // btnCancel already reset the view
+            // Epoch before disarm, mirroring chain.then: a stale
+            // catch must not clear a newer transfer's guard.
             if (epoch !== prepareEpoch) return;
+            currentZip = null;
+            // Abort, cancel or build failure: whatever the reason, the
+            // guard must not outlive the zip it was raised for.
+            setTransferActive(false);
+            if (err && err.cancelled) return;   // btnCancel already reset the view
             finishQueue();
             errorDetail.textContent = t("send.zipFailed");
             showSendView("error");

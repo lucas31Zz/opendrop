@@ -54,6 +54,181 @@ def test_server():
     except Exception as e:
         r.check("Download", False, str(e))
 
+    # --- HTTP Range (download resume): the 200/206/416 contract of
+    # RFC 9110. A ~1 MB tiled pattern goes into the share folder, so
+    # every requested range crosses several 64 KiB stream chunks; sd is
+    # shared by the whole suite, so the generated file is removed in a
+    # finally.
+    range_name = "range_test.bin"
+    range_path = os.path.join(sd, range_name)
+    _tile = bytes(range(256)) * 4              # 1024-byte tile
+    _rsz = len(_tile) * 1024 + 517             # ~1 MB, not chunk-aligned
+    range_src = _tile * (_rsz // len(_tile)) + _tile[:_rsz % len(_tile)]
+    _rsize = len(range_src)
+
+    def _range_get(hdr):
+        req = urllib.request.Request(
+            _url(port, f"/api/download/{range_name}", token),
+            headers={"Range": hdr})
+        return urlopen(req)
+
+    try:
+        with open(range_path, "wb") as f:
+            f.write(range_src)
+
+        # 1) A plain 200 advertises the resume capability.
+        try:
+            resp = urlopen(_url(port, f"/api/download/{range_name}", token))
+            body = resp.read()
+            r.check("Plain download advertises Accept-Ranges: bytes",
+                    (resp.status == 200
+                     and resp.headers.get("Accept-Ranges") == "bytes"
+                     and body == range_src),
+                    (resp.status, resp.headers.get("Accept-Ranges"), len(body)))
+        except Exception as e:
+            r.check("Plain download advertises Accept-Ranges: bytes", False, str(e))
+
+        # 2) bytes=0- : the whole file as a 206.
+        try:
+            resp = _range_get("bytes=0-")
+            body = resp.read()
+            r.check("bytes=0- answers 206 with the whole file",
+                    (resp.status == 206
+                     and resp.headers.get("Content-Range")
+                     == f"bytes 0-{_rsize - 1}/{_rsize}"
+                     and resp.headers.get("Content-Length") == str(_rsize)
+                     and body == range_src),
+                    (resp.status, resp.headers.get("Content-Range"), len(body)))
+        except Exception as e:
+            r.check("bytes=0- answers 206 with the whole file", False, str(e))
+
+        # 3) bytes=100-199 : exactly those 100 bytes.
+        try:
+            resp = _range_get("bytes=100-199")
+            body = resp.read()
+            r.check("bytes=100-199 answers exactly those 100 bytes",
+                    (resp.status == 206
+                     and resp.headers.get("Content-Range")
+                     == f"bytes 100-199/{_rsize}"
+                     and resp.headers.get("Content-Length") == "100"
+                     and body == range_src[100:200]),
+                    (resp.status, resp.headers.get("Content-Range"), len(body)))
+        except Exception as e:
+            r.check("bytes=100-199 answers exactly those 100 bytes", False, str(e))
+
+        # 4) bytes=-5 : the last 5 bytes (suffix form).
+        try:
+            resp = _range_get("bytes=-5")
+            body = resp.read()
+            r.check("bytes=-5 answers the last 5 bytes",
+                    (resp.status == 206
+                     and resp.headers.get("Content-Range")
+                     == f"bytes {_rsize - 5}-{_rsize - 1}/{_rsize}"
+                     and resp.headers.get("Content-Length") == "5"
+                     and body == range_src[-5:]),
+                    (resp.status, resp.headers.get("Content-Range"), len(body)))
+        except Exception as e:
+            r.check("bytes=-5 answers the last 5 bytes", False, str(e))
+
+        # 5) bytes=<size>- : start past the end -> 416, empty body.
+        try:
+            _range_get(f"bytes={_rsize}-")
+            r.check("Start past the end answers 416 with bytes */size",
+                    False, "no 416")
+        except urllib.error.HTTPError as e:
+            body = e.read()
+            r.check("Start past the end answers 416 with bytes */size",
+                    (e.code == 416
+                     and e.headers.get("Content-Range") == f"bytes */{_rsize}"
+                     and e.headers.get("Content-Length") == "0" and body == b""),
+                    (e.code, e.headers.get("Content-Range"), len(body)))
+        except Exception as e:
+            r.check("Start past the end answers 416 with bytes */size",
+                    False, str(e))
+
+        # 6) Malformed syntax and multi-range headers are IGNORED: the
+        # plain 200 with the full body (RFC 9110 lets a server ignore a
+        # Range it does not want).
+        try:
+            resp = _range_get("bytes=abc")
+            body = resp.read()
+            malformed_ok = (resp.status == 200 and body == range_src)
+            resp2 = _range_get("bytes=0-1,4-5")
+            body2 = resp2.read()
+            multi_ok = (resp2.status == 200 and body2 == range_src)
+            r.check("Malformed and multi-range fall back to plain 200",
+                    (malformed_ok and multi_ok),
+                    (resp.status, len(body), resp2.status, len(body2)))
+        except Exception as e:
+            r.check("Malformed and multi-range fall back to plain 200",
+                    False, str(e))
+
+        # 7) Resume reassembly: 0-499 then 500- concatenated is the source.
+        try:
+            resp = _range_get("bytes=0-499")
+            part1 = resp.read()
+            resp2 = _range_get("bytes=500-")
+            part2 = resp2.read()
+            r.check("Resumed halves reassemble byte-identical",
+                    (resp.status == 206 and resp2.status == 206
+                     and resp.headers.get("Content-Length") == "500"
+                     and resp2.headers.get("Content-Length") == str(_rsize - 500)
+                     and part1 + part2 == range_src),
+                    (resp.status, resp2.status, len(part1), len(part2)))
+        except Exception as e:
+            r.check("Resumed halves reassemble byte-identical", False, str(e))
+
+        # 8) Single byte: the last one, and only it.
+        try:
+            resp = _range_get(f"bytes={_rsize - 1}-{_rsize - 1}")
+            body = resp.read()
+            r.check("Single-byte range answers that byte",
+                    (resp.status == 206
+                     and resp.headers.get("Content-Range")
+                     == f"bytes {_rsize - 1}-{_rsize - 1}/{_rsize}"
+                     and resp.headers.get("Content-Length") == "1"
+                     and body == range_src[-1:]),
+                    (resp.status, resp.headers.get("Content-Range"), len(body)))
+        except Exception as e:
+            r.check("Single-byte range answers that byte", False, str(e))
+    finally:
+        try:
+            os.remove(range_path)
+        except OSError:
+            pass
+
+    # 9) Any Range on a 0-byte share file is a 416 with bytes */0: no
+    # byte of the file can satisfy anything (the classic off-by-one
+    # crash path).
+    empty_name = "range_empty.bin"
+    empty_path = os.path.join(sd, empty_name)
+    try:
+        with open(empty_path, "wb"):
+            pass
+        outcomes = []
+        for hdr in ("bytes=0-", "bytes=-5"):
+            try:
+                req = urllib.request.Request(
+                    _url(port, f"/api/download/{empty_name}", token),
+                    headers={"Range": hdr})
+                urlopen(req)
+                outcomes.append("no-416")
+            except urllib.error.HTTPError as e:
+                outcomes.append((e.code, e.headers.get("Content-Range"),
+                                 e.headers.get("Content-Length"), e.read()))
+            except Exception as e:
+                outcomes.append(str(e))
+        r.check("Range on a 0-byte file answers 416 with bytes */0",
+                all(isinstance(o, tuple) and o[0] == 416
+                    and o[1] == "bytes */0" and o[2] == "0" and o[3] == b""
+                    for o in outcomes),
+                outcomes)
+    finally:
+        try:
+            os.remove(empty_path)
+        except OSError:
+            pass
+
     # Info
     try:
         resp = urlopen(_url(port, "/api/info", token))

@@ -151,6 +151,13 @@ public partial class MainWindow : Window
             }
 
             _ = CheckForUpdatesOnStartupAsync();
+
+            // What's-new, fire-and-forget right after the window is up:
+            // never awaited, so startup is never blocked or delayed by a
+            // slow GitHub. Every failure is swallowed inside MaybeShowAsync
+            // by design, and the version is persisted even when offline -
+            // at most one dialog attempt per version, ever.
+            _ = WhatsNew.MaybeShowAsync(this);
         };
     }
 

@@ -12,9 +12,9 @@
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationTitle>OpenDrop</ApplicationTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.15.0</Version>
-    <AssemblyVersion>0.15.0.0</AssemblyVersion>
-    <FileVersion>0.15.0.0</FileVersion>
+    <Version>0.16.0</Version>
+    <AssemblyVersion>0.16.0.0</AssemblyVersion>
+    <FileVersion>0.16.0.0</FileVersion>
     <DefineConstants Condition="'$(TargetFramework)' == 'net8.0-windows'">$(DefineConstants);WINDOWS_TARGET</DefineConstants>
   </PropertyGroup>
 
@@ -34,6 +34,17 @@
   <ItemGroup>
     <!-- Tray icon: read at runtime through avares:// -->
     <AvaloniaResource Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The bundled French translation of the What's-New notes: read at
+         runtime through GetManifestResourceStream (WhatsNew.cs), its
+         first line declaring the version it translates. The version
+         bump rewrites it next to the changelog section.
+         WithCulture=false: MSBuild's AssignCulture reads the ".fr." in
+         the file name as a SATELLITE culture and would ship the file in
+         fr\OpenDrop.resources.dll instead of the main assembly. -->
+    <EmbeddedResource Include="whatsnew.fr.md" LogicalName="OpenDrop.whatsnew.fr.md" WithCulture="false" />
   </ItemGroup>
 
   <ItemGroup>

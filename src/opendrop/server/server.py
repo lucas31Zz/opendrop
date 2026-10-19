@@ -225,6 +225,68 @@ def _content_disposition(filename: str) -> str:
             f"filename*=UTF-8''{quote(filename)}")
 
 
+def _parse_range(header: str | None, size: int) -> tuple[int, int] | str:
+    """Single-range parser for the Range header of a size-byte file.
+
+    Returns an inclusive (start, end) pair for a usable `bytes=a-b`,
+    `bytes=a-` or `bytes=-n` request; "ignore" when the request must fall
+    back to a plain 200 (absent header, wrong unit, malformed syntax,
+    multi-range, or a-b with a > b - an invalid byte-range-spec; RFC 9110
+    lets a server ignore a Range it does not want); "unsatisfiable" for a
+    range no byte of the file can satisfy (a 416: start at or past the
+    end, suffix -0, and ANY range at all on a 0-byte file).
+
+    RFC 9110 clamping: a last-byte-pos at or past the end of the file
+    clamps to size-1, and a suffix >= size covers the whole file.
+
+    Never raises: a malformed header is "ignore" (including the
+    int-str digit limit hit by absurdly long numbers - Python ints are
+    arbitrary precision and no allocation depends on the parsed values).
+    """
+    if not header:
+        return "ignore"
+    unit, sep, spec = header.partition("=")
+    if not sep or unit.strip().lower() != "bytes":
+        return "ignore"
+    if "," in spec:
+        # Multi-range (multipart/byteranges) is out of scope: plain 200.
+        return "ignore"
+    first, dash, last = spec.strip().partition("-")
+    if not dash:
+        return "ignore"
+    first, last = first.strip(), last.strip()
+    try:
+        if first == "":
+            # Suffix form: the last N bytes; -0 satisfies nothing.
+            if not last.isascii() or not last.isdecimal():
+                return "ignore"
+            suffix = int(last)
+            if suffix <= 0:
+                return "unsatisfiable"
+            if size == 0:
+                return "unsatisfiable"
+            if suffix >= size:
+                return (0, size - 1)
+            return (size - suffix, size - 1)
+        if not first.isascii() or not first.isdecimal():
+            return "ignore"
+        start = int(first)
+        if size == 0 or start >= size:
+            return "unsatisfiable"
+        if last == "":
+            return (start, size - 1)
+        if not last.isascii() or not last.isdecimal():
+            return "ignore"
+        end = int(last)
+        if end < start:
+            return "ignore"
+        if end >= size:
+            end = size - 1
+        return (start, end)
+    except ValueError:
+        return "ignore"
+
+
 # The token, the backup code and the device (pairing) token travel in the
 # query string, and the request line is printed by BaseHTTPRequestHandler:
 # without this filter, a simple log redirection would put the secrets on
@@ -473,6 +535,29 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                 # QR decoder for browsers without BarcodeDetector (Safari
                 # on iPhone, Firefox): fetched on demand by the scanner.
                 self._send_file(WEB_DIR / "jsqr.min.js", "application/javascript")
+            elif path == "/manifest.webmanifest":
+                # PWA manifest: parsed by the browser, never by us.
+                self._send_file(WEB_DIR / "manifest.webmanifest",
+                                "application/manifest+json")
+            elif path == "/sw.js":
+                # Service worker: network-first shell, cache only as the
+                # offline fallback (web/sw.js) - never stale by design.
+                self._send_file(WEB_DIR / "sw.js", "application/javascript")
+            elif path == "/icons/icon-192.png":
+                # Icon routes are ONE LITERAL BRANCH PER FILE - only a
+                # hardcoded name ever reaches _send_file (no
+                # request-derived text joins into the path), and any
+                # other /icons/... path falls through to the 404 below:
+                # there is no static-file handler and no traversal
+                # surface at all.
+                self._send_file(WEB_DIR / "icons/icon-192.png", "image/png")
+            elif path == "/icons/icon-512.png":
+                self._send_file(WEB_DIR / "icons/icon-512.png", "image/png")
+            elif path == "/icons/icon-maskable-512.png":
+                self._send_file(WEB_DIR / "icons/icon-maskable-512.png",
+                                "image/png")
+            elif path == "/favicon.ico":
+                self._send_file(WEB_DIR / "favicon.ico", "image/x-icon")
             elif path == "/qr":
                 self._route_qr(query, ip)
             elif path.startswith("/api/"):
@@ -1207,10 +1292,57 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             log_error(e, "download stat")
             raise OpenDropError("Cannot access the file")
 
+        # HTTP Range (RFC 9110): an interrupted download resumes with
+        # bytes=N- instead of starting over. A usable single range is a
+        # 206, an impossible one a 416 with an empty body, and
+        # everything else stays the plain 200 (a server MAY ignore a
+        # Range it does not want).
+        rng = _parse_range(self.headers.get("Range"), file_size)
+
+        if rng == "unsatisfiable":
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{file_size}")
+            self.send_header("Content-Length", "0")
+            self._send_security_headers()
+            self.end_headers()
+            return
+
+        if isinstance(rng, tuple):
+            start, end = rng
+            length = end - start + 1
+            self.send_response(206)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", _content_disposition(filename))
+            self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            self.send_header("Content-Length", str(length))
+            self.send_header("Accept-Ranges", "bytes")
+            self._send_security_headers()
+            self.end_headers()
+            try:
+                with open(filepath, "rb") as f:
+                    f.seek(start)
+                    # Exactly the promised bytes, never one more: a
+                    # drift from Content-Length would break keep-alive
+                    # for the next request on the connection.
+                    remaining = length
+                    while remaining > 0:
+                        chunk = f.read(min(CHUNK_SIZE, remaining))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+            except (ConnectionResetError, BrokenPipeError):
+                pass
+            except OSError as e:
+                log_error(e, "download stream")
+                raise OpenDropError("File read error")
+            return
+
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Content-Disposition", _content_disposition(filename))
         self.send_header("Content-Length", str(file_size))
+        self.send_header("Accept-Ranges", "bytes")
         self._send_security_headers()
         self.end_headers()
 

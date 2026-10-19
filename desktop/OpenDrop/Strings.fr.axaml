@@ -169,4 +169,9 @@
     <x:String x:Key="Up.BadArchive">l'archive téléchargée n'est pas un paquet OpenDrop</x:String>
     <x:String x:Key="Up.NoPolkit">pkexec (polkit) est nécessaire pour installer dans /opt</x:String>
 
+    <!-- What's new dialog -->
+    <x:String x:Key="WhatsNew.Title">Quoi de neuf</x:String>
+    <x:String x:Key="WhatsNew.Close">Fermer</x:String>
+    <x:String x:Key="WhatsNew.CopyLink">Copier le lien</x:String>
+
 </ResourceDictionary>

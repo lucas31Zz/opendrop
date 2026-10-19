@@ -27,6 +27,9 @@ internal sealed class FakeReleaseServer : IDisposable
     public RangeMode Mode { get; set; } = RangeMode.HonorRange;
     // Status for the /release answer: 500 simulates a broken API.
     public int StatusCode { get; set; } = 200;
+    // Status for paths that are neither /release nor the asset: 404
+    // stands in for a release tag the API does not know. 0 = serve the asset.
+    public int OtherStatus { get; set; }
 
     public string BaseUrl { get; }
 
@@ -106,6 +109,14 @@ internal sealed class FakeReleaseServer : IDisposable
             context.Response.ContentType = "application/json";
             context.Response.ContentLength64 = body.Length;
             context.Response.OutputStream.Write(body, 0, body.Length);
+            context.Response.Close();
+            return;
+        }
+
+        if (OtherStatus != 0)
+        {
+            context.Response.StatusCode = OtherStatus;
+            context.Response.ContentLength64 = 0;
             context.Response.Close();
             return;
         }

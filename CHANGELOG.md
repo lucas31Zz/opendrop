@@ -5,6 +5,72 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.16.0] - 2026-10-20
+
+### Added
+
+- **Downloads resume (HTTP Range)**: `/api/download` now understands a
+  single `Range` header, so an interrupted download in the browser picks
+  up where it stopped (`bytes=N-`) instead of starting over. A valid
+  range is answered 206 with the exact slice and a proper
+  `Content-Range`; a range past the end of the file gets a 416; anything
+  malformed or multi-range still gets the whole file (plain 200), and
+  every download advertises `Accept-Ranges: bytes`.
+- **The tab shows the transfer, and leaving mid-flight asks first**: while
+  a zip or a send is really on the way, the page title carries the
+  percentage (`42% · OpenDrop` - language-neutral on purpose) and a single
+  `beforeunload` guard makes the browser ask for confirmation instead of
+  dropping the transfer. The plain `OpenDrop` title comes back on every
+  exit - success, cancel, zip cancel, errors - so a finished transfer
+  never leaves a "leave site?" prompt behind. No Notification API: the
+  permission prompt is not worth the UI.
+- **Installable as an app (PWA)**: a web manifest, proper icons
+  (192 + 512 + maskable 512 + favicon) and a small service worker make
+  OpenDrop installable on phones and desktops. The worker is
+  network-first for the shell: the live server always answers and the
+  cache is only the offline fallback, so a release can never leave
+  users pinned on an old UI, and every old cache is dropped when a new
+  worker activates. `/api` - uploads, downloads, Range responses - is
+  never intercepted.
+- **The desktop says what's new, in the window and in French**: after
+  an update, the app offers the release notes once per version as a
+  fixed popup INSIDE the main window (dimmed backdrop, closes on the ✕,
+  Escape or a click outside, body always scrolls inside its frame) -
+  headings and bullets keep their shape, and the notes' links are real
+  links: a click opens them in the browser, the tooltip shows the URL
+  and a right click copies it. Since GitHub only ever carries the
+  English body, a French UI renders a bundled, hand-written translation
+  of the notes (`whatsnew.fr.md`, rewritten at every version bump next
+  to the changelog section it translates, its first line naming the
+  version it belongs to); a missing bundle, a malformed header or a
+  version drift all fall back to the English body - the dialog never
+  dies over a translation, and it can never show another release's
+  French notes. The title follows the language too (FR "Quoi de neuf",
+  EN "What's new"). The first launch only records the version baseline
+  in silence; the new version is remembered in `config.json` before
+  anything is fetched, so with GitHub unreachable nothing pops up and
+  the prompt can never loop or slow startup down. The desktop CI now
+  runs the unit tests (`dotnet test`) before publishing.
+- **The release pipeline tells the whole story**: every release now
+  carries the matching `## [<version>]` section of this changelog as
+  its GitHub release notes (set once when the release is created -
+  existing release bodies are never rewritten, and a tag without a
+  section keeps the auto-generated notes as the fallback), gets
+  FR/EN x dark/light screenshots of the app attached by a dedicated CI
+  job, and the repository is scanned by CodeQL (Python + JavaScript on
+  every push to main, every pull request, and a weekly run).
+
+### Security
+
+- Eleven suites, 445 checks in total - the ten Python suites carry
+  429 and the new `tests/test_e2e.py` carries 16: chromium, firefox
+  and webkit drive the real UI against a real server (single-slice
+  upload, two-slice upload and cancel, Range resume, the
+  `beforeunload`/tab-title guard, the PWA service-worker reload), with
+  webkit excluded only from the two-slice scenarios by a printed,
+  documented driver limitation. `test_beta --large` adds 75 checks
+  (75/75) and the desktop unit tests 57 (`dotnet test` in CI).
+
 ## [0.15.0] - 2026-10-16
 
 ### Added

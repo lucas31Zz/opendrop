@@ -24,18 +24,19 @@ The suites are homegrown (no external framework), run from the repo root.
 
 ```powershell
 python -m tests.test_security     # 35
-python -m tests.test_routes       # 46
+python -m tests.test_routes       # 50
 python -m tests.test_paths        # 41
 python -m tests.test_quota        # 40
 python -m tests.test_sessions     # 34
 python -m tests.test_tls          # 15
-python -m tests.test_server       # 33
+python -m tests.test_server       # 42
 python -m tests.test_beta         # 63
 python -m tests.test_devices      # 62
 python -m tests.test_zip_web      # 47
+python -m tests.test_e2e          # 16
 ```
 
-Ten suites, 416 checks in total.
+Eleven suites, 445 checks in total.
 
 - Every suite exits with a non-zero status when it fails.
 - `python -m tests.test_beta --large` (75) is slower: run it before merging

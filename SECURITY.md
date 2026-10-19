@@ -346,17 +346,18 @@ Python 3.12, no external framework):
 | Command | What it proves | Result |
 |---|---|---|
 | `python -m tests.test_security` | tokens, paths, origin, incomplete body, write failure, the per-request cap being gone, logs with no secrets | 35/35 |
-| `python -m tests.test_routes` | route truth table (section 5) | 46/46 |
+| `python -m tests.test_routes` | route truth table (section 5) | 50/50 |
 | `python -m tests.test_paths` | no absolute path in any response (section 6) | 41/41 |
 | `python -m tests.test_quota` | global quota, simultaneous reservations, exact fill, 507 | 40/40 |
 | `python -m tests.test_sessions` | sessions, expiration, session code, rotation through `opendrop.main` | 34/34 |
 | `python -m tests.test_tls` | self-signed certificate, key/cert, EKU, renewal, forced HTTPS | 15/15 |
-| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup, upload idle window, chunked-upload staging (append rules, 409 resync, uniquify-at-rename, cancel, query-name-wins, traversal containment, idempotent final retry) | 33/33 |
+| `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup, upload idle window, chunked-upload staging (append rules, 409 resync, uniquify-at-rename, cancel, query-name-wins, traversal containment, idempotent final retry) | 42/42 |
 | `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 63/63 and 75/75 |
 | `python -m tests.test_devices` | device pairing: registry, registered-IP trust, pairing quotas, dissociate vs reset | 62/62 |
 | `python -m tests.test_zip_web` | browser zip engine: streaming ZIP64, progress/cancel, ZipCrypto round-trip verified by Python's `zipfile` | 47/47 |
+| `python -m tests.test_e2e` | multi-browser UI flows against the real self-signed server: uploads (single- and two-slice), cancel, Range resume, the `beforeunload` guard, the PWA service worker | 16/16 |
 
-Ten suites, 416 checks in total.
+Eleven suites, 445 checks in total.
 
 ---
 

@@ -39,7 +39,16 @@ internal sealed class UpdateInfo
 //    with the asset, when there is one.
 internal static class UpdateService
 {
-    private const string ApiUrl = "https://api.github.com/repos/lucas31Zz/opendrop/releases/latest";
+    // The metadata endpoint. A mutable static so the update suites can
+    // point it at FakeReleaseServer instead of the real GitHub API.
+    public static string ApiUrl { get; set; } =
+        "https://api.github.com/repos/lucas31Zz/opendrop/releases/latest";
+
+    // The update cache (downloads, extract workspace, setup exit code).
+    // The suites redirect this to a throw-away folder, so a test run can
+    // never delete a real partial download or read a real exit code.
+    public static string DownloadDir { get; set; } =
+        Path.Combine(Path.GetTempPath(), "opendrop-update");
 
     // Short timeout for the metadata call; the download gets its own client
     // with no timeout at all (an 80 MB archive on a slow link is fine, a
@@ -76,7 +85,7 @@ internal static class UpdateService
 
     // The asset this machine can install, or null on a platform we do not
     // ship for (macOS: no release asset exists).
-    private static string AssetSuffix =>
+    public static string AssetSuffix =>
         OperatingSystem.IsWindows() ? "-win-x64-setup.exe" :
         OperatingSystem.IsLinux() ? "-linux-x64.tar.gz" : "";
 
@@ -179,7 +188,7 @@ internal static class UpdateService
             throw new InvalidDataException(Lang.T("Up.NoDigest"));
         }
 
-        var dir = Path.Combine(Path.GetTempPath(), "opendrop-update");
+        var dir = DownloadDir;
         Directory.CreateDirectory(dir);
         RemoveStaleDownloads(dir, info.AssetName);
         var path = Path.Combine(dir, info.AssetName);
@@ -320,7 +329,7 @@ internal static class UpdateService
     // process is already gone, so it is handed back through a file and
     // read once on the next start (ConsumeInstallStatus).
     private static string InstallStatusPath =>
-        Path.Combine(Path.GetTempPath(), "opendrop-update", "last-setup-exit.txt");
+        Path.Combine(DownloadDir, "last-setup-exit.txt");
 
     public static void ApplyWindows(string installerPath)
     {
@@ -598,7 +607,10 @@ internal static class UpdateService
 
     public static void SetSkippedVersion(string version) => WriteConfigValue("skip_version", version);
 
-    private static string? ReadConfigValue(string key)
+    // Generic string values in config.json, preserved when another key is
+    // written (the whole dictionary is copied first) - the cross-platform
+    // settings store also used by WhatsNew for its last-seen version.
+    internal static string? ReadConfigValue(string key)
     {
         try
         {
@@ -615,7 +627,7 @@ internal static class UpdateService
         }
     }
 
-    private static void WriteConfigValue(string key, string value)
+    internal static void WriteConfigValue(string key, string value)
     {
         try
         {

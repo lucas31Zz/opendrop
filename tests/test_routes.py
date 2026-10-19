@@ -44,6 +44,17 @@ TOKEN_ROUTES_GET = [
 
 ASSETS_PUBLICS = ["/", "/style.css", "/app.js"]
 
+# PWA routes: (path, expected status, content-type fragment - or None to
+# skip the type check). The last row is a path traversal attempt: it must
+# answer 404, because the /icons/ branches are an EXACT allowlist and
+# never a generic static-file handler.
+PWA_ROUTES = [
+    ("/manifest.webmanifest", 200, "application/manifest+json"),
+    ("/sw.js", 200, "javascript"),
+    ("/icons/icon-192.png", 200, "image/png"),
+    ("/icons/%2e%2e%2fstyle.css", 404, None),
+]
+
 
 def _request(port, method, path, body=b"", content_type=None):
     conn = http.client.HTTPSConnection(ip, port, context=SSL_CONTEXT, timeout=15)
@@ -139,6 +150,24 @@ def _asset_tests():
             r.check(f"{asset}: Server without Python version",
                     "Python" not in headers.get("Server", ""),
                     headers.get("Server"))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def _pwa_tests():
+    print("--- PWA assets (manifest, service worker, icon allowlist) ---\n")
+    server, port, token = _start_server()
+    try:
+        for path, want_status, want_ct in PWA_ROUTES:
+            status, headers, _ = _get(port, path)
+            ct = headers.get("Content-Type", "")
+            ok = status == want_status
+            if want_ct is not None:
+                ok = ok and want_ct in ct
+            label = want_ct if want_ct is not None else "allowlist 404"
+            r.check(f"GET {path} = {want_status} ({label})",
+                    ok, f"status={status} content-type={ct!r}")
     finally:
         server.shutdown()
         server.server_close()
@@ -266,6 +295,7 @@ def test_routes():
     _token_tests()
     _info_tests()
     _asset_tests()
+    _pwa_tests()
     _error_format_tests()
     _download_tests()
     _rate_limit_tests()
