@@ -120,6 +120,12 @@ no install needed, in the same light/dark theme as the app.
 |---|---|
 | ![Web interface - Download (dark)](docs/screenshots/web-download-dark.png) | ![Web interface - Download (light)](docs/screenshots/web-download-light.png) |
 
+**Settings panel** (gear, top right):
+
+| Dark | Light |
+|---|---|
+| ![Web interface - Settings (dark)](docs/screenshots/web-settings-dark.png) | ![Web interface - Settings (light)](docs/screenshots/web-settings-light.png) |
+
 ---
 
 ## Requirements

@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [Unreleased]
+
+### Added
+
+- **The web Settings panel joined the README screenshots** (dark +
+  light): the local capture tool now pairs through the real `#pair=`
+  overlay first, so the panel renders the paired-device block (token,
+  IP, dissociate) instead of the paste field, and opens the gear after
+  the Download shot. All eleven README images were regenerated from
+  the current UI - the previous set still showed the old logo and the
+  old drop zone.
+
+### Removed
+
+- **Releases no longer attach PNG screenshots**: the release
+  workflow's `screenshots` job and the `tests/screenshots.py` script
+  behind it are gone, and the four language x theme PNGs were dropped
+  from the v0.16.0 release. Screenshots live in the README only -
+  never in the changelog or the release notes.
+
 ## [0.16.0] - 2026-10-20
 
 ### Added
