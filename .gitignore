@@ -15,12 +15,13 @@ dist/
 [Oo]bj/
 publish/
 .vs/
+.vscode/
 *.user
 *.suo
 *.pdb
 TestResults/
 
-# Divers / local
+# Local / personal
 .opencode/
 opencode.json
 .agents/
@@ -29,8 +30,10 @@ projet.txt
 Nouveau Document texte.txt
 tableau DES MAJ .png
 Thumbs.db
+desktop.ini
 .DS_Store
 wheels/
+release-notes.md
 
 # Screenshot automation: local only, never published
 tools/screenshots/
@@ -46,3 +49,7 @@ test_output.txt
 
 # Local dev mini-app: start/kill the server on port 8080, never published
 kill 8080 port app/
+
+# Local tool state / runtime artifacts: never published
+.playwright-cli/
+Downloads/
