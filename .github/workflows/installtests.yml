@@ -1,0 +1,257 @@
+name: installtests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Install test (win-x64)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Publish the application (single-file, self-contained)
+        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win
+
+      - name: Complete the bundle (Python server + web + docs)
+        shell: bash
+        run: |
+          set -e
+          cp pyproject.toml requirements.txt README.md LICENSE SECURITY.md publish/win/
+          cp -R src publish/win/src
+          cp packaging/windows/install-deps.ps1 publish/win/
+          test -f publish/win/web/index.html
+          test -f publish/win/src/opendrop/main.py
+
+      - name: Offline wheels (installer dependencies)
+        shell: pwsh
+        run: |
+          # Wheels per minor version: pillow/cffi depend on the ABI, so the
+          # installer must work with any installed Python 3.10+.
+          foreach ($v in "3.10", "3.11", "3.12", "3.13", "3.14") {
+            python -m pip download --requirement requirements.txt `
+              --dest publish/win/wheels --only-binary=:all: --python-version $v
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Install Inno Setup (if missing)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Current version (from pyproject.toml)
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Compile setup.exe
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
+            "packaging\windows\OpenDrop.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Download the previous release (v0.16.0 base)
+        shell: pwsh
+        run: |
+          # curl.exe, not the pwsh `curl` alias (Invoke-WebRequest has no -f).
+          & curl.exe -fsSL "https://github.com/${{ github.repository }}/releases/download/v0.16.0/OpenDrop-v0.16.0-win-x64-setup.exe" -o dist\old.exe
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::cannot download the v0.16.0 base setup"; exit 1 }
+
+      - name: Install the base v0.16.0 and assert
+        shell: pwsh
+        run: |
+          $app = "${env:ProgramFiles(x86)}\OpenDrop"
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
+          $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
+          & dist\old.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::v0.16.0 setup exited $LASTEXITCODE"; exit 1 }
+          $dv = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).DisplayVersion
+          if ($dv -ne 'v0.16.0') { Write-Host "::error::DisplayVersion='$dv', expected 'v0.16.0'"; exit 1 }
+          foreach ($p in @("$app\OpenDrop.exe", "$app\venv\Scripts\python.exe", $lnk)) {
+            if (-not (Test-Path $p)) { Write-Host "::error::missing after base install: $p"; exit 1 }
+          }
+          Write-Host "base v0.16.0 OK: exe + venv + shortcut, DisplayVersion=v0.16.0"
+
+      - name: Seed user data (upgrade marker + receive/share folders)
+        id: seed
+        shell: pwsh
+        run: |
+          $data = "$env:LOCALAPPDATA\OpenDrop"
+          $recv = "$env:USERPROFILE\Downloads\OpenDrop\ci-recv"
+          $share = "$env:USERPROFILE\Downloads\OpenDrop\ci-share"
+          New-Item -ItemType Directory -Force -Path $data, $recv, $share | Out-Null
+          $cfg = @{
+            language = "en"
+            ci_marker = "upgrade-from-0.16.0"
+            download_directory = $recv
+            share_directory = $share
+          } | ConvertTo-Json
+          Set-Content -Path "$data\config.json" -Value $cfg -Encoding utf8
+          Set-Content -Path "$data\marker.txt" -Value "foreign file must survive uninstall" -Encoding utf8
+          Set-Content -Path "$recv\seed.txt" -Value "seed" -Encoding utf8
+          Set-Content -Path "$share\seed.txt" -Value "seed" -Encoding utf8
+          "cfg_hash=$((Get-FileHash "$data\config.json").Hash)" >> $env:GITHUB_OUTPUT
+          Write-Host "seeded config marker + foreign marker.txt + receive/share seeds"
+
+      - name: Upgrade install (current over the base) + assert
+        shell: pwsh
+        run: |
+          $app = "${env:ProgramFiles(x86)}\OpenDrop"
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
+          $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
+          & "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::current setup exited $LASTEXITCODE"; exit 1 }
+          $dv = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).DisplayVersion
+          if ($dv -ne '${{ steps.ver.outputs.version }}') { Write-Host "::error::DisplayVersion='$dv', expected '${{ steps.ver.outputs.version }}'"; exit 1 }
+          $h = (Get-FileHash "$env:LOCALAPPDATA\OpenDrop\config.json").Hash
+          if ($h -ne '${{ steps.seed.outputs.cfg_hash }}') { Write-Host "::error::config.json changed across the upgrade ($h)"; exit 1 }
+          foreach ($p in @("$app\OpenDrop.exe", "$app\venv\Scripts\python.exe", $lnk)) {
+            if (-not (Test-Path $p)) { Write-Host "::error::missing after upgrade: $p"; exit 1 }
+          }
+          Write-Host "upgraded to ${{ steps.ver.outputs.version }}: config byte-identical, exe + venv + shortcut present"
+
+      - name: Silent uninstall + assert artifacts gone, user data rules
+        shell: pwsh
+        run: |
+          $app = "${env:ProgramFiles(x86)}\OpenDrop"
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
+          $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
+          & "$app\unins000.exe" /VERYSILENT
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::uninstaller exited $LASTEXITCODE"; exit 1 }
+          foreach ($p in @(
+            "$app\OpenDrop.exe",
+            "$app\venv\Scripts\python.exe",
+            $lnk,
+            "$env:LOCALAPPDATA\OpenDrop\config.json"
+          )) {
+            if (Test-Path $p) { Write-Host "::error::should be gone after uninstall: $p"; exit 1 }
+          }
+          if (Test-Path $reg) { Write-Host "::error::uninstall registry key still present"; exit 1 }
+          if (Test-Path $app) { Write-Host "::error::app dir still present: $app"; exit 1 }
+          foreach ($p in @(
+            "$env:LOCALAPPDATA\OpenDrop\marker.txt",
+            "$env:USERPROFILE\Downloads\OpenDrop\ci-recv\seed.txt",
+            "$env:USERPROFILE\Downloads\OpenDrop\ci-share\seed.txt"
+          )) {
+            if (-not (Test-Path $p)) { Write-Host "::error::must survive uninstall: $p"; exit 1 }
+          }
+          Write-Host "uninstall clean: artifacts gone, config removed, foreign marker + receive/share intact"
+
+      - name: Reinstall cycle + assert
+        shell: pwsh
+        run: |
+          $app = "${env:ProgramFiles(x86)}\OpenDrop"
+          $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
+          & "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::reinstall exited $LASTEXITCODE"; exit 1 }
+          $dv = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).DisplayVersion
+          if ($dv -ne '${{ steps.ver.outputs.version }}') { Write-Host "::error::DisplayVersion='$dv' after reinstall"; exit 1 }
+          if (-not (Test-Path "$app\OpenDrop.exe")) { Write-Host "::error::exe missing after reinstall"; exit 1 }
+          Write-Host "reinstall cycle OK: exit 0, DisplayVersion=${{ steps.ver.outputs.version }}, exe present"
+
+  linux:
+    name: Install test (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Publish the application (single-file, self-contained)
+        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux
+
+      - name: Assemble the tarball (binary + src + wheels + install.sh)
+        run: bash packaging/linux/build-tarball.sh ci
+
+      - name: Extract the bundle
+        run: tar -xzf dist/OpenDrop-ci-linux-x64.tar.gz
+
+      - name: Python venv support (install.sh:88 hint)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
+
+      - name: Seed user data (install marker + receive/share folders)
+        run: |
+          mkdir -p "$HOME/.opendrop" "$HOME/Downloads/OpenDrop/ci-recv" "$HOME/Downloads/OpenDrop/ci-share"
+          printf '%s\n' "{\"ci_marker\":\"install-cycle\",\"download_directory\":\"$HOME/Downloads/OpenDrop/ci-recv\",\"share_directory\":\"$HOME/Downloads/OpenDrop/ci-share\"}" > "$HOME/.opendrop/config.json"
+          echo "foreign file must survive uninstall" > "$HOME/.opendrop/marker.txt"
+          echo seed > "$HOME/Downloads/OpenDrop/ci-recv/seed.txt"
+          echo seed > "$HOME/Downloads/OpenDrop/ci-share/seed.txt"
+
+      - name: Install (sudo ./install.sh)
+        working-directory: OpenDrop
+        run: sudo ./install.sh
+
+      - name: Assert the installation (incl. the native libraries lock)
+        run: |
+          set -e
+          test -x /opt/opendrop/OpenDrop || { echo "::error::binary missing in /opt/opendrop"; exit 1; }
+          test -x /opt/opendrop/venv/bin/python || { echo "::error::venv python missing in /opt/opendrop"; exit 1; }
+          test -f /opt/opendrop/libSkiaSharp.so || { echo "::error::libSkiaSharp.so missing in /opt/opendrop - the 2026-10-20 native libraries fix regressed"; exit 1; }
+          n=$(ls /opt/opendrop/*.so | wc -l)
+          test "$n" -ge 1 || { echo "::error::no native libraries in /opt/opendrop"; exit 1; }
+          test -L /usr/local/bin/opendrop-desktop || { echo "::error::command symlink missing"; exit 1; }
+          test "$(readlink /usr/local/bin/opendrop-desktop)" = "/opt/opendrop/OpenDrop" || { echo "::error::symlink does not point at /opt/opendrop/OpenDrop"; exit 1; }
+          test -f /usr/share/applications/opendrop.desktop || { echo "::error::applications menu entry missing"; exit 1; }
+          grep -q '^Exec=/usr/local/bin/opendrop-desktop' /usr/share/applications/opendrop.desktop || { echo "::error::menu Exec does not point at the symlink"; exit 1; }
+          test -f /usr/share/icons/hicolor/256x256/apps/opendrop.png || { echo "::error::icon missing"; exit 1; }
+          echo "install OK: binary + venv + $n native libs (libSkiaSharp.so present) + symlink + menu entry + icon"
+
+      - name: Server smoke (python --headless over HTTPS)
+        run: |
+          mkdir -p ~/.opendrop
+          PYTHONPATH="$PWD/OpenDrop/src" /opt/opendrop/venv/bin/python -m opendrop.main --headless --port 8976 >/tmp/od-server.log 2>&1 &
+          SERVER_PID=$!
+          IP=$(hostname -I | awk '{print $1}')
+          for i in $(seq 1 30); do ss -ltn 2>/dev/null | grep -q ':8976 ' && break; sleep 1; done
+          if ! ss -ltn | grep -q ':8976 '; then cat /tmp/od-server.log; echo "::error::server not listening on 8976"; exit 1; fi
+          if ! curl -sk --max-time 10 "https://$IP:8976/" -o /dev/null; then cat /tmp/od-server.log; echo "::error::no HTTP answer from the headless server"; exit 1; fi
+          kill "$SERVER_PID" 2>/dev/null || true
+          wait "$SERVER_PID" 2>/dev/null || true
+          echo "server smoke OK: LISTEN + HTTP answer over HTTPS (headless, no GUI)"
+
+      - name: Uninstall (sudo ./uninstall.sh) + assert both directions
+        working-directory: OpenDrop
+        run: |
+          sudo ./uninstall.sh
+          for p in /opt/opendrop /usr/local/bin/opendrop-desktop /usr/share/applications/opendrop.desktop /usr/share/icons/hicolor/256x256/apps/opendrop.png "$HOME/.opendrop/config.json"; do
+            if [ -e "$p" ]; then echo "::error::should be gone after uninstall: $p"; exit 1; fi
+          done
+          for p in "$HOME/.opendrop/marker.txt" "$HOME/Downloads/OpenDrop/ci-recv/seed.txt" "$HOME/Downloads/OpenDrop/ci-share/seed.txt"; do
+            if [ ! -e "$p" ]; then echo "::error::must survive uninstall: $p"; exit 1; fi
+          done
+          if [ ! -d "$HOME/.opendrop" ]; then echo "::error::~/.opendrop folder itself must survive (foreign marker inside)"; exit 1; fi
+          echo "uninstall clean: app gone, config removed, foreign marker + receive/share folders intact"
+
+      - name: Reinstall cycle + assert natives again
+        working-directory: OpenDrop
+        run: |
+          sudo ./install.sh
+          test -f /opt/opendrop/libSkiaSharp.so || { echo "::error::native libSkiaSharp.so missing after reinstall"; exit 1; }
+          n=$(ls /opt/opendrop/*.so | wc -l)
+          test "$n" -ge 1 || { echo "::error::no native libraries after reinstall"; exit 1; }
+          test -L /usr/local/bin/opendrop-desktop || { echo "::error::symlink missing after reinstall"; exit 1; }
+          echo "reinstall cycle OK: natives present, symlink back"
