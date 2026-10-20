@@ -71,12 +71,27 @@ jobs:
         shell: pwsh
         run: |
           # curl.exe, not the pwsh `curl` alias (Invoke-WebRequest has no -f).
-          & curl.exe -fsSL "https://github.com/${{ github.repository }}/releases/download/v0.16.0/OpenDrop-v0.16.0-win-x64-setup.exe" -o dist\old.exe
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::cannot download the v0.16.0 base setup"; exit 1 }
-          if (-not (Test-Path dist\old.exe)) { Write-Host "::error::download produced no file"; exit 1 }
-          $sz = (Get-Item dist\old.exe).Length
-          Write-Host "downloaded v0.16.0 base: $sz bytes"
-          if ($sz -lt 1MB) { Write-Host "::error::downloaded base suspiciously small: $sz bytes"; exit 1 }
+          # A truncated 116MB download sails past the >=1MB floor and then
+          # kills Inno with exit 2 (fatal error while decompressing) - seen
+          # as a same-commit flake (run 39406781200 green / 39406782225 red).
+          # GitHub publishes the official SHA256 per asset; verify it and
+          # retry until the file is byte-perfect.
+          $want = "1a1b10b2966e11f65358f5e918de805544c18febc758e0fd83499aeee1ab1b36"
+          $ok = $false
+          for ($i = 1; $i -le 3; $i++) {
+            & curl.exe -fsSL "https://github.com/${{ github.repository }}/releases/download/v0.16.0/OpenDrop-v0.16.0-win-x64-setup.exe" -o dist\old.exe
+            if ($LASTEXITCODE -ne 0) { Write-Host "::warning::download attempt $i failed (curl exit $LASTEXITCODE)"; continue }
+            if (-not (Test-Path dist\old.exe)) { Write-Host "::warning::download attempt $i produced no file"; continue }
+            $sz = (Get-Item dist\old.exe).Length
+            if ($sz -lt 1MB) { Write-Host "::warning::download attempt $i suspiciously small: $sz bytes"; continue }
+            $h = (Get-FileHash dist\old.exe -Algorithm SHA256).Hash.ToLower()
+            Write-Host "download attempt $i: $sz bytes sha256=$h"
+            if ($h -ne $want) { Write-Host "::warning::download attempt $i digest mismatch (truncated), retrying"; continue }
+            $ok = $true
+            break
+          }
+          if (-not $ok) { Write-Host "::error::no byte-perfect v0.16.0 base setup after 3 attempts"; exit 1 }
+          Write-Host "downloaded v0.16.0 base: byte-perfect ($want)"
 
       - name: Install the base v0.16.0 and assert
         shell: pwsh
