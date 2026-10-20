@@ -82,7 +82,7 @@ jobs:
         shell: pwsh
         run: |
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
-          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop\OpenDrop.lnk"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
           # Inno Setup is a GUI-subsystem exe: pwsh's & does NOT wait for it
           # (observed: LASTEXITCODE stayed null and the step died while the
@@ -122,7 +122,7 @@ jobs:
         shell: pwsh
         run: |
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
-          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop\OpenDrop.lnk"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
           $p = Start-Process -FilePath (Resolve-Path "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe").Path -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
           if ($p.ExitCode -ne 0) { Write-Host "::error::current setup exited $($p.ExitCode)"; exit 1 }
@@ -139,7 +139,7 @@ jobs:
         shell: pwsh
         run: |
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
-          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop\OpenDrop.lnk"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
           $p = Start-Process -FilePath "$app\unins000.exe" -ArgumentList "/VERYSILENT" -Wait -PassThru
           if ($p.ExitCode -ne 0) { Write-Host "::error::uninstaller exited $($p.ExitCode)"; exit 1 }
