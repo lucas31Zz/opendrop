@@ -69,6 +69,19 @@ rm -f "$PREFIX/OpenDrop.old" 2>/dev/null || true
 cp "$SRC_DIR/install.sh" "$SRC_DIR/uninstall.sh" "$SRC_DIR/opendrop.desktop.in" \
    "$SRC_DIR/opendrop.png" "$PREFIX/" 2>/dev/null || true
 chmod +x "$PREFIX/OpenDrop" "$PREFIX/install.sh" "$PREFIX/uninstall.sh" 2>/dev/null || true
+# The published binary's native libraries are NOT embedded in it: the
+# single-file publish leaves them next to the executable and .NET
+# dlopen()s them from the app directory. The bundle ships them at its
+# root, so copying only the named items above left /opt/opendrop
+# without them and the launch died instantly with a DllNotFoundException
+# and no window (dead menu entry, Kali 2026-10-20). Copy whatever the
+# bundle ships; zero *.so stays legal if a future publish embeds them.
+shopt -s nullglob
+natives=("$SRC_DIR"/*.so)
+shopt -u nullglob
+if [ ${#natives[@]} -gt 0 ]; then
+    cp "${natives[@]}" "$PREFIX/"
+fi
 
 # --- venv + offline dependencies (wheels included)
 echo "  Creating the venv and installing the dependencies (offline) ..."

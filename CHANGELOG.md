@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [Unreleased]
+## [0.16.1] - 2026-10-20
 
 ### Added
 
@@ -24,6 +24,19 @@ Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
   behind it are gone, and the four language x theme PNGs were dropped
   from the v0.16.0 release. Screenshots live in the README only -
   never in the changelog or the release notes.
+
+### Fixed
+
+- **Linux: the applications-menu entry launched nothing.** `install.sh`
+  never copied the published binary's native libraries (`libSkiaSharp.so`,
+  `libHarfbBuzzSharp.so`) into `/opt/opendrop`: the single-file publish
+  keeps them next to the executable and .NET loads them from the app
+  directory, so the installed app died at startup with a
+  `DllNotFoundException` and no window - launching straight from the
+  extracted folder worked, the menu entry did not. The installer now
+  copies whatever `*.so` the bundle carries, which also heals the
+  auto-update path (it relaunches `install.sh` over the existing
+  install). Found by hand on Kali 2026-10-20.
 
 ## [0.16.0] - 2026-10-20
 
