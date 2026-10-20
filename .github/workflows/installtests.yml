@@ -73,6 +73,10 @@ jobs:
           # curl.exe, not the pwsh `curl` alias (Invoke-WebRequest has no -f).
           & curl.exe -fsSL "https://github.com/${{ github.repository }}/releases/download/v0.16.0/OpenDrop-v0.16.0-win-x64-setup.exe" -o dist\old.exe
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::cannot download the v0.16.0 base setup"; exit 1 }
+          if (-not (Test-Path dist\old.exe)) { Write-Host "::error::download produced no file"; exit 1 }
+          $sz = (Get-Item dist\old.exe).Length
+          Write-Host "downloaded v0.16.0 base: $sz bytes"
+          if ($sz -lt 1MB) { Write-Host "::error::downloaded base suspiciously small: $sz bytes"; exit 1 }
 
       - name: Install the base v0.16.0 and assert
         shell: pwsh
@@ -80,8 +84,12 @@ jobs:
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
           $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
-          & dist\old.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::v0.16.0 setup exited $LASTEXITCODE"; exit 1 }
+          # Inno Setup is a GUI-subsystem exe: pwsh's & does NOT wait for it
+          # (observed: LASTEXITCODE stayed null and the step died while the
+          # installer was still running). Start-Process -Wait observes the
+          # real process exit code.
+          $p = Start-Process -FilePath (Resolve-Path dist\old.exe).Path -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::v0.16.0 setup exited $($p.ExitCode)"; exit 1 }
           $dv = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).DisplayVersion
           if ($dv -ne 'v0.16.0') { Write-Host "::error::DisplayVersion='$dv', expected 'v0.16.0'"; exit 1 }
           foreach ($p in @("$app\OpenDrop.exe", "$app\venv\Scripts\python.exe", $lnk)) {
@@ -116,8 +124,8 @@ jobs:
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
           $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
-          & "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::current setup exited $LASTEXITCODE"; exit 1 }
+          $p = Start-Process -FilePath (Resolve-Path "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe").Path -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::current setup exited $($p.ExitCode)"; exit 1 }
           $dv = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).DisplayVersion
           if ($dv -ne '${{ steps.ver.outputs.version }}') { Write-Host "::error::DisplayVersion='$dv', expected '${{ steps.ver.outputs.version }}'"; exit 1 }
           $h = (Get-FileHash "$env:LOCALAPPDATA\OpenDrop\config.json").Hash
@@ -133,8 +141,8 @@ jobs:
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
           $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\OpenDrop.lnk"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
-          & "$app\unins000.exe" /VERYSILENT
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::uninstaller exited $LASTEXITCODE"; exit 1 }
+          $p = Start-Process -FilePath "$app\unins000.exe" -ArgumentList "/VERYSILENT" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::uninstaller exited $($p.ExitCode)"; exit 1 }
           foreach ($p in @(
             "$app\OpenDrop.exe",
             "$app\venv\Scripts\python.exe",
@@ -159,8 +167,8 @@ jobs:
         run: |
           $app = "${env:ProgramFiles(x86)}\OpenDrop"
           $reg = 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}_is1'
-          & "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::reinstall exited $LASTEXITCODE"; exit 1 }
+          $p = Start-Process -FilePath (Resolve-Path "dist\OpenDrop-${{ steps.ver.outputs.version }}-win-x64-setup.exe").Path -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Host "::error::reinstall exited $($p.ExitCode)"; exit 1 }
           $dv = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).DisplayVersion
           if ($dv -ne '${{ steps.ver.outputs.version }}') { Write-Host "::error::DisplayVersion='$dv' after reinstall"; exit 1 }
           if (-not (Test-Path "$app\OpenDrop.exe")) { Write-Host "::error::exe missing after reinstall"; exit 1 }
