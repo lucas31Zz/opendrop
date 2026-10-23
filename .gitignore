@@ -21,6 +21,10 @@ publish/
 *.pdb
 TestResults/
 
+# Node / Rust build artifacts
+node_modules/
+target/
+
 # Local / personal
 .opencode/
 opencode.json

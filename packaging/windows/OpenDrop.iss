@@ -231,13 +231,17 @@ begin
     // know about it): it must be removed explicitly.
     DelTree(ExpandConstant('{app}\venv'), True, True, True);
 
-    // Application data files only (known files).
+    // Application data files only (known files): settings, session, pid,
+    // certs, the put-back registry and the paired devices. After this the
+    // folder is empty and RemoveDir takes it away completely.
     // No recursive delete of the folder: received and shared files,
     // wherever they are, stay intact.
     DataDir := ExpandConstant('{localappdata}\OpenDrop');
     DeleteFile(DataDir + '\config.json');
     DeleteFile(DataDir + '\session.json');
     DeleteFile(DataDir + '\server.pid');
+    DeleteFile(DataDir + '\moves.json');
+    DeleteFile(DataDir + '\devices.json');
     DelTree(DataDir + '\certs', True, True, True);
     RemoveDir(DataDir); // only succeeds if the folder is now empty
   end;
