@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+mod spawn;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, State};
@@ -190,22 +191,13 @@ fn try_spawn(
 ) -> Result<EngineInfo, String> {
     // `--port <configured>`: the Settings port, honored like the desktop
     // app does (its ServerManager lets the engine read preferred_port
-    // itself) - never a pinned number.
-    let port_arg = port.to_string();
-    let mut args = vec![
-        "-m",
-        "opendrop.main",
-        "--headless",
-        "--port",
-        port_arg.as_str(),
-    ];
-    // The desktop's Reset button: the only case that changes the token,
-    // the QR code and the session code.
-    if rotate_token {
-        args.push("--rotate-token");
-    }
-    let mut child = Command::new("python")
-        .args(&args)
+    // itself) - never a pinned number. The interpreter, PYTHONPATH and
+    // the working directory come from `spawn`: venv first, then PATH,
+    // with `<root>/src` on PYTHONPATH - the pre-1.0 Avalonia resolution.
+    // Without it an installed bundle (no editable install) could never
+    // `import opendrop`, and the engine would not start on a clean box.
+    let root = spawn::project_root();
+    let mut child = spawn::engine_command(&root, port, rotate_token)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
