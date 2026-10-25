@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Msg, MsgHost } from "./Msg";
 import { SharedFiles } from "./components/SharedFiles";
 import { Settings, type SettingsConfig } from "./components/Settings";
+import { WhatsNew } from "./components/WhatsNew";
 import Combo from "./components/Combo";
 import TitleBar from "./components/TitleBar";
 import { copyToClipboard } from "./clipboard";
@@ -814,6 +815,11 @@ export default function App() {
         onAccept={() => void acceptUpdate()}
         onRefuse={() => refuseUpdate()}
       />
+
+      {/* Once per version: the same `current` the update check passes -
+          no second getVersion() call, and nothing while the engine has
+          not reported its version yet. */}
+      <WhatsNew lang={lang} version={bundle?.info?.version ?? ""} />
 
       <MsgHost t={t} />
     </div>
