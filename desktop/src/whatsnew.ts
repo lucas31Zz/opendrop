@@ -1,7 +1,7 @@
 // Release notes shown once per version, in the app's own language.
 // The pre-1.0 desktop shipped the same popup from a hand-written
-// `whatsnew.fr.md` beside the changelog (its first line naming the
-// version it described); here the copy for 1.0.0 was reviewed with the
+// note file beside the changelog (its first line naming the version it
+// described); here the copy for 1.0.0 was reviewed with the
 // implementation plan and lives next to its version constant.
 import type { Lang } from "./strings";
 

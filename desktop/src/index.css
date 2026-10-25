@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   Tokens transcribed EXACTLY from the pre-1.0 Avalonia app
+   Tokens transcribed EXACTLY from the pre-1.0 desktop app
    (App.axaml, dark theme).
-   Every value below is the literal Avalonia value, converted to CSS:
+   Every value below is the literal pre-1.0 value, converted to CSS:
      #16ffffff -> color-mix of white at that alpha over the surface.
    Light theme will ride on the same keys later (ThemeDictionaries mirror).
    =========================================================================== */
@@ -67,7 +67,7 @@ body {
 
 /* ===========================================================================
    Light variant: the exact Light ThemeDictionaries values from the
-   pre-1.0 Avalonia app.
+   pre-1.0 desktop app.
    The same keys flip, no component special-cases a theme (as in the app).
    =========================================================================== */
 /* `:root[...]` and not a bare attribute selector: the dark block further
@@ -117,7 +117,7 @@ body {
     0 4px 12px -4px rgb(31 50 80 / 0.08),
     inset 0 1px 0 0 rgb(255 255 255 / 0.95),
     inset 0 -12px 20px -10px rgb(31 50 80 / 0.04);
-  /* Avalonia writes alpha FIRST (#AARRGGBB), CSS reads it LAST
+  /* the pre-1.0 app wrote alpha FIRST (#AARRGGBB), CSS reads it LAST
      (#RRGGBBAA): the same stops, byte order swapped. */
   --aurora-1: radial-gradient(closest-side, #0a66d626, #0a66d600);
   --aurora-2: radial-gradient(closest-side, #6c54d622, #6c54d600);
@@ -156,7 +156,7 @@ body {
 /* ===========================================================================
    Aurora blobs: three radial glows drifting behind everything.
    Alpha lives in the stops (Brush.Aurora1/2/3), motion is the same
-   12/14/13s alternate cycle as the Avalonia styles.
+   12/14/13s alternate cycle as the pre-1.0 styles.
    =========================================================================== */
 .aurora {
   position: absolute;
@@ -344,7 +344,7 @@ body {
 }
 
 /* ===========================================================================
-   Status dot + text: switched by class exactly like the Avalonia ones.
+   Status dot + text: switched by class exactly like the pre-1.0 ones.
    =========================================================================== */
 .state-running {
   color: var(--color-success);

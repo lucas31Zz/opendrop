@@ -1,6 +1,6 @@
 // FileUploadFieldInput, adapted from
 // opensourceui/components/inputs/file-upload-field-input.tsx
-// Repainted with the app's exact glass look (the pre-1.0 Avalonia tokens).
+// Repainted with the app's exact glass look (the pre-1.0 desktop tokens).
 // The send goes through Tauri invoke -> Rust -> engine /api/upload.
 import { forwardRef, useCallback, useId, useRef, useState, type DragEvent } from "react";
 import { ImagePlus, Plus, X } from "lucide-react";

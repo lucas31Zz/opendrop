@@ -198,7 +198,7 @@ fn try_spawn(
     // app does (its ServerManager lets the engine read preferred_port
     // itself) - never a pinned number. The interpreter, PYTHONPATH and
     // the working directory come from `spawn`: venv first, then PATH,
-    // with `<root>/src` on PYTHONPATH - the pre-1.0 Avalonia resolution.
+    // with `<root>/src` on PYTHONPATH - the pre-1.0 desktop resolution.
     // Without it an installed bundle (no editable install) could never
     // `import opendrop`, and the engine would not start on a clean box.
     let root = spawn::project_root();
@@ -1072,7 +1072,7 @@ fn check_updates_impl(st: AppState, current: String) -> Result<UpdateCheck, Stri
         updater::pick_asset(&v["assets"].to_string(), cfg!(target_os = "linux"))
             .map_err(|e| format!("updates: {e}"))?;
     // Its digest, looked up on the chosen asset: a release without one is
-    // refused (Avalonia parity) because the download could never be
+    // refused (pre-1.0 parity) because the download could never be
     // verified before being executed.
     let digest = v["assets"]
         .as_array()

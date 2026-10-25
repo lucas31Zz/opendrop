@@ -1,6 +1,6 @@
 //! Update release validation: tag format, per-OS asset pick, SHA-256 check.
 //!
-//! The pre-1.0 Avalonia app (`UpdateService.cs`) only offered GitHub
+//! The pre-1.0 desktop app (`UpdateService.cs`) only offered GitHub
 //! releases whose tag was `vX.Y.Z`, picked the setup matching the OS and
 //! verified the downloaded file against the release's digest before
 //! running it as an installer. The Tauri port skipped all three: any tag

@@ -11,7 +11,7 @@
 
    Rules of the game: every colour, blur and shadow comes from a
    token - no magic values below. backdrop-filter carries the whole
-   look on the web side; the pre-1.0 Avalonia desktop app faked the
+   look on the web side; the pre-1.0 desktop app faked the
    same material with translucent brushes (desktop/OpenDrop/App.axaml).
    ------------------------------------------------------------------ */
 

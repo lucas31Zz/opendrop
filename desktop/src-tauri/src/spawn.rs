@@ -1,6 +1,6 @@
 //! Engine interpreter resolution.
 //!
-//! The pre-1.0 Avalonia app (`ServerManager.cs`) resolved the project root,
+//! The pre-1.0 desktop app (`ServerManager.cs`) resolved the project root,
 //! preferred the bundle's own venv over PATH `python` and prepended
 //! `<root>/src` to `PYTHONPATH`. Without that, an installed build (bundle
 //! with `src/` + a venv built from the bundled wheels, no editable install)

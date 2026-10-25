@@ -1,4 +1,4 @@
-// Block 7: the shared-files panel, transcribed from the pre-1.0 Avalonia
+// Block 7: the shared-files panel, transcribed from the pre-1.0 desktop
 // app's MainWindow.axaml
 // (Border.card + DockPanel, L664-739) and its code-behind handlers.
 // Every button drives the REAL share folder through the Rust commands

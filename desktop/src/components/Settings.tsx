@@ -1,4 +1,4 @@
-// Block 9: the settings window, transcribed from the pre-1.0 Avalonia
+// Block 9: the settings window, transcribed from the pre-1.0 desktop
 // app's SettingsWindow.axaml
 // (420x560, aurora, "?" header, seven sidebar tabs, accent save button)
 // and its code-behind. Rendered as an overlay of the single window.

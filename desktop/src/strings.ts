@@ -1,4 +1,4 @@
-// String tables, transcribed VERBATIM from the pre-1.0 Avalonia app's
+// String tables, transcribed VERBATIM from the pre-1.0 desktop app's
 // Strings.fr.axaml and Strings.en.axaml. The active language is the engine's `lang` (config),
 // exactly like the desktop app's Lang.T lookup.
 
