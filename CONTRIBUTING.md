@@ -6,7 +6,10 @@ submit a fix or a feature.
 ## Prerequisites
 
 - Python **3.10+** (developed and tested on 3.12)
-- **.NET 8 SDK** if you touch the desktop app (Avalonia, Windows or Linux)
+- **Node 20+** and **Rust** (via [rustup](https://rustup.rs)) if you touch
+  the desktop app (Tauri 2 + React, Windows or Linux); on Linux the
+  runtime packages too: `libwebkit2gtk-4.1-0 libayatana-appindicator3-1`
+  (and the `-dev` variants to build)
 - `git`
 
 ## Setup
@@ -66,7 +69,8 @@ Eleven suites, 445 checks in total.
 - Describe the **why** of the change, not just the what.
 - List the suites you ran in the PR description.
 - UI (web/desktop): attach a before/after screenshot.
-- The CI suites (tests + desktop build) must pass.
+- The CI suites (tests + desktop build) must pass; the desktop build is
+  `cd desktop && npm ci && npx tsc --noEmit && npm run build && npm run tauri build`.
 
 ## Community
 

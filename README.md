@@ -9,7 +9,7 @@
 [![Latest release](https://img.shields.io/github/v/release/lucas31Zz/opendrop)](https://github.com/lucas31Zz/opendrop/releases/latest)
 [![MIT License](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![Windows](https://img.shields.io/badge/bureau-Windows%20%2B%20Linux-lightgrey.svg)](desktop/OpenDrop/OpenDrop.csproj)
+[![Windows](https://img.shields.io/badge/bureau-Windows%20%2B%20Linux-lightgrey.svg)](desktop/src-tauri/tauri.conf.json)
 [![Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](.github/workflows/tests.yml)
 [![Discord](https://img.shields.io/badge/Discord-server-5865F2?logo=discord&logoColor=white)](https://discord.gg/vREBPZuvhV)
 
@@ -51,9 +51,9 @@ server running on your machine, nothing goes over the internet.
   is written, live indicator (green under the limit, red once reached)
 - **Safety limits**: storage quota (the real ceiling), per-IP rate limits,
   sanitized file names, validated paths, no server path leaks
-- **Desktop app for Windows and Linux** (Avalonia, .NET 8): QR code,
-  address, session code, quota, folders, settings, one-click server
-  start/stop
+- **Desktop app for Windows and Linux** (Tauri 2 + React): system tray,
+  one window per machine, integrated title bar, QR code, address,
+  session code, quota, folders, settings, one-click server start/stop
 - **Shared files from the app**: drag files or folders from the Explorer
   onto the *Shared files* panel and they are copied into the share folder;
   select like the Explorer (rubber band on empty space, Ctrl/Shift,
@@ -131,9 +131,13 @@ no install needed, in the same light/dark theme as the app.
 ## Requirements
 
 - Python **3.10+** (developed and tested on 3.12) — Windows **or Linux**
-  (tests run in CI on both)
-- Only needed to build the desktop app from source: **.NET 8 SDK**
-  (available on Windows, Linux, and macOS)
+  (tests run in CI on both); required at runtime by the desktop app too
+- Only needed to build the desktop app from source: **Node 20+** and
+  **Rust** (install it with [rustup](https://rustup.rs)) — no .NET
+  required any more
+- Linux, only to *run* the desktop app:
+  `sudo apt install libwebkit2gtk-4.1-0 libayatana-appindicator3-1`
+  (WebView + tray)
 
 Python dependencies:
 
@@ -151,9 +155,9 @@ ships no file):
 
 | File | Platform | Contents |
 |---|---|---|
-| `OpenDrop-vX.Y.Z-win-x64-setup.exe` | Windows 10/11 x64 | full installer (admin rights), dependencies installed locally, offline |
-| `OpenDrop-vX.Y.Z-win-x64.zip` | Windows 10/11 x64 | portable version (just unzip) |
-| `OpenDrop-vX.Y.Z-linux-x64.tar.gz` | Linux x64 (Debian, Kali, Ubuntu...) | binary + server + wheels + install scripts |
+| `OpenDrop-vX.Y.Z-win-x64-setup.exe` | Windows 10/11 x64 | full installer: Tauri desktop app + server + wheels (admin rights, offline) |
+| `OpenDrop-vX.Y.Z-win-x64.zip` | Windows 10/11 x64 | portable version (just unzip): Tauri desktop app + server |
+| `OpenDrop-vX.Y.Z-linux-x64.tar.gz` | Linux x64 (Debian, Kali, Ubuntu...) | Tauri binary + server + wheels + install scripts |
 
 ### Windows: installer
 
@@ -173,7 +177,9 @@ folders** (received and shared files are left exactly as they are).
 
 ### Linux: tarball
 
-Requirements: `sudo apt install python3 python3-venv` (Python 3.10+).
+Requirements: `sudo apt install python3 python3-venv` (Python 3.10+), plus
+the desktop runtime libraries
+`libwebkit2gtk-4.1-0 libayatana-appindicator3-1`.
 
 ```bash
 tar -xzf OpenDrop-vX.Y.Z-linux-x64.tar.gz
@@ -207,16 +213,21 @@ ask it to from *Settings > Updates*. Only releases tagged `vX.Y.Z` are
 offered, never a draft or a pre-release, and nothing is installed before
 you click *Update now*.
 
-- **Windows**: the `setup.exe` is downloaded, checked against the SHA-256
-  digest published with the asset, and run silently once OpenDrop has
-  closed. It replaces the previous installation in place — a single entry
-  in *Apps*, your settings kept.
-- **Linux**: the archive is verified the same way. Installed in `/opt`?
-  A polkit password dialog (`pkexec`) runs the bundled `install.sh`;
-  running from an unpacked folder? The files are replaced in place.
+- **Windows**: the first `setup.exe` asset is downloaded to
+  `%TEMP%\opendrop-update-<tag>.<ext>` (a partial `.part` file is kept,
+  so an interrupted download resumes), checked against the SHA-256
+  `digest` published with the asset, and handed to Windows with elevation
+  (`runas`) once OpenDrop has closed. A digest mismatch deletes the file
+  and aborts. The installer replaces the previous installation in place —
+  a single entry in *Apps*, your settings kept.
+- **Linux**: the tarball is downloaded and verified the same way, then
+  extracted. Installed in `/opt`? A polkit password dialog (`pkexec`)
+  runs the bundled `install.sh`; running from an unpacked folder? The
+  files are replaced in place.
   `~/.opendrop` and your receive/share folders are never touched.
 
-*Skip this version* is remembered for that release only.
+*Skip this version* is remembered for that release only (a
+`localStorage` key per tag, in the app's webview).
 
 ---
 
@@ -224,19 +235,36 @@ you click *Update now*.
 
 ### 1. Desktop app (Windows and Linux)
 
-The same app runs on both systems (Avalonia UI).
+The same app runs on both systems (Tauri 2 + React).
 
 **From source:**
 
 ```powershell
-dotnet build desktop\OpenDrop\OpenDrop.csproj
-.\desktop\OpenDrop\bin\Debug\net8.0-windows\OpenDrop.exe    # Windows
+cd desktop
+npm ci
+npm run tauri dev        # dev app: Vite on localhost:1420, engine auto-spawned
 ```
 
 ```bash
-dotnet build desktop/OpenDrop/OpenDrop.csproj
-./desktop/OpenDrop/bin/Debug/net8.0/OpenDrop            # Linux
+cd desktop
+npm ci
+npm run tauri dev
 ```
+
+Release build (what users run):
+
+```powershell
+npm run tauri build      # exe: desktop/src-tauri/target/release/opendrop.exe
+```
+
+```bash
+npm run tauri build      # binary: desktop/src-tauri/target/release/opendrop
+```
+
+`npm run tauri build` embeds the web assets automatically. If you invoke
+`cargo build --release` by hand instead, add
+`--features tauri/custom-protocol`, otherwise the binary keeps looking
+for the dev server on `localhost:1420`.
 
 **From a release**: see *Downloads* above (Windows installer, Linux tarball,
 or portable archive).
@@ -288,8 +316,8 @@ desktop is present, otherwise open the URL by hand in your browser.
   (`ip`, `port`, `token`, `session_code`, `url_upload`) for scripts.
 - If your phone won't connect, check the firewall:
   `sudo ufw allow 8080` (or whichever port you're using).
-- The desktop app runs on Linux too (same binary as the server, see
-  *1. Desktop app*): QR code, quota, settings.
+- The desktop app runs on Linux too (Tauri build, see *1. Desktop app*):
+  QR code, quota, settings.
 
 ---
 
@@ -474,8 +502,8 @@ python -m tests.test_zip_web      # 47/47 - ZIP64, password zips, browser zip en
 python -m tests.test_e2e          # 16/16 - multi-browser upload flows
 ```
 
-Before building, close the desktop app: a running binary blocks
-`dotnet build`.
+Before building, close the desktop app: a running `OpenDrop.exe` blocks
+`npm run tauri build`.
 
 The same suites (without `--large`) run in continuous integration on
 Windows and Linux, Python 3.10 and 3.12.
@@ -502,7 +530,7 @@ documented in [SECURITY.md](SECURITY.md). In short:
 | Folder | Role |
 |---|---|
 | `src/opendrop/` | Python server (HTTPS, routes, sessions, quota, TLS) |
-| `desktop/OpenDrop/` | Avalonia desktop app (.NET 8, Windows + Linux) that drives the server |
+| `desktop/` | Tauri desktop app: `desktop/src` (React + TypeScript frontend), `desktop/src-tauri` (Rust core: engine spawn, tray/window, updater) |
 | `web/` | web interface (`index.html`, `app.js`, `style.css`) |
 | `packaging/` | Windows installer (Inno Setup) and Linux scripts (install/uninstall) |
 | `tools/` | dev utilities (icon generation); `tools/screenshots/` is local-only and gitignored |
@@ -518,12 +546,12 @@ documented in [SECURITY.md](SECURITY.md). In short:
 ```text
                        starts / stops (process, pid file)
  desktop app  ────────────────────────────────────────────►  python -m opendrop.main --headless
- (Avalonia)    ◄──── polls https://127.0.0.1:<port>/api/info ────┐
+ (Tauri)       ◄──── polls https://127.0.0.1:<port>/api/info ────┐
        │                                                        │
        │ GET /releases/latest (update check)                    │ HTTPS + token
        ▼                                                        ▼
-   GitHub Releases ◄─── SHA-256 of asset ──── UpdateService   phone browser
-   (setup.exe/tar.gz)                          UpdateRunner   (web interface)
+   GitHub Releases ◄─── SHA-256 of asset ──── updater        phone browser
+   (setup.exe/tar.gz)                      (src-tauri)       (web interface)
 ```
 
 | Component | Role |
@@ -533,9 +561,8 @@ documented in [SECURITY.md](SECURITY.md). In short:
 | `src/opendrop/security/` | tokens, session state, path/file-name validation, TLS certificate |
 | `src/opendrop/config/`, `network/`, `qr/`, `i18n.py` | configuration, local IP and free port, QR rendering, translations |
 | `web/` | the phone UI: one `fetch` per API route (`/api/info`, `/api/upload`, `/api/files`, `/api/quota`, `/api/download/<name>`, `/api/session/unlock`); `/api/progress` exists server-side but no client calls it yet |
-| `desktop/OpenDrop/Services/ServerManager.cs` | spawns and supervises the Python server, resolves the interpreter (installer `venv` first, then PATH), kills the tree on exit |
-| `desktop/OpenDrop/Services/UpdateService.cs` | queries `api.github.com/.../releases/latest`, accepts only `vX.Y.Z`, verifies the published `sha256:` digest |
-| `desktop/OpenDrop/Services/UpdateRunner.cs` | downloads, then runs the installer (`/VERYSILENT`) or `install.sh` after the app has exited |
+| `desktop/src-tauri/src/main.rs` | the desktop core: `spawn_engine` (interpreter resolution: installer `venv` first, then PATH, `PYTHONPATH` for the repo layout), orphan reaping, tray and window (one window per machine, close-to-hide), the updater (GitHub releases, `vX.Y.Z` tags, per-OS asset, SHA-256 digest, Windows `runas` / Linux `pkexec`) |
+| `desktop/src/App.tsx`, `desktop/src/whatsnew.ts` | the React UI: settings pane, update toast, one `invoke` per Tauri command; `whatsnew.ts` holds the FR + EN release note shown once per version; the server tree is killed when the app exits |
 | `.github/workflows/` | `tests.yml` (suites), `desktop.yml` (build), `release.yml` (assets attached to the release on a `v*` tag) |
 
 The desktop app never parses the server's stdout: it reads the running
@@ -551,13 +578,18 @@ Maintainers only; contributors never need this.
 
 1. **Choose the version** (semantic): patch for fixes, minor for features,
    major for breaking changes.
-2. **Bump it in four files** so they all agree — `pyproject.toml`,
-   `packaging/windows/OpenDrop.iss`, `src/opendrop/main.py`,
-   `desktop/OpenDrop/OpenDrop.csproj` (the `.iss` comment on line 13 too).
+2. **Bump it everywhere** so they all agree — `pyproject.toml`,
+   `src/opendrop/main.py`, `packaging/windows/OpenDrop.iss` (and its
+   line-13 comment), `desktop/src-tauri/tauri.conf.json`,
+   `desktop/src-tauri/Cargo.toml`, `desktop/package.json` (plus
+   `Cargo.lock` and `package-lock.json`, refreshed by the builds).
 3. **Update `CHANGELOG.md`**: new `## [X.Y.Z] - YYYY-MM-DD` section at the
-   top, following Keep a Changelog.
-4. **Run everything** (all suites, `--large`, `dotnet build`) — CI must be
-   green on the commit you tag.
+   top, following Keep a Changelog — the release workflow extracts the
+   notes from it — **and rewrite `desktop/src/whatsnew.ts`** for the new
+   version (the popup users see once per release, FR + EN).
+4. **Run everything** (all suites, `--large`, `npx tsc --noEmit`,
+   `npm run build`, `npm run tauri build`) — CI must be green on the
+   commit you tag.
 5. **Tag and push**:
 
    ```powershell

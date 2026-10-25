@@ -9,7 +9,7 @@ body:
       label: Environment
       description: OS, Python version, OpenDrop version, desktop app or server only.
       placeholder: |
-        Windows 11, Python 3.12.10, OpenDrop 0.1.0, desktop app
+        Windows 11, Python 3.12.10, OpenDrop 1.0.0, desktop app
     validations:
       required: true
   - type: textarea

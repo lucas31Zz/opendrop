@@ -311,9 +311,10 @@ the same and the certificate stays valid until it expires (397 days).
 
 ## Updates
 
-The desktop application can fetch and install its own updates from GitHub
-Releases. That code downloads a file and then executes it, so it is held
-to stricter rules than the rest of the application:
+The desktop application (Tauri, Rust) can fetch and install its own
+updates from GitHub Releases. That code downloads a file and then
+executes it, so it is held to stricter rules than the rest of the
+application:
 
 - only `GET /repos/lucas31Zz/opendrop/releases/latest` is used — never a
   branch, never a tag the client picks itself;
@@ -321,17 +322,31 @@ to stricter rules than the rest of the application:
   usable tag is ignored, whatever its title says;
 - drafts and pre-releases are rejected, checked twice (the endpoint
   already filters them, the fields are read back anyway);
-- the downloaded file must match the SHA-256 digest GitHub publishes with
-  the asset when there is one; a mismatch deletes the file and aborts;
+- the asset is chosen for the current OS: the first `.exe` on Windows
+  (falling back to the `.msi`), the `.tar.gz` on Linux — never the
+  portable zip, never "first asset wins";
+- that asset must carry a GitHub `digest`; a release published without
+  one is never offered, and the download streams to
+  `%TEMP%\opendrop-update-<tag>.<ext>` with a `.part` file kept across
+  sessions so an interrupted download resumes instead of restarting;
+- before anything runs, the finished file is verified against the
+  published SHA-256 digest: a mismatch deletes the file and aborts; an
+  unsupported digest format is refused as well (nothing is kept and
+  nothing executes);
 - the transport is HTTPS with GitHub's certificate, and the metadata call
   has a 20 second timeout so an unreachable network stays silent instead
   of alarming;
-- the installer is run with the same `AppId` / prefix as the previous
-  installation and **never** through the uninstaller (which would delete
-  the configuration); user data lives outside the installation folder on
-  both platforms, so an update cannot reach it;
-- *Skip this version* is stored in `config.json` (`skip_version`), a key
-  the settings window carries over when it rewrites the file.
+- on Windows the installer is handed to the OS with elevation (`runas`,
+  declining it aborts) and runs with the same `AppId` / prefix as the
+  previous installation, **never** through the uninstaller (which would
+  delete the configuration); on Linux the tarball is unpacked and the
+  bundled `install.sh` is run through `pkexec`;
+- user data lives outside the installation folder on both platforms
+  (`%LOCALAPPDATA%\OpenDrop`, `~/.opendrop`), so an update cannot reach
+  it, and neither your receive nor your share folder is ever touched;
+- *Skip this version* is stored in the webview's `localStorage` under
+  `opendrop-update-dismissed-<tag>` (it used to be `skip_version` in
+  `config.json`), one key per release.
 
 An update is always opt-in: the startup check only opens the dialogue, it
 never installs anything on its own.

@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.0] - 2026-10-25
+
+### Added
+
+- **The desktop app is now built with Tauri 2** (Rust + React): system
+  tray, one window per machine, close-to-hide, integrated title bar, and
+  a round taskbar/tray icon.
+- **The WhatsNew popup is back** (FR/EN, shown once per version).
+- **Updates are verified**: the downloaded installer or tarball must
+  match the SHA-256 digest published with the release, and only tags
+  matching `vX.Y.Z` are offered (Windows setup, Linux tarball).
+
+### Changed
+
+- **The desktop app was rewritten from Avalonia/.NET to Tauri**: same
+  engine, same configuration, same URLs; the Windows installer and the
+  Linux archive now ship the Tauri binary.
+- **The installed app finds its own Python**: venv first, then PATH,
+  with `PYTHONPATH` pointing at the bundled `src/` (the engine starts on
+  a clean machine).
+
+### Removed
+
+- **The Avalonia app and its 57 unit tests** (`desktop/OpenDrop`,
+  `desktop/OpenDrop.Tests`).
+
+### Fixed
+
+- **The sun/moon theme glyphs** displayed as mojibake (`â˜€`/`â˜¾`);
+  they are now the real characters (`U+2600`/`U+263E`).
+
 ## [0.16.1] - 2026-10-20
 
 ### Added
