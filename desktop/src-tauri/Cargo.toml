@@ -1,0 +1,24 @@
+[package]
+name = "opendrop"
+version = "1.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+# One instance per machine: a second launch never gets to create a window
+# (nor touch the engine) - it hands off to the running instance, which
+# re-shows its window, possibly from the tray. Registered FIRST in main().
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["blocking", "json", "multipart"] }
+# Standard Windows folder picker (IFileOpenDialog + FOS_PICKFOLDERS) -
+# the "basic" one every app shows, instead of the PowerShell
+# FolderBrowserDialog whose Win11 render the author rejected.
+rfd = "0.15"
+
+[profile.release]
+strip = true
