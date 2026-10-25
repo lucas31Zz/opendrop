@@ -13,21 +13,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: 8.0.x
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Publish the application (single-file, self-contained)
-        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win
+      - name: Build the Tauri application (release)
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Complete the bundle (Python server + web + docs)
+      - name: Complete the bundle (Tauri binary + web + Python server + docs)
         shell: bash
         run: |
           set -e
+          mkdir -p publish/win
+          cp desktop/src-tauri/target/release/opendrop.exe publish/win/OpenDrop.exe
+          cp -R web publish/win/web
           cp pyproject.toml requirements.txt README.md LICENSE SECURITY.md publish/win/
           cp -R src publish/win/src
           cp packaging/windows/install-deps.ps1 publish/win/
@@ -189,6 +202,38 @@ jobs:
           if (-not (Test-Path "$app\OpenDrop.exe")) { Write-Host "::error::exe missing after reinstall"; exit 1 }
           Write-Host "reinstall cycle OK: exit 0, DisplayVersion=${{ steps.ver.outputs.version }}, exe present"
 
+      # Review Focus 1: the installed app must actually start its engine.
+      # Strict on purpose - if the runner cannot host the GUI, this fails
+      # loudly on the first CI run instead of shipping a launcher nobody
+      # has ever seen run.
+      - name: Installed-app smoke (spawn the engine, poll /api/info)
+        shell: pwsh
+        run: |
+          $exe = "${env:ProgramFiles(x86)}\OpenDrop\OpenDrop.exe"
+          if (-not (Test-Path $exe)) { Write-Host "::error::no installed exe: $exe"; exit 1 }
+          $p = Start-Process $exe -PassThru
+          Write-Host "started $exe (PID $($p.Id))"
+          $body = $null
+          for ($i = 1; $i -le 60; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $r = Invoke-WebRequest -SkipCertificateCheck -UseBasicParsing -TimeoutSec 5 https://127.0.0.1:8080/api/info
+              if ($r.Content -match '__opendrop_info__') { $body = $r.Content; break }
+            } catch { Write-Host "  attempt ${i}: $($_.Exception.Message)" }
+          }
+          # Capture the state BEFORE killing it, or every failure would
+          # read "exited early" just because we stopped it ourselves.
+          $earlyCode = $null
+          if ($p.HasExited) { $earlyCode = $p.ExitCode }
+          taskkill /PID $p.Id /F /T 2>$null | Out-Null
+          if (-not $body) {
+            Write-Host "::error::engine never answered on 127.0.0.1:8080 within 60s"
+            if ($null -ne $earlyCode) { Write-Host "::error::the app exited early with code $earlyCode" }
+            exit 1
+          }
+          Write-Host "installed-app smoke OK: $body"
+          exit 0
+
   linux:
     name: Install test (linux-x64)
     runs-on: ubuntu-latest
@@ -196,16 +241,42 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
+      # Build AND runtime libraries in one go: the dev packages depend on
+      # libwebkit2gtk-4.1-0 / libayatana-appindicator3-1, which install.sh's
+      # ldd guard (Task 6) requires before it writes anything - deleting this
+      # step thinking it is "build only" would fail the install itself.
+      - name: Linux system dependencies (Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential
+
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: 8.0.x
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Publish the application (single-file, self-contained)
-        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux
+      # ../dist is embedded at compile time (tauri.conf.json frontendDist),
+      # so the web assets must be built before cargo.
+      - name: Build the web assets (release)
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build the Tauri binary (release)
+        working-directory: desktop/src-tauri
+        run: cargo build --release
+
+      - name: Stage the Tauri binary as OpenDrop
+        run: |
+          mkdir -p publish/linux
+          cp desktop/src-tauri/target/release/opendrop publish/linux/OpenDrop
+          chmod +x publish/linux/OpenDrop
 
       - name: Assemble the tarball (binary + src + wheels + install.sh)
         run: bash packaging/linux/build-tarball.sh ci
@@ -213,7 +284,7 @@ jobs:
       - name: Extract the bundle
         run: tar -xzf dist/OpenDrop-ci-linux-x64.tar.gz
 
-      - name: Python venv support (install.sh:88 hint)
+      - name: Python venv support (install.sh's venv hint)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
 
       - name: Seed user data (install marker + receive/share folders)
@@ -228,20 +299,21 @@ jobs:
         working-directory: OpenDrop
         run: sudo ./install.sh
 
-      - name: Assert the installation (incl. the native libraries lock)
+      - name: Assert the installation
         run: |
           set -e
-          test -x /opt/opendrop/OpenDrop || { echo "::error::binary missing in /opt/opendrop"; exit 1; }
+          test -x /opt/opendrop/OpenDrop || { echo "::error::binary missing or not executable in /opt/opendrop"; exit 1; }
           test -x /opt/opendrop/venv/bin/python || { echo "::error::venv python missing in /opt/opendrop"; exit 1; }
-          test -f /opt/opendrop/libSkiaSharp.so || { echo "::error::libSkiaSharp.so missing in /opt/opendrop - the 2026-10-20 native libraries fix regressed"; exit 1; }
-          n=$(ls /opt/opendrop/*.so | wc -l)
-          test "$n" -ge 1 || { echo "::error::no native libraries in /opt/opendrop"; exit 1; }
+          test -f /opt/opendrop/web/index.html || { echo "::error::web/ missing in /opt/opendrop"; exit 1; }
           test -L /usr/local/bin/opendrop-desktop || { echo "::error::command symlink missing"; exit 1; }
           test "$(readlink /usr/local/bin/opendrop-desktop)" = "/opt/opendrop/OpenDrop" || { echo "::error::symlink does not point at /opt/opendrop/OpenDrop"; exit 1; }
           test -f /usr/share/applications/opendrop.desktop || { echo "::error::applications menu entry missing"; exit 1; }
           grep -q '^Exec=/usr/local/bin/opendrop-desktop' /usr/share/applications/opendrop.desktop || { echo "::error::menu Exec does not point at the symlink"; exit 1; }
           test -f /usr/share/icons/hicolor/256x256/apps/opendrop.png || { echo "::error::icon missing"; exit 1; }
-          echo "install OK: binary + venv + $n native libs (libSkiaSharp.so present) + symlink + menu entry + icon"
+          # No *.so assertions anymore: the Tauri binary ships none of its own
+          # (zero was always legal) and the system libraries it needs were
+          # already verified by install.sh's ldd guard.
+          echo "install OK: binary + venv + web + symlink + menu entry + icon"
 
       - name: Server smoke (python --headless over HTTPS)
         run: |
@@ -269,12 +341,11 @@ jobs:
           if [ ! -d "$HOME/.opendrop" ]; then echo "::error::~/.opendrop folder itself must survive (foreign marker inside)"; exit 1; fi
           echo "uninstall clean: app gone, config removed, foreign marker + receive/share folders intact"
 
-      - name: Reinstall cycle + assert natives again
+      - name: Reinstall cycle + assert
         working-directory: OpenDrop
         run: |
           sudo ./install.sh
-          test -f /opt/opendrop/libSkiaSharp.so || { echo "::error::native libSkiaSharp.so missing after reinstall"; exit 1; }
-          n=$(ls /opt/opendrop/*.so | wc -l)
-          test "$n" -ge 1 || { echo "::error::no native libraries after reinstall"; exit 1; }
+          test -x /opt/opendrop/OpenDrop || { echo "::error::binary missing after reinstall"; exit 1; }
           test -L /usr/local/bin/opendrop-desktop || { echo "::error::symlink missing after reinstall"; exit 1; }
-          echo "reinstall cycle OK: natives present, symlink back"
+          grep -q '^Exec=/usr/local/bin/opendrop-desktop' /usr/share/applications/opendrop.desktop || { echo "::error::menu Exec wrong after reinstall"; exit 1; }
+          echo "reinstall cycle OK: binary back + executable + symlink + menu entry"

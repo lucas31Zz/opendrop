@@ -15,21 +15,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: 8.0.x
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Publish the application (single-file, self-contained)
-        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win
+      - name: Build the Tauri application (release)
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Complete the bundle (Python server + web + docs)
+      - name: Complete the bundle (Tauri binary + web + Python server + docs)
         shell: bash
         run: |
           set -e
+          mkdir -p publish/win
+          cp desktop/src-tauri/target/release/opendrop.exe publish/win/OpenDrop.exe
+          cp -R web publish/win/web
           cp pyproject.toml requirements.txt README.md LICENSE SECURITY.md publish/win/
           cp -R src publish/win/src
           cp packaging/windows/install-deps.ps1 publish/win/
@@ -91,17 +104,41 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
+      - name: Linux system dependencies (Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential
+
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: 8.0.x
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Publish the application (single-file, self-contained)
-        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux
+      # Order matters: ../dist is embedded into the binary at compile time
+      # (tauri.conf.json frontendDist), so the web assets come first.
+      - name: Build the web assets (release)
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
 
+      - name: Build the Tauri binary (release)
+        working-directory: desktop/src-tauri
+        run: cargo build --release
+
+      - name: Stage the Tauri binary as OpenDrop
+        run: |
+          mkdir -p publish/linux
+          cp desktop/src-tauri/target/release/opendrop publish/linux/OpenDrop
+          chmod +x publish/linux/OpenDrop
+
+      # build-tarball.sh downloads the wheels itself - the job needs no
+      # wheels step (it never had one).
       - name: Assemble the tarball (binary + src + wheels + install.sh)
         run: bash packaging/linux/build-tarball.sh "${{ github.ref_name }}"
 

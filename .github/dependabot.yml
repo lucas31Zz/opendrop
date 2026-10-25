@@ -12,8 +12,14 @@ updates:
       interval: weekly
     labels: ["dependencies"]
 
-  - package-ecosystem: nuget
-    directory: "/desktop/OpenDrop"
+  - package-ecosystem: npm
+    directory: "/desktop"
+    schedule:
+      interval: weekly
+    labels: ["dependencies"]
+
+  - package-ecosystem: cargo
+    directory: "/desktop/src-tauri"
     schedule:
       interval: weekly
     labels: ["dependencies"]

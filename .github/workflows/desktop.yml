@@ -9,38 +9,49 @@ jobs:
   build:
     name: ${{ matrix.os }} (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # A cold Rust cache plus webkit2gtk compilation runs well past the old
+    # 20-minute dotnet budget.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             rid: win-x64
+            exe: opendrop.exe
           - os: ubuntu-latest
             rid: linux-x64
+            exe: opendrop
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Run the desktop unit tests
-        run: dotnet test desktop/OpenDrop.Tests/OpenDrop.Tests.csproj -c Release
-
-      - name: Publish the application (single-file, self-contained)
-        run: dotnet publish desktop/OpenDrop/OpenDrop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/OpenDrop
-
-      - name: Complete the bundle (Python server + web + docs)
-        shell: bash
+      - name: Linux system dependencies (Tauri)
+        if: matrix.rid == 'linux-x64'
         run: |
-          set -e
-          cp pyproject.toml requirements.txt README.md LICENSE publish/OpenDrop/
-          cp -R src publish/OpenDrop/src
-          test -f publish/OpenDrop/web/index.html
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Type-check and build the web assets
+        working-directory: desktop
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run build
+
+      - name: Build the Tauri application (release)
+        working-directory: desktop/src-tauri
+        run: cargo build --release
+
+      # Bundling (installer + tarball) belongs to release.yml: this job only
+      # proves that both legs compile the Tauri app.
       - uses: actions/upload-artifact@v7
         with:
           name: opendrop-${{ matrix.rid }}
-          path: publish/OpenDrop
+          path: desktop/src-tauri/target/release/${{ matrix.exe }}
           retention-days: 7
