@@ -48,7 +48,7 @@ export function WhatsNew({ lang, version }: { lang: Lang; version: string }) {
           ))}
         </div>
         <div className="mt-4 flex justify-end">
-          <button type="button" className="dialog-btn success" onClick={dismiss}>
+          <button type="button" id="BtnWhatsNewDismiss" className="dialog-btn success" onClick={dismiss}>
             {WHATSNEW_ACTION[lang]}
           </button>
         </div>

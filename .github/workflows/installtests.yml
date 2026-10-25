@@ -31,7 +31,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo build --release --manifest-path src-tauri/Cargo.toml
+          # custom-protocol = embedded assets instead of devUrl (see desktop.yml)
+          cargo build --release --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Complete the bundle (Tauri binary + web + Python server + docs)
@@ -270,7 +271,8 @@ jobs:
 
       - name: Build the Tauri binary (release)
         working-directory: desktop/src-tauri
-        run: cargo build --release
+        # custom-protocol = embedded assets instead of devUrl (see desktop.yml)
+        run: cargo build --release --features tauri/custom-protocol
 
       - name: Stage the Tauri binary as OpenDrop
         run: |

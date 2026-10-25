@@ -469,8 +469,12 @@ export function Settings({
       onClick={onClose}
       role="presentation"
     >
-      {/* The window itself: same aurora and glass as the main one. */}
+      {/* The window itself: same aurora and glass as the main one.
+          The id is how the screenshot tool recognises that the pane is
+          open: pre-1.0 this was a second native window, now Settings is
+          an overlay inside the single Tauri window. */}
       <div
+        id="SettingsPane"
         className="settings-window settle relative"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

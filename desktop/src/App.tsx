@@ -766,6 +766,10 @@ export default function App() {
         <div className="capsule relative z-10">
           <button
             type="button"
+            /* AutomationId for tools/screenshots/capture.py: together with
+               BtnSettings it marks where the floating capsule ends, so the
+               tool can crop the left column above it. */
+            id="BtnToggleServer"
             className={running ? "btn-danger mb-2 w-full" : "btn-accent mb-2 w-full"}
             onClick={() => void toggleServer()}
           >
@@ -774,6 +778,10 @@ export default function App() {
           </button>
           <button
             type="button"
+            /* AutomationId for tools/screenshots/capture.py: WebView2
+               surfaces a DOM id as the UIA AutomationId (the pre-1.0
+               Avalonia control carried the same name). */
+            id="BtnSettings"
             className="btn-subtle w-full"
             onClick={() => void openSettings()}
           >

@@ -9,8 +9,7 @@ jobs:
   build:
     name: ${{ matrix.os }} (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
-    # A cold Rust cache plus webkit2gtk compilation runs well past the old
-    # 20-minute dotnet budget.
+    # A cold Rust cache plus the webkit2gtk build runs well past 20 minutes.
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -45,8 +44,12 @@ jobs:
           npm run build
 
       - name: Build the Tauri application (release)
+        # `custom-protocol` is what flips tauri from devUrl to the embedded
+        # assets (its build script computes `dev = !custom_protocol`): without
+        # it even a --release binary renders ERR_CONNECTION_REFUSED, because
+        # there is no vite server on localhost:1420 outside `tauri dev`.
         working-directory: desktop/src-tauri
-        run: cargo build --release
+        run: cargo build --release --features tauri/custom-protocol
 
       # Bundling (installer + tarball) belongs to release.yml: this job only
       # proves that both legs compile the Tauri app.

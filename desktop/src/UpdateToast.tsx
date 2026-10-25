@@ -91,7 +91,7 @@ export function UpdateToast({
           <button type="button" className="dialog-btn success" onClick={onAccept}>
             {t("Btn.UpdateNow")}
           </button>
-          <button type="button" className="dialog-btn danger" onClick={onRefuse}>
+          <button type="button" id="BtnUpdateDecline" className="dialog-btn danger" onClick={onRefuse}>
             {t("Btn.Refuse")}
           </button>
         </div>
