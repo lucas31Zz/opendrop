@@ -15,6 +15,9 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", features = ["blocking", "json", "multipart"] }
+# Update digest check: GitHub writes `"sha256:<hex>"` next to each asset,
+# and the installer is only run after the downloaded bytes hash to it.
+sha2 = "0.10"
 # Standard Windows folder picker (IFileOpenDialog + FOS_PICKFOLDERS) -
 # the "basic" one every app shows, instead of the PowerShell
 # FolderBrowserDialog whose Win11 render the author rejected.

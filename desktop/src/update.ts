@@ -15,6 +15,9 @@ export type UpdateCheckR = {
   version: string;
   current: string;
   asset_url: string;
+  /** GitHub's `sha256:<hex>` for asset_url; Rust refuses to run the
+   *  download unless it hashes to exactly this. */
+  digest: string;
   installer: string; // path when the setup is already downloaded
   part_bytes: number;
 };

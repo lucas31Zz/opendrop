@@ -9,6 +9,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 mod spawn;
+mod updater;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, State};
@@ -51,6 +52,10 @@ struct AppState {
     port_busy: Arc<Mutex<Option<PortHolder>>>,
     /// Live update download: mirrored to the UI by `update-progress`.
     update: Arc<Mutex<UpdatePhase>>,
+    /// (tag, digest) of the release check_updates last offered; BOTH
+    /// `done` gates verify the finished file against this digest before
+    /// it is allowed to become an installer.
+    update_meta: Arc<Mutex<Option<(String, String)>>>,
 }
 
 // Built ONCE and deliberately leaked (OnceLock): a few MB, so no request
@@ -1019,6 +1024,9 @@ struct UpdateCheck {
     version: String,
     current: String,
     asset_url: String,
+    /// GitHub's `sha256:<hex>` for the chosen asset: the UI shows it and
+    /// the install is refused without it.
+    digest: String,
     installer: String, // path when the setup is already downloaded
     part_bytes: u64,   // bytes already on disk (the bar starts here)
 }
@@ -1036,46 +1044,59 @@ struct UpdatePhase {
 }
 
 #[tauri::command]
-async fn check_updates(current: String) -> Result<UpdateCheck, String> {
-    blocking(move || check_updates_impl(current)).await
+async fn check_updates(
+    current: String,
+    state: State<'_, AppState>,
+) -> Result<UpdateCheck, String> {
+    let st = state.inner().clone();
+    blocking(move || check_updates_impl(st, current)).await
 }
 
-fn check_updates_impl(current: String) -> Result<UpdateCheck, String> {
+fn check_updates_impl(st: AppState, current: String) -> Result<UpdateCheck, String> {
     let r = http()
         .get("https://api.github.com/repos/lucas31Zz/opendrop/releases/latest")
         .header("User-Agent", "opendrop")
         .send()
         .map_err(|e| format!("updates: {e}"))?;
     let v: serde_json::Value = r.json().map_err(|e| format!("updates json: {e}"))?;
-    let tag = v["tag_name"].as_str().unwrap_or("").trim_start_matches('v').to_string();
-    if tag.is_empty() {
-        return Err("no release tag".into());
+    // Only `vX.Y.Z` is installable: a draft, prerelease or otherwise odd
+    // tag must never reach the download-and-run path.
+    let raw = v["tag_name"].as_str().unwrap_or("").trim();
+    if !updater::is_release_tag(raw) {
+        return Err("release tag is not vX.Y.Z".into());
     }
-    // The installer asset: a Windows setup first, never the zip/tarball
-    // the release also carries (UpdateService downloads the setup.exe).
-    let mut asset_url = String::new();
-    let mut ext = "exe".to_string();
-    if let Some(assets) = v["assets"].as_array() {
-        for want in ["exe", "msi"] {
-            let hit = assets.iter().find(|a| {
-                a["name"]
-                    .as_str()
-                    .map(|n| n.to_lowercase().ends_with(&format!(".{want}")))
-                    .unwrap_or(false)
-            });
-            if let Some(a) = hit {
-                asset_url = a["browser_download_url"].as_str().unwrap_or("").to_string();
-                ext = want.to_string();
-                break;
-            }
-        }
+    let tag = raw.trim_start_matches('v').to_string();
+    // The asset for THIS OS - .exe (then .msi) on Windows, the tarball on
+    // Linux - never "first asset wins": the release also ships a zip.
+    let (asset_url, ext) =
+        updater::pick_asset(&v["assets"].to_string(), cfg!(target_os = "linux"))
+            .map_err(|e| format!("updates: {e}"))?;
+    // Its digest, looked up on the chosen asset: a release without one is
+    // refused (Avalonia parity) because the download could never be
+    // verified before being executed.
+    let digest = v["assets"]
+        .as_array()
+        .and_then(|list| {
+            list.iter()
+                .find(|a| a["browser_download_url"].as_str() == Some(asset_url.as_str()))
+        })
+        .and_then(|a| a["digest"].as_str())
+        .unwrap_or("")
+        .to_string();
+    if digest.is_empty() {
+        return Err("release asset has no sha256 digest".into());
     }
-    let (installer, part) = installer_paths(&tag, &ext);
+    // Remembered for both `done` gates (start_update shortcut and the
+    // download worker): the file is only ever handed over after hashing
+    // to exactly this value.
+    *st.update_meta.lock().unwrap() = Some((tag.clone(), digest.clone()));
+    let (installer, part) = installer_paths(&tag, ext.trim_start_matches('.'));
     Ok(UpdateCheck {
         status: if tag == current { "uptodate".into() } else { "available".into() },
         version: tag.clone(),
         current,
         asset_url,
+        digest,
         installer: if installer.is_file() {
             installer.display().to_string()
         } else {
@@ -1095,11 +1116,17 @@ fn installer_paths(tag: &str, ext: &str) -> (PathBuf, PathBuf) {
     (base, PathBuf::from(part))
 }
 
+/// Extension for the download file name, from the URL's last segment.
+/// The Linux tarball is a compound extension (`.tar.gz`), which a plain
+/// "after the last dot" split would cut down to `gz`.
 fn asset_ext(url: &str) -> String {
-    let seg = url.rsplit('/').next().unwrap_or("");
+    let seg = url.rsplit('/').next().unwrap_or("").to_ascii_lowercase();
+    if seg.ends_with(".tar.gz") {
+        return "tar.gz".into();
+    }
     let ext = seg.rsplit('.').next().unwrap_or("");
     if !ext.is_empty() && ext.len() <= 6 && ext.chars().all(|c| c.is_ascii_alphanumeric()) {
-        ext.to_ascii_lowercase()
+        ext.to_string()
     } else {
         "exe".into()
     }
@@ -1129,9 +1156,29 @@ fn start_update_impl(
         return Err("no installer asset in this release".into());
     }
     let (final_path, part_path) = installer_paths(&tag, &asset_ext(&url));
+    // The digest check_updates recorded for this release. Both `done`
+    // gates below hash the file against it before it may run.
+    let digest = st
+        .update_meta
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|(_, d)| d.clone())
+        .unwrap_or_default();
     if final_path.is_file() {
-        // Already downloaded (previous session or earlier attempt): the
-        // UI goes straight to the administrator check.
+        // Already downloaded (previous session or earlier attempt): it
+        // still has to match the release digest - a file left behind by
+        // an interrupted or tampered download must not be executed.
+        if let Err(e) = updater::verify_sha256(&final_path, &digest) {
+            let _ = std::fs::remove_file(&final_path);
+            let mut p = st.update.lock().unwrap();
+            p.phase = "error".into();
+            p.tag = tag;
+            p.error = e;
+            p.installer = String::new();
+            return Ok(p.clone());
+        }
+        // Verified: the UI goes straight to the administrator check.
         let mut p = st.update.lock().unwrap();
         p.phase = "done".into();
         p.tag = tag;
@@ -1151,18 +1198,19 @@ fn start_update_impl(
         p.installer = String::new();
     }
     let phase = st.update.clone();
-    std::thread::spawn(move || download_worker(app, phase, url, final_path, part_path));
+    std::thread::spawn(move || download_worker(app, phase, url, final_path, part_path, digest));
     Ok(st.update.lock().unwrap().clone())
 }
 
 /// The download's thread: stream to the `.part`, rename it when whole,
-/// keep the UI on `update-progress` the whole way.
+/// verify it against the release digest, and only then call it done.
 fn download_worker(
     app: tauri::AppHandle,
     phase: Arc<Mutex<UpdatePhase>>,
     url: String,
     final_path: PathBuf,
     part_path: PathBuf,
+    digest: String,
 ) {
     let emit = |phase: &Arc<Mutex<UpdatePhase>>| {
         let snapshot = phase.lock().unwrap().clone();
@@ -1170,13 +1218,28 @@ fn download_worker(
     };
     match download_body(&app, &phase, &url, &part_path) {
         Ok(()) => match std::fs::rename(&part_path, &final_path) {
-            Ok(()) => {
-                let mut p = phase.lock().unwrap();
-                p.phase = "done".into();
-                p.installer = final_path.display().to_string();
-                drop(p);
-                emit(&phase);
-            }
+            // Second `done` gate: the bytes on disk must hash to the
+            // digest GitHub published for this asset. A mismatch deletes
+            // the file, so a truncated or tampered download can never be
+            // handed to the installer.
+            Ok(()) => match updater::verify_sha256(&final_path, &digest) {
+                Ok(()) => {
+                    let mut p = phase.lock().unwrap();
+                    p.phase = "done".into();
+                    p.installer = final_path.display().to_string();
+                    drop(p);
+                    emit(&phase);
+                }
+                Err(e) => {
+                    let _ = std::fs::remove_file(&final_path);
+                    let mut p = phase.lock().unwrap();
+                    p.phase = "error".into();
+                    p.error = e;
+                    p.installer = String::new();
+                    drop(p);
+                    emit(&phase);
+                }
+            },
             Err(e) => {
                 let mut p = phase.lock().unwrap();
                 p.phase = "error".into();
@@ -1264,17 +1327,42 @@ async fn update_status(state: State<'_, AppState>) -> Result<UpdatePhase, String
     Ok(state.update.lock().unwrap().clone())
 }
 
-/// Hand the installer to Windows with elevation: `runas` raises the
-/// administrator check; declining it comes back as a non-zero exit.
+/// Hand the finished package to the OS installer: Windows elevates via
+/// `runas` (declining comes back as a non-zero exit), Linux unpacks the
+/// tarball and runs its install.sh under pkexec.
 #[tauri::command]
-async fn launch_installer(path: String) -> Result<(), String> {
-    blocking(move || launch_installer_impl(path)).await
+async fn launch_installer(path: String, state: State<'_, AppState>) -> Result<(), String> {
+    let st = state.inner().clone();
+    blocking(move || launch_installer_impl(st, path)).await
 }
 
-fn launch_installer_impl(path: String) -> Result<(), String> {
+/// THE last gate. The UI has two ways to reach an installer - a finished
+/// download, or the "already on disk" path check_updates reported - and
+/// the second one used to jump straight here, past the download gates.
+/// Whatever route brought us to this path, the bytes must hash to the
+/// digest of the release being installed before anything is executed.
+fn launch_installer_impl(st: AppState, path: String) -> Result<(), String> {
     if !Path::new(&path).is_file() {
         return Err("installer not found".into());
     }
+    let digest = st
+        .update_meta
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|(_, d)| d.clone())
+        .unwrap_or_default();
+    if let Err(e) = updater::verify_sha256(Path::new(&path), &digest) {
+        let _ = std::fs::remove_file(&path);
+        return Err(e);
+    }
+    run_installer(&path)
+}
+
+/// Windows: `runas` raises the administrator check; declining it comes
+/// back as a non-zero exit.
+#[cfg(not(target_os = "linux"))]
+fn run_installer(path: &str) -> Result<(), String> {
     let quoted = path.replace('\'', "''");
     let out = Command::new("powershell")
         .args([
@@ -1293,6 +1381,44 @@ fn launch_installer_impl(path: String) -> Result<(), String> {
         } else {
             format!("launch: {}", err.trim())
         })
+    }
+}
+
+/// Linux install: unpack the release tarball into a temp dir, then run
+/// the bundle's own `OpenDrop/install.sh` through pkexec (it writes the
+/// system locations, so it needs the admin prompt - the same hand-off the
+/// pre-1.0 app made). A missing tool, a failed extract or a non-zero
+/// exit is an `Err`, never a panic.
+#[cfg(target_os = "linux")]
+fn run_installer(path: &str) -> Result<(), String> {
+    let archive = Path::new(path);
+    let dir = std::env::temp_dir().join(format!("opendrop-update-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("extract: {e}"))?;
+    // `tar` missing (minimal distros) surfaces as a spawn error, not a
+    // crash; build-tarball.sh stages the payload as `OpenDrop/...`.
+    let status = Command::new("tar")
+        .arg("-xzf")
+        .arg(archive)
+        .arg("-C")
+        .arg(&dir)
+        .status()
+        .map_err(|e| format!("tar: {e}"))?;
+    if !status.success() {
+        return Err(format!("tar: {status}"));
+    }
+    let script = dir.join("OpenDrop").join("install.sh");
+    if !script.is_file() {
+        return Err(format!("install.sh missing from {}", archive.display()));
+    }
+    let status = Command::new("pkexec")
+        .arg(&script)
+        .status()
+        .map_err(|e| format!("pkexec: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("install.sh: {status}"))
     }
 }
 
@@ -1500,6 +1626,7 @@ fn main() {
         control: Arc::new(Mutex::new(())),
         port_busy: Arc::new(Mutex::new(None)),
         update: Arc::new(Mutex::new(UpdatePhase::default())),
+        update_meta: Arc::new(Mutex::new(None)),
     };
     let boot_state = state.clone();
 
