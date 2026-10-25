@@ -20,7 +20,7 @@
 #define MyAppPublisher "lucas31Zz"
 #define MyAppURL "https://github.com/lucas31Zz/opendrop"
 #define BundleDir "..\..\publish\win"
-#define IconFile "..\..\desktop\OpenDrop\app.ico"
+#define IconFile "..\..\desktop\src-tauri\icons\icon.ico"
 
 [Setup]
 AppId={{2E6B1C1B-5C2F-4A87-9E3D-8B5A0C7F4D62}
