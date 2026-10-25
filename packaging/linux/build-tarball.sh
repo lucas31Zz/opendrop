@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the Linux archive shipped with the releases:
 #   dist/OpenDrop-<tag>-linux-x64.tar.gz
-# containing: self-contained binary + src/ + web/ + wheels + install.sh +
+# containing: Tauri desktop binary + src/ + web/ + wheels + install.sh +
 # uninstall.sh + menu entry.
 #
 # Usage: packaging/linux/build-tarball.sh <tag>     (from the repo root)
@@ -20,9 +20,16 @@ echo "== Building the Linux bundle $TAG =="
 rm -rf "$STAGE_ROOT"
 mkdir -p "$STAGE" "$OUT_DIR"
 
-# Published binary (single-file + native libs + web/ via the csproj)
-test -d "$PUBLISH_DIR" || { echo "Error: $PUBLISH_DIR missing (dotnet publish -r linux-x64)." >&2; exit 1; }
+# Staged binary (Tauri release, renamed to OpenDrop) + its neighbours
+test -d "$PUBLISH_DIR" || { echo "Error: $PUBLISH_DIR missing (copy the Tauri release binary + web/ into it)." >&2; exit 1; }
 cp -R "$PUBLISH_DIR"/. "$STAGE/"
+
+# web/ from the repo, so the archive never depends on what CI staged
+# (self-correcting if the job forgot it: install.sh refuses a bundle
+# without web/). Replaced, not merged: cp -R into an existing directory
+# would nest it as web/web when the publish dir already shipped one.
+rm -rf "$STAGE/web"
+cp -R "$ROOT/web" "$STAGE/web"
 
 # Python server + metadata
 cp -R "$ROOT/src" "$STAGE/src"

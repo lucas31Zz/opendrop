@@ -69,18 +69,32 @@ rm -f "$PREFIX/OpenDrop.old" 2>/dev/null || true
 cp "$SRC_DIR/install.sh" "$SRC_DIR/uninstall.sh" "$SRC_DIR/opendrop.desktop.in" \
    "$SRC_DIR/opendrop.png" "$PREFIX/" 2>/dev/null || true
 chmod +x "$PREFIX/OpenDrop" "$PREFIX/install.sh" "$PREFIX/uninstall.sh" 2>/dev/null || true
-# The published binary's native libraries are NOT embedded in it: the
-# single-file publish leaves them next to the executable and .NET
-# dlopen()s them from the app directory. The bundle ships them at its
-# root, so copying only the named items above left /opt/opendrop
-# without them and the launch died instantly with a DllNotFoundException
-# and no window (dead menu entry, Kali 2026-10-20). Copy whatever the
-# bundle ships; zero *.so stays legal if a future publish embeds them.
+# The pre-1.0 .NET publish left its native libraries beside the
+# executable, and .NET dlopen()s them from the app directory: copying
+# only the named items above left /opt/opendrop without them and the
+# launch died instantly with a DllNotFoundException and no window (dead
+# menu entry, Kali 2026-10-20). Copy whatever the bundle ships. The
+# Tauri binary ships no native neighbours of its own; the ldd guard
+# below catches missing system libraries instead. Zero *.so stays legal.
 shopt -s nullglob
 natives=("$SRC_DIR"/*.so)
 shopt -u nullglob
 if [ ${#natives[@]} -gt 0 ]; then
     cp "${natives[@]}" "$PREFIX/"
+fi
+
+# --- dead-install guard: a menu entry that cannot start is the exact
+# bug the comment above documents. ldd names a missing system library
+# as "not found"; the Tauri binary needs webkit2gtk and the tray's
+# appindicator at runtime, and neither shows up until you launch it on
+# a machine that lacks them - so refuse the install instead of shipping
+# a shortcut to a crash.
+if ldd "$PREFIX/OpenDrop" 2>/dev/null | grep -q "not found"; then
+    echo "Error: the binary cannot run on this machine, missing libraries:" >&2
+    ldd "$PREFIX/OpenDrop" 2>/dev/null | grep "not found" >&2
+    echo "Install them first:" >&2
+    echo "    sudo apt install libwebkit2gtk-4.1-0 libayatana-appindicator3-1" >&2
+    exit 1
 fi
 
 # --- venv + offline dependencies (wheels included)
