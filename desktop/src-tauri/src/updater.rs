@@ -63,28 +63,77 @@ pub fn pick_asset(assets_json: &str, linux: bool) -> Result<(String, String), St
         .ok_or_else(|| "no .exe/.msi asset".into())
 }
 
+/// Why [`verify_sha256`] refused a file. The two outcomes are NOT
+/// interchangeable for the caller: only a `Mismatch` may delete, an
+/// `Unverified` digest never compared the bytes at all (so a perfectly
+/// good installer left by a previous session must survive it).
+pub enum VerifyErr {
+    /// The digest field is unusable (empty, other algorithm, non-hex) or
+    /// the file could not be hashed: nothing was compared, the file on
+    /// disk is left alone.
+    Unverified(String),
+    /// The bytes hashed to a different value: the file has been deleted.
+    Mismatch(String),
+}
+
+impl VerifyErr {
+    /// True only for a completed hash that disagreed - the sole case in
+    /// which the file was removed.
+    pub fn is_mismatch(&self) -> bool {
+        matches!(self, VerifyErr::Mismatch(_))
+    }
+}
+
+impl std::fmt::Display for VerifyErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VerifyErr::Unverified(m) | VerifyErr::Mismatch(m) => f.write_str(m),
+        }
+    }
+}
+
 /// Check a downloaded file against GitHub's `"sha256:<hex>"` digest.
 /// A wrong or unreadable digest is refused WITHOUT deleting anything (the
-/// format alone is wrong); a digest that does not match the bytes deletes
-/// the file, so a tampered or truncated download can never become an
-/// installer.
-pub fn verify_sha256(path: &Path, digest_field: &str) -> Result<(), String> {
+/// format alone is wrong); only a digest that does not match the bytes
+/// deletes the file, so a tampered or truncated download can never become
+/// an installer.
+pub fn verify_sha256(path: &Path, digest_field: &str) -> Result<(), VerifyErr> {
     let hex = digest_field
         .strip_prefix("sha256:")
         .filter(|h| h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()))
-        .ok_or_else(|| "unsupported digest (expected sha256:<64 hex>)".to_string())?;
+        .ok_or_else(|| {
+            VerifyErr::Unverified("unsupported digest (expected sha256:<64 hex>)".into())
+        })?;
 
-    let bytes = std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    // Hashed STREAMING, 8 KiB at a time: the installer is ~110 MB, and
+    // reading it whole would hold the bytes AND the digest buffer in RAM
+    // at once for no reason.
     use sha2::{Digest, Sha256};
-    let got = format!("{:x}", Sha256::digest(&bytes));
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).map_err(|e| {
+        VerifyErr::Unverified(format!("read {}: {e}", path.display()))
+    })?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 8 * 1024];
+    loop {
+        let n = file.read(&mut buf).map_err(|e| {
+            VerifyErr::Unverified(format!("read {}: {e}", path.display()))
+        })?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let got = format!("{:x}", hasher.finalize());
+
     if got.eq_ignore_ascii_case(hex) {
         Ok(())
     } else {
         let _ = std::fs::remove_file(path);
-        Err(format!(
+        Err(VerifyErr::Mismatch(format!(
             "digest mismatch for {} (expected sha256:{hex}, got sha256:{got})",
             path.display()
-        ))
+        )))
     }
 }
 
@@ -216,7 +265,9 @@ mod tests {
 
         let other = gh_digest(b"other bytes");
         let err = verify_sha256(&f, &other).unwrap_err();
-        assert!(err.contains("mismatch"), "unexpected error: {err}");
+        // a COMPLETED hash that disagreed is the deleting variant
+        assert!(err.is_mismatch(), "expected a mismatch, got: {err}");
+        assert!(err.to_string().contains("mismatch"), "unexpected error: {err}");
         // the wrong download must NOT survive to become an installer
         assert!(!f.exists(), "mismatched file must be deleted");
 
@@ -233,11 +284,13 @@ mod tests {
 
         // empty digest: no silent pass (an absent field must not unlock
         // the install button)
-        assert!(verify_sha256(&f, "").is_err());
+        let err = verify_sha256(&f, "").unwrap_err();
+        assert!(!err.is_mismatch(), "nothing was hashed: {err}");
         // another algorithm or a bare hex string is not accepted either
-        assert!(verify_sha256(&f, "sha512:deadbeef").is_err());
-        assert!(verify_sha256(&f, "ba7816bf").is_err());
-        assert!(verify_sha256(&f, "sha256:not-hex").is_err());
+        for d in ["sha512:deadbeef", "ba7816bf", "sha256:not-hex"] {
+            let e = verify_sha256(&f, d).unwrap_err();
+            assert!(!e.is_mismatch(), "{d} must be refused by format alone");
+        }
         // refused by format alone: the file is left alone, not deleted
         assert!(f.exists());
     }

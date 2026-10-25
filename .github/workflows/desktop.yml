@@ -43,6 +43,12 @@ jobs:
           npx tsc --noEmit
           npm run build
 
+      # The Rust suites (updater gates + spawn resolution) never ran in CI
+      # until now: a green build only proved the code compiled.
+      - name: Rust unit tests
+        working-directory: desktop/src-tauri
+        run: cargo test
+
       - name: Build the Tauri application (release)
         # `custom-protocol` is what flips tauri from devUrl to the embedded
         # assets (its build script computes `dev = !custom_protocol`): without

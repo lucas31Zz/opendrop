@@ -320,8 +320,10 @@ application:
   branch, never a tag the client picks itself;
 - the release must carry a tag matching `vX.Y.Z`; a release without a
   usable tag is ignored, whatever its title says;
-- drafts and pre-releases are rejected, checked twice (the endpoint
-  already filters them, the fields are read back anyway);
+- drafts and pre-releases are never offered: the endpoint already
+  excludes them, and the client only reads `tag_name` — whose
+  `vX.Y.Z` shape it enforces here — so no other field can talk it into
+  installing something else;
 - the asset is chosen for the current OS: the first `.exe` on Windows
   (falling back to the `.msi`), the `.tar.gz` on Linux — never the
   portable zip, never "first asset wins";
@@ -333,9 +335,10 @@ application:
   published SHA-256 digest: a mismatch deletes the file and aborts; an
   unsupported digest format is refused as well (nothing is kept and
   nothing executes);
-- the transport is HTTPS with GitHub's certificate, and the metadata call
-  has a 20 second timeout so an unreachable network stays silent instead
-  of alarming;
+- the release metadata call runs on its own client with certificate
+  verification **on** (only the local engine's self-signed certificate
+  is ever trusted) and a 15 second timeout, so an unreachable network
+  stays silent instead of alarming;
 - on Windows the installer is handed to the OS with elevation (`runas`,
   declining it aborts) and runs with the same `AppId` / prefix as the
   previous installation, **never** through the uninstaller (which would

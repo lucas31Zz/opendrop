@@ -207,6 +207,12 @@ jobs:
       # Strict on purpose - if the runner cannot host the GUI, this fails
       # loudly on the first CI run instead of shipping a launcher nobody
       # has ever seen run.
+      #
+      # NOTE on the assertion: `__opendrop_info__` is the ENGINE'S STDOUT
+      # handshake (main.py), which the desktop app reads through a pipe -
+      # it never appears in the HTTP body. `/api/info` answers JSON
+      # (`ip`, `port`, `lang`, `theme`), so THAT is what proves the
+      # engine is up and serving.
       - name: Installed-app smoke (spawn the engine, poll /api/info)
         shell: pwsh
         run: |
@@ -219,7 +225,8 @@ jobs:
             Start-Sleep -Seconds 1
             try {
               $r = Invoke-WebRequest -SkipCertificateCheck -UseBasicParsing -TimeoutSec 5 https://127.0.0.1:8080/api/info
-              if ($r.Content -match '__opendrop_info__') { $body = $r.Content; break }
+              $j = $r.Content | ConvertFrom-Json
+              if ($null -ne $j.ip -and $null -ne $j.port) { $body = $r.Content; break }
             } catch { Write-Host "  attempt ${i}: $($_.Exception.Message)" }
           }
           # Capture the state BEFORE killing it, or every failure would

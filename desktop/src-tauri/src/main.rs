@@ -89,6 +89,23 @@ fn http_dl() -> &'static reqwest::blocking::Client {
     })
 }
 
+/// GitHub metadata gets its OWN client, with certificate verification
+/// FULLY ON. `http()` exists because the ENGINE serves a self-signed
+/// cert - trusting that for `api.github.com` would let an interceptor
+/// hand us both the download URL and the digest meant to check it, i.e.
+/// bypass every gate below. 15 s total, same as `http()`.
+static HTTP_GITHUB: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
+
+fn http_github() -> &'static reqwest::blocking::Client {
+    HTTP_GITHUB.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_secs(15))
+            .timeout(Duration::from_secs(15))
+            .build()
+            .expect("github client")
+    })
+}
+
 /// Run a command body OFF the async workers, on Tauri's blocking pool.
 /// Why: reqwest::blocking's debug-only sanity check (wait.rs::enter)
 /// builds a shell tokio Runtime PER REQUEST and drops it on the calling
@@ -108,10 +125,15 @@ where
         .map_err(|e| e.to_string())?
 }
 
-/// Kill an app-owned engine orphan (identified by its forced port) left
-/// behind by a previous `tauri dev` run. Only matches OUR command line
-/// (`--headless --port N`: the installed OpenDrop and the desktop app
-/// never pass `--port`), so they are never touched.
+/// Kill the engine THIS app spawned but no longer owns: one left behind
+/// by a previous run (or a `tauri dev` rebuild) still holding the
+/// configured port. The filter is our own spawn line - `*opendrop.main*
+/// --headless*--port*`, what `spawn::engine_command` builds - so a plain
+/// console engine (no `--headless`/`--port`), or anything else holding
+/// the port, is never touched. A `--headless --port N` started by hand
+/// is indistinguishable from ours and does match - same command line.
+/// Called before boot, and again by `spawn_engine` when the port is
+/// already held.
 fn reap_orphan() {
     let _ = Command::new("powershell")
         .args([
@@ -1053,7 +1075,10 @@ async fn check_updates(
 }
 
 fn check_updates_impl(st: AppState, current: String) -> Result<UpdateCheck, String> {
-    let r = http()
+    // `http_github()`, never `http()`: this response decides WHICH file
+    // is downloaded and WHICH digest it must match, so the transport
+    // must be the one that verifies GitHub's certificate.
+    let r = http_github()
         .get("https://api.github.com/repos/lucas31Zz/opendrop/releases/latest")
         .header("User-Agent", "opendrop")
         .send()
@@ -1156,25 +1181,40 @@ fn start_update_impl(
         return Err("no installer asset in this release".into());
     }
     let (final_path, part_path) = installer_paths(&tag, &asset_ext(&url));
-    // The digest check_updates recorded for this release. Both `done`
-    // gates below hash the file against it before it may run.
-    let digest = st
+    // The digest check_updates recorded for THIS release. Both `done`
+    // gates below hash the file against it before it may run. The tag
+    // the page asks for must be the release that digest belongs to -
+    // otherwise a path built from an arbitrary tag would be gated by
+    // another release's digest.
+    let recorded = st
         .update_meta
         .lock()
         .unwrap()
         .as_ref()
-        .map(|(_, d)| d.clone())
-        .unwrap_or_default();
+        .map(|(t, d)| (t.clone(), d.clone()));
+    let digest = match recorded {
+        Some((checked, d)) if checked == tag => d,
+        Some((checked, _)) => {
+            return Err(format!(
+                "update tag {tag} does not match the checked release {checked}"
+            ))
+        }
+        None => return Err("no release has been checked yet".into()),
+    };
     if final_path.is_file() {
         // Already downloaded (previous session or earlier attempt): it
         // still has to match the release digest - a file left behind by
-        // an interrupted or tampered download must not be executed.
+        // an interrupted or tampered download must not be executed. Only
+        // a mismatch deletes: an unusable digest never compared the
+        // bytes, so it must not destroy a good file either.
         if let Err(e) = updater::verify_sha256(&final_path, &digest) {
-            let _ = std::fs::remove_file(&final_path);
+            if e.is_mismatch() {
+                let _ = std::fs::remove_file(&final_path);
+            }
             let mut p = st.update.lock().unwrap();
             p.phase = "error".into();
             p.tag = tag;
-            p.error = e;
+            p.error = e.to_string();
             p.installer = String::new();
             return Ok(p.clone());
         }
@@ -1230,11 +1270,14 @@ fn download_worker(
                     drop(p);
                     emit(&phase);
                 }
+                // A mismatch already deleted the file inside
+                // `verify_sha256`; an unusable digest (nothing was
+                // compared) leaves it in place instead of destroying a
+                // file nobody has actually checked.
                 Err(e) => {
-                    let _ = std::fs::remove_file(&final_path);
                     let mut p = phase.lock().unwrap();
                     p.phase = "error".into();
-                    p.error = e;
+                    p.error = e.to_string();
                     p.installer = String::new();
                     drop(p);
                     emit(&phase);
@@ -1353,8 +1396,14 @@ fn launch_installer_impl(st: AppState, path: String) -> Result<(), String> {
         .map(|(_, d)| d.clone())
         .unwrap_or_default();
     if let Err(e) = updater::verify_sha256(Path::new(&path), &digest) {
-        let _ = std::fs::remove_file(&path);
-        return Err(e);
+        // Only a completed hash that disagreed may remove the file: when
+        // the digest is missing or unusable nothing was compared, and a
+        // previously verified installer must survive a reload that lost
+        // the in-memory `update_meta`.
+        if e.is_mismatch() {
+            let _ = std::fs::remove_file(&path);
+        }
+        return Err(e.to_string());
     }
     run_installer(&path)
 }
@@ -1394,14 +1443,24 @@ fn run_installer(path: &str) -> Result<(), String> {
     let archive = Path::new(path);
     let dir = std::env::temp_dir().join(format!("opendrop-update-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).map_err(|e| format!("extract: {e}"))?;
+    let result = unpack_and_install(archive, &dir);
+    // The extraction folder is a copy of the payload: it goes away on
+    // EVERY path (installed, declined, tar failed, script missing)
+    // instead of leaving a whole release behind in the temp dir.
+    let _ = std::fs::remove_dir_all(&dir);
+    result
+}
+
+#[cfg(target_os = "linux")]
+fn unpack_and_install(archive: &Path, dir: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("extract: {e}"))?;
     // `tar` missing (minimal distros) surfaces as a spawn error, not a
     // crash; build-tarball.sh stages the payload as `OpenDrop/...`.
     let status = Command::new("tar")
         .arg("-xzf")
         .arg(archive)
         .arg("-C")
-        .arg(&dir)
+        .arg(dir)
         .status()
         .map_err(|e| format!("tar: {e}"))?;
     if !status.success() {
