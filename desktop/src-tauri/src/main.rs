@@ -125,6 +125,22 @@ where
         .map_err(|e| e.to_string())?
 }
 
+/// A console child of this GUI process. The app is built with subsystem
+/// `windows` (no console of its own), so on Windows EVERY console child
+/// would get a NEW console window - the empty one seen at engine boot,
+/// and one behind every `powershell`/`cmd` service call. CREATE_NO_WINDOW
+/// suppresses those windows; stdout/stderr pipes keep working.
+#[cfg_attr(not(windows), allow(unused_mut))]
+fn service_command(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
 /// Kill the engine THIS app spawned but no longer owns: one left behind
 /// by a previous run (or a `tauri dev` rebuild) still holding the
 /// configured port. The filter is our own spawn line - `*opendrop.main*
@@ -135,7 +151,7 @@ where
 /// Called before boot, and again by `spawn_engine` when the port is
 /// already held.
 fn reap_orphan() {
-    let _ = Command::new("powershell")
+    let _ = service_command("powershell")
         .args([
             "-NoProfile",
             "-Command",
@@ -168,7 +184,7 @@ fn port_holder(port: u16) -> Option<PortHolder> {
          Select-Object -First 1; if ($c) {{ $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue; \
          if ($p) {{ [pscustomobject]@{{ pid=$p.Id; name=$p.ProcessName; path=$p.Path }} | ConvertTo-Json -Compress }} }}"
     );
-    let out = Command::new("powershell")
+    let out = service_command("powershell")
         .args(["-NoProfile", "-Command", &script])
         .output()
         .ok()?;
@@ -482,7 +498,7 @@ fn kill_holder_impl(state: &AppState) -> Result<bool, String> {
     if h.pid < 5 {
         return Err("refusing to kill that process".into());
     }
-    let _ = Command::new("powershell")
+    let _ = service_command("powershell")
         .args([
             "-NoProfile",
             "-Command",
@@ -509,7 +525,7 @@ fn open_url_impl(url: String) -> Result<(), String> {
     if !url.starts_with("https://") {
         return Err("only https urls".into());
     }
-    Command::new("cmd")
+    service_command("cmd")
         .args(["/C", "start", "", &url])
         .spawn()
         .map_err(|e| format!("open url: {e}"))?;
@@ -528,7 +544,7 @@ fn open_path_impl(path: String) -> Result<(), String> {
     if !p.exists() {
         return Err(format!("missing: {path}"));
     }
-    Command::new("cmd")
+    service_command("cmd")
         .args(["/C", "start", "", &path])
         .spawn()
         .map_err(|e| format!("open path: {e}"))?;
@@ -543,7 +559,7 @@ async fn copy_text(text: String) -> Result<(), String> {
 fn copy_text_impl(text: String) -> Result<(), String> {
     // The webview clipboard API is tried first by the frontend; this is
     // the fallback for when it is unavailable.
-    Command::new("powershell")
+    service_command("powershell")
         .args(["-NoProfile", "-Command", "Set-Clipboard -Value $env:OD_CLIP"])
         .env("OD_CLIP", &text)
         .status()
@@ -878,7 +894,7 @@ fn pick_files_impl() -> Result<Vec<String>, String> {
                   $d = New-Object System.Windows.Forms.OpenFileDialog\n\
                   $d.Multiselect = $true\n\
                   if ($d.ShowDialog() -eq 'OK') { $d.FileNames }";
-    let out = Command::new("powershell")
+    let out = service_command("powershell")
         .args(["-NoProfile", "-Command", script])
         .output()
         .map_err(|e| format!("dialog: {e}"))?;
@@ -1413,7 +1429,7 @@ fn launch_installer_impl(st: AppState, path: String) -> Result<(), String> {
 #[cfg(not(target_os = "linux"))]
 fn run_installer(path: &str) -> Result<(), String> {
     let quoted = path.replace('\'', "''");
-    let out = Command::new("powershell")
+    let out = service_command("powershell")
         .args([
             "-NoProfile",
             "-Command",
@@ -1546,7 +1562,7 @@ fn free_space_impl(path: String) -> Result<u64, String> {
          else {{ (New-Object System.IO.DriveInfo $r).AvailableFreeSpace }}",
         root.replace('\'', "''")
     );
-    let out = Command::new("powershell")
+    let out = service_command("powershell")
         .args(["-NoProfile", "-Command", &script])
         .output()
         .map_err(|e| format!("free space: {e}"))?;
@@ -1688,8 +1704,11 @@ fn main() {
         update_meta: Arc::new(Mutex::new(None)),
     };
     let boot_state = state.clone();
+    // Outlives the app: the exit net below needs the engine slot once
+    // `state` itself has been moved into the Builder.
+    let engine = state.engine.clone();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         // FIRST plugin: a second launch on this machine is detected during
         // plugin init and exits there - before the engine boot below (which
         // would otherwise reap_orphan() the FIRST instance's engine) and
@@ -1749,6 +1768,28 @@ fn main() {
             tauri::WebviewWindowBuilder::from_config(handle, &window_config)?.build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!());
+
+    // THE exit net. Only the tray "Quit" kills the child engine on the
+    // way out (`quit_app`), and a `Child` is NOT killed on drop: every
+    // other exit - a boot failure after setup() spawned the engine, the
+    // window closed while tray creation failed, a plain app exit - used
+    // to leave the Python running WITH its own console window. Taking it
+    // here is a no-op when quit_app already did.
+    let kill_engine = move || {
+        if let Some(mut child) = engine.lock().unwrap().take() {
+            let _ = child.kill();
+        }
+    };
+    match app {
+        // Returns once the app has quit (last window closed, tray Quit).
+        Ok(app) => {
+            app.run(|_handle, _event| {});
+            kill_engine();
+        }
+        Err(e) => {
+            kill_engine();
+            panic!("error while running tauri application: {e}");
+        }
+    }
 }

@@ -41,11 +41,19 @@ pub fn project_root() -> PathBuf {
 /// bare PATH names the OS may provide (`python` on Windows; `python3`,
 /// `python` elsewhere - Debian/Kali have no `python` alias).
 pub fn python_candidates(root: &Path) -> Vec<PathBuf> {
-    let mut v = vec![
-        root.join("venv").join("Scripts").join("python.exe"),
-        root.join("venv").join("bin").join("python3"),
-        root.join("venv").join("bin").join("python"),
-    ];
+    let win = root.join("venv").join("Scripts").join("python.exe");
+    let bin3 = root.join("venv").join("bin").join("python3");
+    let bin = root.join("venv").join("bin").join("python");
+    // The venv has ONE shape per platform (`Scripts\python.exe` on
+    // Windows, `bin/python3` on Unix), so the native guess comes FIRST:
+    // listing the Windows exe first made a Unix venv lose to a stray
+    // `venv/bin/python` (or to PATH `python` when no venv exists).
+    // The other guesses stay: a root can be shared across systems.
+    let mut v = if cfg!(windows) {
+        vec![win, bin3, bin]
+    } else {
+        vec![bin3, bin, win]
+    };
     if cfg!(windows) {
         v.push(PathBuf::from("python"));
     } else {
@@ -101,6 +109,15 @@ pub fn engine_command(root: &Path, port: u16, rotate_token: bool) -> Command {
     cmd.args(&args)
         .current_dir(root)
         .env("PYTHONPATH", pythonpath(root, existing.as_deref()));
+    #[cfg(windows)]
+    {
+        // The app is a GUI binary (subsystem windows): on Windows a
+        // console child gets its OWN console window - the empty window
+        // seen at engine boot. CREATE_NO_WINDOW keeps the stdout/stderr
+        // pipes working and only suppresses that window.
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
     cmd
 }
 
@@ -142,6 +159,7 @@ mod tests {
         assert_eq!(project_root_from(&start), start);
     }
 
+    #[cfg(windows)]
     #[test]
     fn candidates_prefer_installed_venv_windows() {
         let root = fresh("venvwin");

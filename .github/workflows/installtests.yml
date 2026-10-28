@@ -107,6 +107,37 @@ jobs:
           if (-not $ok) { Write-Host "::error::no byte-perfect v0.16.0 base setup after 3 attempts"; exit 1 }
           Write-Host "downloaded v0.16.0 base: byte-perfect ($want)"
 
+      # The base v0.16.0 installer is FROZEN: its offline wheels cover
+      # CPython 3.10-3.14, and its install-deps.ps1 picks the interpreter
+      # as `py -3` (the NEWEST on the machine), then `python`. Runner
+      # image win25-vs2026/20261021 shipped 3.15: the launcher picked it,
+      # venv creation succeeded, and the offline pip then found no cp315
+      # wheel (pillow/cffi are ABI wheels) - the setup exited 2 (run
+      # 40773806613; the last green run, 2026-10-20, was on the previous
+      # image). CI pins 3.12 above, so shadow `py`: the installer can
+      # only ever see that one interpreter.
+      - name: Pin the Python the base installer may use (wheels cover 3.10-3.14)
+        shell: pwsh
+        run: |
+          $py = (Get-Command python).Source
+          $v = & $py -c "import sys; print('%d.%d' % sys.version_info[:2])"
+          if ($LASTEXITCODE -ne 0 -or "$v" -ne "3.12") {
+            Write-Host "::error::the pinned python is '$v' (expected 3.12 from setup-python)"
+            exit 1
+          }
+          $shim = Join-Path $env:RUNNER_TEMP "py-shim"
+          New-Item -ItemType Directory -Force -Path $shim | Out-Null
+          # install-deps.ps1 only ever calls the launcher as `py -3
+          # <args>` ($pyArgs = @("-3")), so drop %1 and forward the rest:
+          # cmd's %* is immune to `shift`, hence the positional form.
+          $line = '@echo off' + "`r`n" + '"' + $py + '" %2 %3 %4 %5 %6 %7 %8 %9'
+          Set-Content -Path (Join-Path $shim "py.cmd") -Value $line -Encoding ascii
+          # GITHUB_PATH entries are prepended for the next steps, so this
+          # shadows System32's py.exe (Get-Command py -> the shim). Only
+          # this job's PATH changes; the runner is ephemeral.
+          Add-Content -Path $env:GITHUB_PATH -Value $shim
+          Write-Host "shadowed 'py' with the pinned $v ($py)"
+
       - name: Install the base v0.16.0 and assert
         shell: pwsh
         run: |
@@ -124,7 +155,15 @@ jobs:
           foreach ($p in @("$app\OpenDrop.exe", "$app\venv\Scripts\python.exe", $lnk)) {
             if (-not (Test-Path $p)) { Write-Host "::error::missing after base install: $p"; exit 1 }
           }
-          Write-Host "base v0.16.0 OK: exe + venv + shortcut, DisplayVersion=v0.16.0"
+          # Self-documenting: the venv must be the PINNED interpreter, not
+          # whatever the image newest happens to be (see the pin step).
+          $vv = & "$app\venv\Scripts\python.exe" --version
+          Write-Host "base venv python: $vv"
+          if ("$vv" -notlike "Python 3.12*") {
+            Write-Host "::error::base venv built on '$vv', expected the pinned 3.12"
+            exit 1
+          }
+          Write-Host "base v0.16.0 OK: exe + venv($vv) + shortcut, DisplayVersion=v0.16.0"
 
       - name: Seed user data (upgrade marker + receive/share folders)
         id: seed
