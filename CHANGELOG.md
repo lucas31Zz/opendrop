@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.1] - 2026-10-29
+
+### Fixed
+
+- **No more empty console window at launch**: the desktop app is a GUI
+  binary, so every console child it starts (the engine, the service
+  helpers) was getting its own - empty - console window. They now start
+  with `CREATE_NO_WINDOW`.
+- **The engine no longer outlives the app**: only the tray "Quit" used to
+  stop the server, so any other exit (window closed while the tray was
+  unavailable, a boot failure, a plain exit) left the Python process
+  running. The child is now killed on every exit path. Closing the window
+  still hides the app to the tray, as before.
+
+### Changed
+
+- **The installers ship offline wheels for Python 3.15** (Windows setup
+  and Linux archive): a machine whose only Python is 3.15 now installs,
+  where the offline pip step used to fail. The CI runs the engine suites
+  on 3.10, 3.12 and 3.15.
+
 ## [1.0.0] - 2026-10-25
 
 ### Added
