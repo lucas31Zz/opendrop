@@ -55,7 +55,7 @@ jobs:
         run: |
           # Wheels per minor version: pillow/cffi depend on the ABI, so the
           # installer must work with any installed Python 3.10+.
-          foreach ($v in "3.10", "3.11", "3.12", "3.13", "3.14") {
+          foreach ($v in "3.10", "3.11", "3.12", "3.13", "3.14", "3.15") {
             python -m pip download --requirement requirements.txt `
               --dest publish/win/wheels --only-binary=:all: --python-version $v
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

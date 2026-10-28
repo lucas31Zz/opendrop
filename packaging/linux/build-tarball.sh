@@ -43,7 +43,7 @@ cp "$LINUX_DIR/install.sh" "$LINUX_DIR/uninstall.sh" \
 # Offline wheels (native Linux deps, same versions as requirements.txt)
 # for each minor Python version: pillow/cffi depend on the ABI.
 echo "  Downloading the wheels ..."
-for v in 3.10 3.11 3.12 3.13 3.14; do
+for v in 3.10 3.11 3.12 3.13 3.14 3.15; do
     python3 -m pip download --quiet --requirement "$ROOT/requirements.txt" \
         --dest "$STAGE/wheels" --only-binary=:all: --python-version "$v" \
         || { echo "Error: Python $v wheels are unavailable." >&2; exit 1; }

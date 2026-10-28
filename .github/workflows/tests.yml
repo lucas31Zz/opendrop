@@ -14,7 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python: ["3.10", "3.12"]
+        # floor, the developed version, and the newest the offline
+        # installers ship ABI wheels for (release.yml / build-tarball.sh)
+        python: ["3.10", "3.12", "3.15"]
     steps:
       - uses: actions/checkout@v7
 
