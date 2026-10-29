@@ -170,8 +170,9 @@ export function Settings({
   const activeRef = useRef<HTMLButtonElement>(null);
   const [pill, setPill] = useState({ top: 0, height: 0 });
   const [updating, setUpdating] = useState<string | null>(null);
-  // The updates tab's own check reply: `installer` flips the button to
-  // green "Update now" as soon as the setup is on disk.
+  // The updates tab's own check reply: the setup on disk flips the
+  // button to green "Update now" - but only while the check still says
+  // a NEWER release exists (see the card below).
   const [updCheck, setUpdCheck] = useState<UpdateCheckR | null>(null);
 
   // ------------------------------------------------------------- devices
@@ -400,9 +401,10 @@ export function Settings({
   };
 
   // Opening the tab checks once (`info?.version` is a stable string
-  // dependency, unlike the fresh `info` object the poll hands out). An
-  // installer already on disk replaces "Check for updates" with the
-  // green "Update now" - the refused-at-startup, do-it-later path.
+  // dependency, unlike the fresh `info` object the poll hands out). A
+  // downloaded setup for a newer release replaces "Check for updates"
+  // with the green "Update now" - the refused-at-startup, do-it-later
+  // path (and the only place the button can come from now).
   useEffect(() => {
     if (tab !== "updates") return;
     let alive = true;
@@ -773,9 +775,14 @@ export function Settings({
                         </span>
                         <span className="muted-text text-[13px]">{info?.version ?? ""}</span>
                       </div>
-                      {updCheck?.installer || update.installer ? (
-                        /* Setup already downloaded: green "Update now" with
-                           the logo - press = straight to the admin check. */
+                      {(updCheck?.status === "available" && updCheck.installer) ||
+                      (update.phase === "done" && update.installer) ? (
+                        /* Setup already downloaded AND a newer release
+                           really available: green "Update now" with the
+                           logo - press = straight to the admin check.
+                           The status gate matters: once this release IS
+                           the running one, a leftover setup must not
+                           keep offering to reinstall the present. */
                         <button
                           type="button"
                           className="browse update-now mt-2.5 w-full"

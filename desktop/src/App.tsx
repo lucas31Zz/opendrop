@@ -105,7 +105,6 @@ export default function App() {
   const qrUrl = useRef("");
   const bootChecked = useRef(false);
   const toastRef = useRef<ToastView>("hidden");
-  const launchedRef = useRef("");
   const setToastView = (v: ToastView) => {
     toastRef.current = v;
     setToast(v);
@@ -255,9 +254,11 @@ export default function App() {
     })();
   }, [bundle]);
 
-  // The download's events: every state flip of the flow, and the ONE
-  // auto-install - a download accepted this session launches the setup
-  // as soon as it is whole (no second question, per the spec).
+  // The download's events. A finished file does NOT install itself: the
+  // toast flips to `ready` and waits for an explicit "Update now" (the
+  // admin check and the app's own exit hang on that click) - or a
+  // decline, which only puts the toast away and leaves the setup on disk
+  // for Settings, the do-it-later path.
   useEffect(() => {
     let unbind: (() => void) | undefined;
     void listen<UpdatePhase>("update-progress", (ev) => {
@@ -266,24 +267,8 @@ export default function App() {
       if (p.phase === "downloading" && toastRef.current === "hidden") {
         setToastView("downloading");
       }
-      if (p.phase === "done") {
-        if (
-          toastRef.current === "downloading" &&
-          launchedRef.current !== p.installer
-        ) {
-          launchedRef.current = p.installer;
-          setToastView("installing");
-          void (async () => {
-            try {
-              await invoke("launch_installer", { path: p.installer });
-            } catch (e) {
-              setToastErr(t("Up.InstallError", String(e)));
-              setToastView("error");
-            }
-          })();
-        } else if (toastRef.current === "downloading") {
-          setToastView("installing");
-        }
+      if (p.phase === "done" && toastRef.current === "downloading") {
+        setToastView("ready");
       }
       if (p.phase === "error") {
         setToastErr(t("Up.DownloadError", p.error || "?"));
@@ -298,25 +283,27 @@ export default function App() {
   }, []);
 
   // One acceptance = start the stream (or launch a setup already on
-  // disk); the toast follows from there. Shared by the boot toast and
-  // the settings dialog.
+  // disk); the toast follows from there. Shared by the boot toast, the
+  // "download finished" choice and the settings dialog. The file just
+  // downloaded lives in `updPhase` - the startup check ran before it
+  // existed, so `updCheck.installer` alone would miss it.
   const acceptUpdate = useCallback(async () => {
     const c = updCheck;
     if (!c) return;
     try {
-      if (c.installer) {
-        launchedRef.current = c.installer;
+      const path = c.installer || updPhase.installer;
+      if (path) {
         setToastView("installing");
-        await invoke("launch_installer", { path: c.installer });
+        await invoke("launch_installer", { path });
         return;
       }
       await invoke("start_update_download", { tag: c.version, url: c.asset_url });
       setToastView("downloading");
     } catch (e) {
-      setToastErr(String(e));
+      setToastErr(t("Up.InstallError", String(e)));
       setToastView("error");
     }
-  }, [updCheck]);
+  }, [updCheck, updPhase.installer, t]);
 
   const refuseUpdate = useCallback(() => {
     if (updCheck) {
@@ -821,7 +808,14 @@ export default function App() {
         phase={updPhase}
         errorText={toastErr}
         onAccept={() => void acceptUpdate()}
-        onRefuse={() => refuseUpdate()}
+        onRefuse={() => {
+          // Declining AFTER a download only puts the toast away: the
+          // setup stays on disk for Settings' "Update now", and no
+          // version gets dismissed - that key would silence the startup
+          // prompt for good, which is the "skip this release" path.
+          if (toast === "ready") setToastView("hidden");
+          else refuseUpdate();
+        }}
       />
 
       {/* Once per version: the same `current` the update check passes -

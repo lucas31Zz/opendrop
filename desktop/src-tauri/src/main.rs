@@ -1132,18 +1132,32 @@ fn check_updates_impl(st: AppState, current: String) -> Result<UpdateCheck, Stri
     // to exactly this value.
     *st.update_meta.lock().unwrap() = Some((tag.clone(), digest.clone()));
     let (installer, part) = installer_paths(&tag, ext.trim_start_matches('.'));
+    // Already running this release: the setup that upgraded us here (or
+    // a download a newer release has since overtaken) is dead weight -
+    // and REPORTING that file is exactly what kept the green "Update
+    // now" button alive for ever. It goes, and the answer is "up to
+    // date", so nothing in the UI can offer to reinstall the present.
+    let up_to_date = tag == current;
+    if up_to_date {
+        let _ = std::fs::remove_file(&installer);
+        let _ = std::fs::remove_file(&part);
+    }
     Ok(UpdateCheck {
-        status: if tag == current { "uptodate".into() } else { "available".into() },
+        status: if up_to_date { "uptodate".into() } else { "available".into() },
         version: tag.clone(),
         current,
         asset_url,
         digest,
-        installer: if installer.is_file() {
+        installer: if !up_to_date && installer.is_file() {
             installer.display().to_string()
         } else {
             String::new()
         },
-        part_bytes: std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0),
+        part_bytes: if up_to_date {
+            0
+        } else {
+            std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0)
+        },
     })
 }
 
@@ -1386,13 +1400,17 @@ async fn update_status(state: State<'_, AppState>) -> Result<UpdatePhase, String
     Ok(state.update.lock().unwrap().clone())
 }
 
-/// Hand the finished package to the OS installer: Windows elevates via
-/// `runas` (declining comes back as a non-zero exit), Linux unpacks the
-/// tarball and runs its install.sh under pkexec.
+/// Hand the finished package to the OS installer. Windows delegates to
+/// the detached helper (it starts the setup only once we are gone),
+/// Linux unpacks the tarball and runs its install.sh under pkexec.
 #[tauri::command]
-async fn launch_installer(path: String, state: State<'_, AppState>) -> Result<(), String> {
+async fn launch_installer(
+    path: String,
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let st = state.inner().clone();
-    blocking(move || launch_installer_impl(st, path)).await
+    blocking(move || launch_installer_impl(st, app, path)).await
 }
 
 /// THE last gate. The UI has two ways to reach an installer - a finished
@@ -1400,7 +1418,7 @@ async fn launch_installer(path: String, state: State<'_, AppState>) -> Result<()
 /// the second one used to jump straight here, past the download gates.
 /// Whatever route brought us to this path, the bytes must hash to the
 /// digest of the release being installed before anything is executed.
-fn launch_installer_impl(st: AppState, path: String) -> Result<(), String> {
+fn launch_installer_impl(st: AppState, app: tauri::AppHandle, path: String) -> Result<(), String> {
     if !Path::new(&path).is_file() {
         return Err("installer not found".into());
     }
@@ -1421,32 +1439,64 @@ fn launch_installer_impl(st: AppState, path: String) -> Result<(), String> {
         }
         return Err(e.to_string());
     }
-    run_installer(&path)
+    run_installer(&path)?;
+    // The hand-off is done: from here the helper owns the upgrade - it
+    // waits for OUR exit to start the setup and relaunches this path
+    // afterwards. Leaving is the point (a running exe cannot be
+    // replaced), and `app.exit` runs through `run()`'s return, so the
+    // exit net still kills the engine on the way out. The short delay
+    // only lets the invoke resolve first, so the UI reads "installing"
+    // instead of reading its own exit as a failed launch.
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(600));
+        app.exit(0);
+    });
+    Ok(())
 }
 
-/// Windows: `runas` raises the administrator check; declining it comes
-/// back as a non-zero exit.
+/// Windows: hand the setup over to a DETACHED helper - the pre-1.0
+/// `UpdateService.ApplyWindows` contract, restored verbatim. The helper
+/// waits for THIS process to exit (the setup cannot replace a running
+/// OpenDrop.exe), runs it with the silent upgrade flags, then relaunches
+/// the app from the very same path it was started from.
+///
+/// What was wrong before: a bare `Start-Process -Verb runas` here opened
+/// the FULL wizard on top of the running app, which reads as "it
+/// reinstalls everything" instead of an upgrade. The flags below are the
+/// exact ones the CI and the pre-1.0 updater used; UAC comes from Inno
+/// itself (`PrivilegesRequired=admin`) once we are already gone.
+///
+/// `spawn`, never `output()`: the helper waits for our own PID, so
+/// reading its output would be waiting for ourselves (up to its 120 s
+/// bound). The try/catch keeps the relaunch alive when the elevation is
+/// declined or the setup cannot start, so an aborted update never leaves
+/// the app closed.
 #[cfg(not(target_os = "linux"))]
 fn run_installer(path: &str) -> Result<(), String> {
-    let quoted = path.replace('\'', "''");
-    let out = service_command("powershell")
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    let installer = path.replace('\'', "''");
+    let exe = exe.replace('\'', "''");
+    let pid = std::process::id();
+    let script = format!(
+        "Wait-Process -Id {pid} -Timeout 120; \
+         try {{ Start-Process -FilePath '{installer}' \
+         -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' \
+         -Wait -ErrorAction Stop }} catch {{ }}; \
+         if (Test-Path -LiteralPath '{exe}') {{ Start-Process -FilePath '{exe}' }}"
+    );
+    service_command("powershell")
         .args([
             "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
             "-Command",
-            &format!("Start-Process -FilePath '{quoted}' -Verb runas"),
+            &script,
         ])
-        .output()
-        .map_err(|e| format!("launch: {e}"))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        let err = String::from_utf8_lossy(&out.stderr);
-        Err(if err.trim().is_empty() {
-            "launch: elevation was declined".into()
-        } else {
-            format!("launch: {}", err.trim())
-        })
-    }
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("launch: {e}"))
 }
 
 /// Linux install: unpack the release tarball into a temp dir, then run
@@ -1464,7 +1514,30 @@ fn run_installer(path: &str) -> Result<(), String> {
     // EVERY path (installed, declined, tar failed, script missing)
     // instead of leaving a whole release behind in the temp dir.
     let _ = std::fs::remove_dir_all(&dir);
+    if result.is_ok() {
+        // Same hand-off as the Windows helper: the installed copy starts
+        // only once THIS process is gone, otherwise the single-instance
+        // plugin hands the "show" signal back to us and quits (the
+        // pre-1.0 RelaunchWhenGone). A failed install stays put: the app
+        // keeps running and the UI reports the error.
+        relaunch_when_gone();
+    }
     result
+}
+
+/// Detached shell that waits for our PID and then execs the app at the
+/// same path - the restart half of the update, Linux side.
+#[cfg(target_os = "linux")]
+fn relaunch_when_gone() {
+    let exe = match std::env::current_exe() {
+        Ok(p) => p.display().to_string(),
+        Err(_) => return,
+    };
+    let pid = std::process::id();
+    let script = format!(
+        "while kill -0 {pid} 2>/dev/null; do sleep 0.2; done; exec \"{exe}\""
+    );
+    let _ = Command::new("/bin/sh").arg("-c").arg(script).spawn();
 }
 
 #[cfg(target_os = "linux")]

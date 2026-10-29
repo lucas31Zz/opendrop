@@ -1,8 +1,9 @@
 // UpdateToast: the bottom-right notification raised when an update was
 // detected at startup. Same opaque card language as the dialogs, the
 // app logo, green accept / red refuse; once accepted it stays on the
-// mini download bar until the installer is ready - the Rust side then
-// launches it (administrator check) by itself.
+// mini download bar until the installer is ready - and a finished
+// download becomes a QUESTION ("Update now" / "Decline"), never an
+// install nobody confirmed.
 import { formatBytes, type Lang, type T } from "./strings";
 import type { UpdatePhase } from "./update";
 import { updatePct } from "./update";
@@ -11,6 +12,7 @@ export type ToastView =
   | "hidden"
   | "prompt"
   | "downloading"
+  | "ready"
   | "installing"
   | "error";
 
@@ -37,7 +39,7 @@ export function UpdateToast({
 }) {
   if (view === "hidden") return null;
   const pct = updatePct(phase);
-  const actions = view === "prompt" || view === "error";
+  const actions = view === "prompt" || view === "ready" || view === "error";
   return (
     <div className="update-toast" role="status" aria-label={t("Up.ToastTitle")}>
       <div className="flex items-start gap-3">
@@ -49,6 +51,11 @@ export function UpdateToast({
           {view === "prompt" ? (
             <p className="mt-1 text-[12px] leading-snug text-text-secondary">
               {t("Up.Available", version, current)}
+            </p>
+          ) : null}
+          {view === "ready" ? (
+            <p className="mt-1 text-[12px] leading-snug text-text-secondary">
+              {t("Up.Ready", version)}
             </p>
           ) : null}
           {view === "downloading" ? (
