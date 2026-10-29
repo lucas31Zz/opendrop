@@ -6,26 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.2";
+export const WHATSNEW_VERSION = "1.0.3";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.2",
-  en: "What's new in OpenDrop 1.0.2",
+  fr: "Quoi de neuf dans OpenDrop 1.0.3",
+  en: "What's new in OpenDrop 1.0.3",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "La mise à jour s'applique maintenant en silence : plus d'assistant qui s'ouvre par-dessus l'application, et OpenDrop redémarre tout seul à la fin.",
-    "Une fois le téléchargement terminé, l'application demande « Mettre à jour » ou « Refuser » au lieu d'installer automatiquement.",
-    "Le bouton « Mettre à jour » ne reste plus affiché quand vous êtes déjà à jour.",
+    "Sous le capot : les dépendances de l'application ont été actualisées, dont celles qui gèrent les mises à jour.",
+    "Cette version sert aussi à tester le nouveau flux de mise à jour de bout en bout : téléchargement, « Mettre à jour » ou « Refuser », installation silencieuse et redémarrage.",
   ],
   en: [
-    "Updates now apply silently: no more wizard opening on top of the app, and OpenDrop restarts itself when it finishes.",
-    "Once the download is finished, the app asks \"Update now\" or \"Decline\" instead of installing on its own.",
-    "The \"Update now\" button no longer stays when you are already up to date.",
+    "Under the hood: the app's dependencies were updated, including the ones that handle updates.",
+    "This release also exists to exercise the new update flow end to end: download, \"Update now\" or \"Decline\", silent install and restart.",
   ],
 };
 

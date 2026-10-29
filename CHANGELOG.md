@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.3] - 2026-10-29
+
+### Changed
+
+- **The HTTP stack behind updates is current**: `reqwest` (the client
+  used to check releases, download installers and talk to the GitHub
+  API) moved from 0.12 to 0.13. No user-visible change - published so
+  a 1.0.2 install can exercise the whole new update flow (download,
+  "Update now" / "Decline", silent upgrade, restart) end to end.
+
 ## [1.0.2] - 2026-10-29
 
 ### Fixed
