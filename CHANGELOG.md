@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.2] - 2026-10-29
+
+### Fixed
+
+- **An update is an upgrade again**: the installer used to be launched
+  through a bare elevation, which opened the full wizard on top of the
+  running app and read as a reinstall. It now runs silently
+  (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`) through a detached
+  helper that waits for the app to exit, applies the upgrade in place
+  and relaunches the app - including when the elevation is declined,
+  so an aborted update never leaves the app closed.
+- **"Update now" is no longer permanent**: the button appeared as soon
+  as a setup file existed, even when that release was the running one.
+  It is now gated on an update really being available, and the
+  leftover installer (and its partial download) is deleted once it
+  matches the installed version.
+- **A finished download no longer installs itself**: the app asks
+  first, with "Update now" / "Decline". Declining keeps the downloaded
+  installer available in Settings ("do it later") and does not silence
+  the startup prompt for that release.
+
 ## [1.0.1] - 2026-10-29
 
 ### Fixed
