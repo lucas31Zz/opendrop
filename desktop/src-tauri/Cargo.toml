@@ -21,7 +21,7 @@ sha2 = "0.10"
 # Standard Windows folder picker (IFileOpenDialog + FOS_PICKFOLDERS) -
 # the "basic" one every app shows, instead of the PowerShell
 # FolderBrowserDialog whose Win11 render the author rejected.
-rfd = "0.15"
+rfd = "0.17"
 
 [profile.release]
 strip = true
