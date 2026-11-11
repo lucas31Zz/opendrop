@@ -1,9 +1,10 @@
 // WhatsNew: the one-time release note for WHATSNEW_VERSION, in the same
 // dialog language as the message boxes (backdrop + settled card).
-// It stays out of the way until the engine reports exactly that version
-// (`version` is empty while the server is stopped, and a running 0.16.x
-// must never see 1.0.0's note), and it is gone for good once its key
-// sits in localStorage: one popup per version, never again on a restart.
+// It stays out of the way unless the BINARY is exactly that version
+// (App passes getVersion(), never the engine's banner: the server may be
+// stopped - that used to hide this note for ever - and an older build
+// must never see a newer build's note), and it is gone for good once
+// its key sits in localStorage: one popup per version, never again.
 import { useState } from "react";
 import type { Lang } from "../strings";
 import {

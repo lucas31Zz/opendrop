@@ -3,6 +3,10 @@
 // the Rust side spawns. Every button acts on the real thing.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+// The BINARY's own version - what WhatsNew and the Settings Version card
+// must show. The engine's banner is a different source (it can be
+// missing entirely while the server is stopped).
+import { getVersion } from "@tauri-apps/api/app";
 import { Msg, MsgHost } from "./Msg";
 import { SharedFiles } from "./components/SharedFiles";
 import { Settings, type SettingsConfig } from "./components/Settings";
@@ -97,6 +101,10 @@ export default function App() {
   const [updPhase, setUpdPhase] = useState<UpdatePhase>(IDLE_UPDATE);
   const [toast, setToast] = useState<ToastView>("hidden");
   const [toastErr, setToastErr] = useState("");
+  // This binary's own version (getVersion, Tauri manifest) - the only
+  // version that is known while the engine is stopped. One fetch for the
+  // whole app: WhatsNew gates on it, Settings' Version card displays it.
+  const [appVer, setAppVer] = useState("");
 
   const t = makeT(lang);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -217,11 +225,24 @@ export default function App() {
   // Who holds the configured port while the engine could not start it.
   const portBusy = running ? null : bundle?.port_busy ?? null;
 
-  // Boot update check: one shot after the first get_state, so `current`
-  // is the engine's real version (empty while stopped - the known P3-3
-  // shortcut is also what makes the flow triggerable on demand). An
-  // already refused tag stays silent; a fresh update raises the
-  // bottom-right toast.
+  // One getVersion for the whole app: the BINARY's version, known even
+  // while the engine never answered. A failure leaves "" - WhatsNew then
+  // simply stays hidden instead of gating on a version that was never
+  // the truth.
+  useEffect(() => {
+    void getVersion()
+      .then(setAppVer)
+      .catch(() => {});
+  }, []);
+
+  // Boot update check: one shot after the first get_state. The backend
+  // compares against ITS OWN binary version (CARGO_PKG_VERSION), so the
+  // answer no longer depends on the engine being up - the old
+  // engine-derived `current` came back EMPTY while the server was
+  // stopped and made every check answer "available" (a toast each
+  // launch, a green button for ever, and the installer cleanup behind
+  // `up_to_date` never ran). An already refused tag stays silent; a
+  // fresh update raises the bottom-right toast.
   useEffect(() => {
     if (!bundle || bootChecked.current) return;
     bootChecked.current = true;
@@ -237,9 +258,7 @@ export default function App() {
         /* no update thread yet: fall through to the check */
       }
       try {
-        const r = await invoke<UpdateCheckR>("check_updates", {
-          current: bundle?.info?.version ?? "",
-        });
+        const r = await invoke<UpdateCheckR>("check_updates");
         setUpdCheck(r);
         if (
           r.status === "available" &&
@@ -785,6 +804,7 @@ export default function App() {
           config={settingsConfig.current}
           info={info}
           running={running}
+          appVersion={appVer}
           onSaved={(next, newLang) => {
             settingsConfig.current = { ...settingsConfig.current, ...next };
             setSettingsChanged(true);
@@ -818,10 +838,10 @@ export default function App() {
         }}
       />
 
-      {/* Once per version: the same `current` the update check passes -
-          no second getVersion() call, and nothing while the engine has
-          not reported its version yet. */}
-      <WhatsNew lang={lang} version={bundle?.info?.version ?? ""} />
+      {/* Once per version: the BINARY's own version from getVersion -
+          the note describes THIS build and must appear even while the
+          engine has not reported anything yet. */}
+      <WhatsNew lang={lang} version={appVer} />
 
       <MsgHost t={t} />
     </div>

@@ -122,6 +122,7 @@ export function Settings({
   config,
   info,
   running,
+  appVersion,
   onSaved,
   onThemeChange,
   onClose,
@@ -133,6 +134,10 @@ export function Settings({
   config: SettingsConfig;
   info: EngineInfo | null;
   running: boolean;
+  /** The binary's own version (App's getVersion) - the Version card
+   *  shows this, never the engine's banner: the engine may be stopped
+   *  and then `info.version` is empty. */
+  appVersion: string;
   onSaved: (next: SettingsConfig, newLang: Lang) => void;
   // The theme combo flips the window LIVE but only the save button
   // persists it and marks the settings dirty (ThemeCombo_SelectionChanged
@@ -400,19 +405,19 @@ export function Settings({
     }
   };
 
-  // Opening the tab checks once (`info?.version` is a stable string
-  // dependency, unlike the fresh `info` object the poll hands out). A
-  // downloaded setup for a newer release replaces "Check for updates"
-  // with the green "Update now" - the refused-at-startup, do-it-later
-  // path (and the only place the button can come from now).
+  // Opening the tab checks once. The backend now compares against its
+  // OWN binary version (CARGO_PKG_VERSION), so the answer no longer
+  // depends on `info` and can never come back wrongly "available" when
+  // the engine is stopped. A downloaded setup for a newer release
+  // replaces "Check for updates" with the green "Update now" - the
+  // refused-at-startup, do-it-later path (and the only place the button
+  // can come from now).
   useEffect(() => {
     if (tab !== "updates") return;
     let alive = true;
     void (async () => {
       try {
-        const r = await invoke<UpdateCheckR>("check_updates", {
-          current: info?.version ?? "",
-        });
+        const r = await invoke<UpdateCheckR>("check_updates");
         if (!alive) return;
         setUpdCheck(r);
         if (r.status === "uptodate" && !r.installer) {
@@ -429,14 +434,12 @@ export function Settings({
     };
     // t is derived from lang; lang is the real dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, info?.version, lang]);
+  }, [tab, lang]);
 
   const checkUpdates = async () => {
     setUpdating(t("Up.Checking"));
     try {
-      const r = await invoke<UpdateCheckR>("check_updates", {
-        current: info?.version ?? "",
-      });
+      const r = await invoke<UpdateCheckR>("check_updates");
       setUpdCheck(r);
       if (r.status === "uptodate") {
         setUpdating(t("Up.UpToDate", r.version));
@@ -773,7 +776,13 @@ export function Settings({
                         <span className="text-[13px] text-text-secondary">
                           {t("Field.Version")}
                         </span>
-                        <span className="muted-text text-[13px]">{info?.version ?? ""}</span>
+                        {/* The BINARY's version, always known: the engine
+                            banner (info.version) is empty while the
+                            server is stopped and used to blank this
+                            card. */}
+                        <span className="muted-text text-[13px]">
+                          {appVersion || info?.version || ""}
+                        </span>
                       </div>
                       {(updCheck?.status === "available" && updCheck.installer) ||
                       (update.phase === "done" && update.installer) ? (

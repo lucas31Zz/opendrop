@@ -13,6 +13,8 @@ export type UpdatePhase = {
 export type UpdateCheckR = {
   status: string; // uptodate | available | error
   version: string;
+  /** The running BINARY's version (Rust CARGO_PKG_VERSION), never the
+   *  engine's banner - filled even while the server is stopped. */
   current: string;
   asset_url: string;
   /** GitHub's `sha256:<hex>` for asset_url; Rust refuses to run the

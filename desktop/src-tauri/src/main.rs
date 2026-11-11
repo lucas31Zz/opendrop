@@ -162,6 +162,37 @@ fn reap_orphan() {
         .status();
 }
 
+/// Kill a whole process tree, not a single PID. The engine we spawn IS
+/// the venv launcher (`venv\Scripts\python.exe`), which forwards to the
+/// real interpreter as its own child: `Child::kill` and a bare
+/// `Stop-Process` only signalled the launcher, and the interpreter kept
+/// the configured port - the orphan that made the NEXT run's engine
+/// unbootable while the port card stayed red forever.
+#[cfg(windows)]
+fn kill_tree(pid: u32) {
+    let _ = service_command("taskkill")
+        .args(["/T", "/F", "/PID", &pid.to_string()])
+        .status();
+}
+
+/// Unix has no launcher layer (the venv python is a symlink): one PID,
+/// one process, so killing it is killing the tree.
+#[cfg(not(windows))]
+fn kill_tree(pid: u32) {
+    let _ = service_command("kill")
+        .args(["-9", &pid.to_string()])
+        .status();
+}
+
+/// Stop the engine we own AND everything below it: the tree kill first
+/// (the interpreter under the launcher goes too), then `Child::kill` as
+/// the fallback when taskkill itself is refused (an elevated holder a
+/// medium-IL app may not open - the kill silently fails either way).
+fn kill_child(child: &mut std::process::Child) {
+    kill_tree(child.id());
+    let _ = child.kill();
+}
+
 /// The port the engine must bind: `preferred_port` from config.json, the
 /// engine's own default (8080) when missing or nonsensical. Strict — the
 /// engine is started WITH `--port`, so a busy port is a loud
@@ -198,6 +229,45 @@ fn port_holder(port: u16) -> Option<PortHolder> {
     })
 }
 
+/// Boot-time reap BY PORT, before anything is spawned. `server.pid` is
+/// never consulted: the Rust side does not read that file (only the
+/// engine writes it, only the installer clears it) and it is stale the
+/// moment a previous run died hard. Whoever holds the configured port is
+/// checked against OUR engine signature and killed as a TREE when it
+/// matches - the interpreter that survived a plain kill is a GRANDCHILD
+/// of the pid we spawned, so its own PID is not the one we knew. Any
+/// other holder keeps the port and becomes the status card's
+/// `port_busy`: a foreign server is never touched (the documented
+/// reap contract).
+fn reap_port_orphan() {
+    let Some(h) = port_holder(configured_port()) else {
+        return;
+    };
+    if h.pid < 5 {
+        return;
+    }
+    let script = format!(
+        "$p = Get-CimInstance Win32_Process -Filter \"ProcessId={}\"; \
+         if ($p) {{ $p.CommandLine }}",
+        h.pid
+    );
+    let cmdline = service_command("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_lowercase())
+        .unwrap_or_default();
+    // The exact shape spawn::engine_command builds; anything else on the
+    // port is none of our business.
+    if cmdline.contains("opendrop.main") && cmdline.contains("--headless") && cmdline.contains("--port")
+    {
+        kill_tree(h.pid);
+        // The holder is the interpreter: its waiting venv-launcher PARENT
+        // is still out there (not the port holder, so the sweep above
+        // never named it) - the command-line reap gets that one.
+        reap_orphan();
+    }
+}
+
 /// Spawn `python -m opendrop.main --headless` on the configured port and
 /// read the JSON handshake it prints on stdout. If the port is held by an
 /// orphan from a previous run, reap it and retry once instead of
@@ -211,6 +281,10 @@ fn spawn_engine(state: &AppState, rotate_token: bool) -> Result<EngineInfo, Stri
             ok
         }
         Err(first) => {
+            // Two sweeps: by port (a holder whose PID we never knew - the
+            // interpreter under a dead launcher) and by command line
+            // (that waiting launcher itself).
+            reap_port_orphan();
             reap_orphan();
             std::thread::sleep(std::time::Duration::from_millis(700));
             match try_spawn(state, port, rotate_token) {
@@ -286,13 +360,13 @@ fn try_spawn(
         }
     }
     let Some(handshake) = handshake else {
-        let _ = child.kill();
+        kill_child(&mut child);
         return Err("engine printed no __opendrop_info__ handshake".into());
     };
     let v: serde_json::Value = match serde_json::from_str(&handshake) {
         Ok(v) => v,
         Err(e) => {
-            let _ = child.kill();
+            kill_child(&mut child);
             return Err(format!("bad handshake: {e}"));
         }
     };
@@ -455,7 +529,7 @@ fn server_control_impl(state: &AppState, action: String) -> Result<Option<Engine
     let _serial = state.control.lock().unwrap();
     let stop = |state: &AppState| {
         if let Some(mut child) = state.engine.lock().unwrap().take() {
-            let _ = child.kill();
+            kill_child(&mut child);
         }
     };
     match action.as_str() {
@@ -989,7 +1063,7 @@ fn save_config_impl(state: &AppState, config: serde_json::Value) -> Result<(), S
         // language instead of flickering back during the respawn.
         let _serial = state.control.lock().unwrap();
         if let Some(mut child) = state.engine.lock().unwrap().take() {
-            let _ = child.kill();
+            kill_child(&mut child);
         }
         *state.info.lock().unwrap() = None;
         std::thread::sleep(Duration::from_millis(300));
@@ -1082,15 +1156,12 @@ struct UpdatePhase {
 }
 
 #[tauri::command]
-async fn check_updates(
-    current: String,
-    state: State<'_, AppState>,
-) -> Result<UpdateCheck, String> {
+async fn check_updates(state: State<'_, AppState>) -> Result<UpdateCheck, String> {
     let st = state.inner().clone();
-    blocking(move || check_updates_impl(st, current)).await
+    blocking(move || check_updates_impl(st)).await
 }
 
-fn check_updates_impl(st: AppState, current: String) -> Result<UpdateCheck, String> {
+fn check_updates_impl(st: AppState) -> Result<UpdateCheck, String> {
     // `http_github()`, never `http()`: this response decides WHICH file
     // is downloaded and WHICH digest it must match, so the transport
     // must be the one that verifies GitHub's certificate.
@@ -1132,6 +1203,17 @@ fn check_updates_impl(st: AppState, current: String) -> Result<UpdateCheck, Stri
     // to exactly this value.
     *st.update_meta.lock().unwrap() = Some((tag.clone(), digest.clone()));
     let (installer, part) = installer_paths(&tag, ext.trim_start_matches('.'));
+    // Sweep every OTHER release's leftovers the moment a check lands: a
+    // `.part` nobody will resume (the 0.16.x files sat in temp for ever)
+    // and any superseded setup. Only the tag being offered survives -
+    // that IS the update in progress.
+    cleanup_stale_installers(&tag);
+    // The version to compare against is THIS binary's, straight from the
+    // manifest - never a `current` the UI scraped together. That used to
+    // be the ENGINE's version, empty whenever the engine was down, so
+    // every check answered "available" (a toast each launch, a green
+    // button for ever) and the cleanup below could never run.
+    let current = env!("CARGO_PKG_VERSION").to_string();
     // Already running this release: the setup that upgraded us here (or
     // a download a newer release has since overtaken) is dead weight -
     // and REPORTING that file is exactly what kept the green "Update
@@ -1169,6 +1251,29 @@ fn installer_paths(tag: &str, ext: &str) -> (PathBuf, PathBuf) {
     let mut part = base.as_os_str().to_owned();
     part.push(".part");
     (base, PathBuf::from(part))
+}
+
+/// Remove every `opendrop-update-*` file in %TEMP% EXCEPT `tag`'s (the
+/// release just offered): superseded downloads, a `.part` no session
+/// will ever resume, the setup that upgraded us here. Runs on every
+/// successful check, so the temp dir converges to at most ONE release -
+/// the one the user can actually install. Directories (the Linux
+/// `opendrop-update-<pid>` unpack dir) and unrelated files are skipped.
+fn cleanup_stale_installers(tag: &str) {
+    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    let keep = format!("opendrop-update-{tag}.");
+    for e in entries.flatten() {
+        if !e.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().to_string();
+        if !name.starts_with("opendrop-update-") || name.starts_with(&keep) {
+            continue;
+        }
+        let _ = std::fs::remove_file(e.path());
+    }
 }
 
 /// Extension for the download file name, from the URL's last segment.
@@ -1471,6 +1576,16 @@ fn launch_installer_impl(st: AppState, app: tauri::AppHandle, path: String) -> R
 /// bound). The try/catch keeps the relaunch alive when the elevation is
 /// declined or the setup cannot start, so an aborted update never leaves
 /// the app closed.
+///
+/// The relaunch goes THROUGH the shell (`explorer.exe`): explorer runs
+/// at the medium integrity level, so the restarted copy can never
+/// inherit an administrator token this helper happened to carry - an
+/// elevated engine was exactly the orphan no later run could kill
+/// (Stop-Process from a medium-IL app is access denied). `Start-Process`
+/// on the exe itself stays as the fallback when the shell refuses it.
+/// The quotes around the path are built with `[char]34`, never typed as
+/// `"`: a literal double quote inside a `powershell -Command` string is
+/// eaten by the exe's own command-line parser before PowerShell reads it.
 #[cfg(not(target_os = "linux"))]
 fn run_installer(path: &str) -> Result<(), String> {
     let exe = std::env::current_exe()
@@ -1484,7 +1599,11 @@ fn run_installer(path: &str) -> Result<(), String> {
          try {{ Start-Process -FilePath '{installer}' \
          -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' \
          -Wait -ErrorAction Stop }} catch {{ }}; \
-         if (Test-Path -LiteralPath '{exe}') {{ Start-Process -FilePath '{exe}' }}"
+         if (Test-Path -LiteralPath '{exe}') {{ \
+         $q = [char]34; \
+         try {{ Start-Process -FilePath 'explorer.exe' \
+         -ArgumentList ($q + '{exe}' + $q) -ErrorAction Stop }} catch {{ \
+         Start-Process -FilePath '{exe}' }} }}"
     );
     service_command("powershell")
         .args([
@@ -1722,7 +1841,7 @@ fn quit_app(app: &tauri::AppHandle) {
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut engine) = state.engine.lock() {
             if let Some(mut child) = engine.take() {
-                let _ = child.kill();
+                kill_child(&mut child);
             }
         }
     }
@@ -1817,7 +1936,13 @@ fn main() {
             // This runs inside setup (not before the Builder) so a second
             // instance - already gone by plugin init - never reaps or
             // spawns an engine of its own.
-            reap_orphan(); // any engine orphaned by the previous app run
+            // Two reaps before the first spawn: BY PORT (an interpreter
+            // under a dead launcher keeps the port although we never knew
+            // its PID) and BY COMMAND LINE (that waiting launcher). A
+            // foreign holder is left alone - spawn_engine records it as
+            // port_busy for the status card instead.
+            reap_port_orphan();
+            reap_orphan();
             std::thread::sleep(Duration::from_millis(300));
             match spawn_engine(&boot_state, false) {
                 Ok(info) => *boot_state.info.lock().unwrap() = Some(info),
@@ -1851,7 +1976,7 @@ fn main() {
     // here is a no-op when quit_app already did.
     let kill_engine = move || {
         if let Some(mut child) = engine.lock().unwrap().take() {
-            let _ = child.kill();
+            kill_child(&mut child);
         }
     };
     match app {
