@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.3";
+export const WHATSNEW_VERSION = "1.0.4";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.3",
-  en: "What's new in OpenDrop 1.0.3",
+  fr: "Quoi de neuf dans OpenDrop 1.0.4",
+  en: "What's new in OpenDrop 1.0.4",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "Sous le capot : les dépendances de l'application ont été actualisées, dont celles qui gèrent les mises à jour.",
-    "Cette version sert aussi à tester le nouveau flux de mise à jour de bout en bout : téléchargement, « Mettre à jour » ou « Refuser », installation silencieuse et redémarrage.",
+    "La version affichée dans les réglages vient maintenant du binaire : plus de champ vide quand le moteur est arrêté, et plus de mise à jour proposée à chaque lancement.",
+    "Quitter l'application tue maintenant tous les processus du moteur (fini l'orphelin qui garde le port) et la mise à jour redémarre l'app sans droits administrateur.",
   ],
   en: [
-    "Under the hood: the app's dependencies were updated, including the ones that handle updates.",
-    "This release also exists to exercise the new update flow end to end: download, \"Update now\" or \"Decline\", silent install and restart.",
+    "The version shown in Settings now comes from the app itself: no more empty field while the engine is stopped, and no more update offered on every launch.",
+    "Quitting now stops every engine process (no more orphan holding the port), and an update restarts the app without administrator rights.",
   ],
 };
 

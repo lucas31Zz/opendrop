@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.4] - 2026-11-11
+
+### Fixed
+
+- **The update check tells the truth even with the engine stopped**:
+  it now compares against the app binary's own version instead of the
+  engine's banner (empty while the server is down), which used to offer
+  the same release on every launch, keep the green "Update now" button
+  alive for ever and stop the installer cleanup from ever running.
+  Stale installers from older releases are swept from the temp
+  directory on every check.
+- **Quitting stops the whole engine**: a plain kill only hit the venv
+  launcher while the real interpreter went on holding the configured
+  port, so the next launch could not start its engine. Every shutdown
+  now kills the whole process tree, and startup reaps a leftover by
+  port before spawning.
+- **The app relaunches without administrator rights after an update**:
+  the helper restarts it through the shell at the normal integrity
+  level, so it can never inherit an elevated token (an elevated engine
+  could not be stopped by a normal launch).
+- **The version shown in Settings and in the "What's new" window comes
+  from the binary**, so neither is blank while the server is stopped.
+
+### Changed
+
+- **Back to `reqwest` 0.12** (the 0.13 move of 1.0.3 is reverted).
+
 ## [1.0.3] - 2026-10-29
 
 ### Changed
