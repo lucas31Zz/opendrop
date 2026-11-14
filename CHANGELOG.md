@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.7] - 2026-11-14
+
+### Fixed
+
+- **Trusting the local CA no longer needs the Windows certificate
+  wizard**: the desktop Status card now detects when the CA is in no
+  certificate store and shows a "Certificate not installed" chip with
+  a one-click **Install** button next to "Server running". The install
+  writes to the current user's trusted roots via `certutil` (no admin
+  rights, no dialog - mkcert's own path) and only reports success once
+  a fresh detection finds the certificate in a store; a file that is
+  not the engine's own CA is never installed. The chip is hidden on
+  other platforms.
+
 ## [1.0.6] - 2026-11-14
 
 ### Added

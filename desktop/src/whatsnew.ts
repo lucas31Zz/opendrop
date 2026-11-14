@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.6";
+export const WHATSNEW_VERSION = "1.0.7";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.6",
-  en: "What's new in OpenDrop 1.0.6",
+  fr: "Quoi de neuf dans OpenDrop 1.0.7",
+  en: "What's new in OpenDrop 1.0.7",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "Fini l'avertissement « Non sécurisé » : installez une fois le certificat local depuis Réglages > Sécurité de la page web, et le cadenas vert s'affiche sur tous vos appareils, même après les mises à jour.",
-    "Nouvelle section Sécurité dans les réglages de la page web : téléchargement du certificat et guide d'installation pas à pas pour Windows, iPhone, Android, macOS et Linux.",
+    "Fini l'assistant d'installation de certificat : le bureau détecte l'absence de la CA locale et propose un bouton Installer en un clic dans la carte d'état, à côté de « Serveur actif ».",
+    "L'installation se fait dans les certificats de l'utilisateur actuel (sans droits administrateur ni fenêtre Windows) et l'application vérifie le résultat avant de l'afficher.",
   ],
   en: [
-    "No more \"Not secure\" warning: install the local certificate once from the web Settings > Security, and the green padlock shows on every device, updates included.",
-    "New Security section in the web settings: certificate download and a step-by-step install guide for Windows, iPhone, Android, macOS and Linux.",
+    "No more certificate wizard: the desktop detects a missing local CA and offers a one-click Install in the status card, right next to \"Server running\".",
+    "The install goes into the current user's certificate store (no admin rights, no Windows dialog) and the app verifies the result before reporting it.",
   ],
 };
 
