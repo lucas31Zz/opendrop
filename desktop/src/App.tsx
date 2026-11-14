@@ -586,7 +586,18 @@ export default function App() {
         </header>
 
         {/* --------------------------------------------------- content */}
-        <div className="grid min-h-0 px-7" style={{ gridTemplateColumns: "460px 16px 1fr" }}>
+        {/* Two adaptive columns: the cards flex between 380 and 460px and
+            the shared-files panel keeps at least 280px. Fixed px columns
+            made this grid's min-content (460 + the panel's own content)
+            wider than the window, and .app-grid's implicit auto column
+            grows to its items' min-content - hence the panel clipped at
+            the right edge down to the 760px window minimum. minmax caps
+            keep that sum at 380 + 280 (+16) = 676 + padding <= 760, while
+            >= 880 still resolves to the exact 460 / rest of today. */}
+        <div
+          className="grid min-h-0 px-7"
+          style={{ gridTemplateColumns: "minmax(380px, 460px) 16px minmax(280px, 1fr)" }}
+        >
           {/* Left column: the cards, scrollable like the ScrollViewer. */}
           <div className="min-h-0 overflow-y-auto pr-1">
             {/* Status */}
