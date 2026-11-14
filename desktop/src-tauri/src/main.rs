@@ -9,6 +9,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 mod spawn;
+mod trust;
 mod updater;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -641,6 +642,24 @@ fn copy_text_impl(text: String) -> Result<(), String> {
         .status()
         .map_err(|e| format!("clipboard: {e}"))?;
     Ok(())
+}
+
+// ---------------------------------------------------------------- trust
+
+/// Trust state of the engine's local CA (`trust.rs`): the UI polls this
+/// while the server runs and only shows the install chip on
+/// `untrusted`.
+#[tauri::command]
+async fn cert_trust_status() -> Result<trust::TrustStatus, String> {
+    blocking(trust::status).await
+}
+
+/// Install the CA into `CurrentUser\Root` (certutil, no admin, no
+/// dialog) and report the fresh status - the one-click fix for the
+/// browser's "Not secure" badge.
+#[tauri::command]
+async fn cert_trust_install() -> Result<trust::TrustStatus, String> {
+    blocking(trust::install).await
 }
 
 // ---------------------------------------------------------------- files
@@ -1928,7 +1947,7 @@ fn main() {
             get_config, save_config, get_devices, device_action, check_updates,
             local_quota, free_space, kill_holder,
             start_update_download, update_status, launch_installer,
-            set_tray_labels
+            set_tray_labels, cert_trust_status, cert_trust_install
         ])
         .setup(move |app| {
             // Start the real engine BEFORE the window is created so the UI

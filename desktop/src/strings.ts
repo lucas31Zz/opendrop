@@ -189,6 +189,13 @@ export const STRINGS = {
     // System tray context menu (native, built in Rust via set_tray_labels).
     "Tray.Show": "Afficher OpenDrop",
     "Tray.Quit": "Quitter OpenDrop",
+    // Local CA trust chip in the Status card (trust.rs + App.tsx):
+    // shown only while the CA is not installed in a Windows store.
+    "Trust.Needed": "Certificat non installé",
+    "Trust.Install": "Installer",
+    "Trust.Installing": "Installation...",
+    "Trust.Done": "✓ Installé — relancez le navigateur",
+    "Trust.Failed": "Échec de l'installation",
   },
   en: {
     // Main window
@@ -375,6 +382,13 @@ export const STRINGS = {
     // System tray context menu (native, built in Rust via set_tray_labels).
     "Tray.Show": "Show OpenDrop",
     "Tray.Quit": "Quit OpenDrop",
+    // Local CA trust chip in the Status card (trust.rs + App.tsx):
+    // shown only while the CA is not installed in a Windows store.
+    "Trust.Needed": "Certificate not installed",
+    "Trust.Install": "Install",
+    "Trust.Installing": "Installing...",
+    "Trust.Done": "✓ Installed — restart your browser",
+    "Trust.Failed": "Install failed",
   },
 } as const;
 

@@ -69,6 +69,19 @@ type Bundle = {
 
 type QuotaInfo = { usage_bytes?: number; limit_bytes?: number };
 
+/** Trust state of the local CA, as `cert_trust_status` serializes it
+ *  (trust.rs): the chip only ever shows on "untrusted". */
+type TrustStatus =
+  | "unsupported"
+  | "missing"
+  | "invalid"
+  | "foreign"
+  | "untrusted"
+  | "trusted";
+
+/** The chip's transient face while/after a one-click install. */
+type TrustUi = "idle" | "installing" | "done" | "failed";
+
 /** Token.Refresh countdown: "1h00min" from an hour, "5min00s" below. */
 function formatCountdown(total: number, t: T): string {
   const h = Math.floor(total / 3600);
@@ -105,9 +118,15 @@ export default function App() {
   // version that is known while the engine is stopped. One fetch for the
   // whole app: WhatsNew gates on it, Settings' Version card displays it.
   const [appVer, setAppVer] = useState("");
+  // Local CA trust (trust.rs): `trust` is the detected store state,
+  // `trustUi` the chip's transient face (installing / done / failed,
+  // the last two clearing themselves after 6s + a re-detect).
+  const [trust, setTrust] = useState<TrustStatus | null>(null);
+  const [trustUi, setTrustUi] = useState<TrustUi>("idle");
 
   const t = makeT(lang);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trustTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rotating = useRef(false);
   const settingsConfig = useRef<SettingsConfig>({});
   const qrUrl = useRef("");
@@ -224,6 +243,60 @@ export default function App() {
   const info = bundle?.info ?? null;
   // Who holds the configured port while the engine could not start it.
   const portBusy = running ? null : bundle?.port_busy ?? null;
+
+  // Detect the CA trust each time the server (re)starts: the engine
+  // writes ca.crt before it answers, so by the time `running` is true
+  // there is something to detect. The chip appears on "untrusted" and
+  // disappears the moment the CA is in a store (here or by hand).
+  useEffect(() => {
+    if (!running) {
+      setTrust(null);
+      setTrustUi("idle");
+      return;
+    }
+    let cancelled = false;
+    invoke<TrustStatus>("cert_trust_status")
+      .then((s) => {
+        if (!cancelled) setTrust(s);
+      })
+      .catch(() => {
+        if (!cancelled) setTrust(null); // no chip, never a false alarm
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [running]);
+
+  // One click = `certutil -user -addstore -f Root` (no admin, no
+  // dialog, mkcert's own path). The chip then keeps its verdict -
+  // installed or failed - for 6s before re-detecting, so a stale
+  // "untrusted" never survives a real install.
+  const installTrust = useCallback(async () => {
+    if (trustTimer.current) return; // a transient face is already up
+    setTrustUi("installing");
+    try {
+      const s = await invoke<TrustStatus>("cert_trust_install");
+      setTrust(s);
+      setTrustUi(s === "trusted" ? "done" : "failed");
+    } catch {
+      setTrustUi("failed");
+    }
+    trustTimer.current = setTimeout(() => {
+      trustTimer.current = null;
+      setTrustUi("idle");
+      void invoke<TrustStatus>("cert_trust_status")
+        .then(setTrust)
+        .catch(() => {});
+    }, 6000);
+  }, []);
+
+  // Never leave a pending verdict timer behind on unmount.
+  useEffect(
+    () => () => {
+      if (trustTimer.current) clearTimeout(trustTimer.current);
+    },
+    [],
+  );
 
   // One getVersion for the whole app: the BINARY's version, known even
   // while the engine never answered. A failure leaves "" - WhatsNew then
@@ -520,6 +593,22 @@ export default function App() {
         ? t("Status.PortBusy", String(portBusy.port))
         : t("Status.Stopped");
 
+  // The trust chip sits at the right of the status line (ml-auto): up
+  // while the CA is not installed, and through the install's transient
+  // faces. "done"/"failed" outlive a re-detect that already flipped
+  // `trust` - the verdict must stay readable for its 6 seconds.
+  const showTrust = trustUi !== "idle" || trust === "untrusted";
+  const trustFace =
+    trustUi === "installing"
+      ? t("Trust.Installing")
+      : trustUi === "done"
+        ? t("Trust.Done")
+        : trustUi === "failed"
+          ? t("Trust.Failed")
+          : t("Trust.Needed");
+  const trustFaceClass =
+    trustUi === "done" ? "trust-ok" : trustUi === "failed" ? "trust-bad" : "";
+
   return (
     <div className="relative h-full overflow-hidden">
       {/* Aurora: three soft blobs drifting behind everything, pure
@@ -602,9 +691,25 @@ export default function App() {
           <div className="min-h-0 overflow-y-auto pr-1">
             {/* Status */}
             <div className="card">
-              <div className="flex items-center">
+              <div className="flex flex-wrap items-center gap-y-1">
                 <span className={`dot ${statusClass}`} />
                 <span className={`text-sm font-semibold ${statusClass}`}>{statusText}</span>
+                {/* One-click CA install (trust.rs): hidden unless the
+                    local CA is missing from the Windows stores. */}
+                {showTrust ? (
+                  <span className={`trust-chip ml-auto ${trustFaceClass}`}>
+                    <span className="trust-label">{trustFace}</span>
+                    {trustUi === "idle" ? (
+                      <button
+                        type="button"
+                        className="btn-trust"
+                        onClick={() => void installTrust()}
+                      >
+                        {t("Trust.Install")}
+                      </button>
+                    ) : null}
+                  </span>
+                ) : null}
               </div>
               {/* The configured port is taken by another app: name it
                   (exe + path + PID) and offer to kill it, like the

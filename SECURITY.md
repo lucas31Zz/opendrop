@@ -242,6 +242,27 @@ by that CA. A device that installs the CA once (Settings > Security, or
 every app update, every IP change. Until then, the browser shows a
 trust warning the first time you connect: that's expected.
 
+### One-click install on Windows (desktop app)
+
+The desktop app detects the trust state of `ca.crt` while the server
+runs: when the CA sits in no Windows store, the Status card shows a
+"Certificate not installed" chip with an **Install** button. Clicking
+it runs `certutil -user -addstore -f Root` - no admin rights, no
+dialog, the same silent path mkcert uses for its own CA - and success
+is only reported after a fresh detection finds the certificate in
+`CurrentUser\Root` or `LocalMachine\Root`.
+
+Safety properties:
+
+- the install is explicit (one click) and never runs at startup;
+- only the engine's OWN CA can be installed: a file whose subject is
+  not `CN=OpenDrop Local CA` is refused (`foreign`), as is an
+  unreadable file (`invalid`) or a missing one (`missing`);
+- the detection script receives the file path and the expected subject
+  through environment variables, never through string concatenation, so
+  a path containing quotes or `;` cannot become shell code;
+- other platforms report `unsupported` and show no chip.
+
 ### Location
 
 - Folder: `%LOCALAPPDATA%\OpenDrop\certs\`

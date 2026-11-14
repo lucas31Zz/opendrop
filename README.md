@@ -409,7 +409,7 @@ one once again.
 | Symptom | What to do |
 |---|---|
 | The phone won't open the address | Same Wi-Fi/network as the PC, no guest network (they are usually isolated); then allow the port through the firewall: `sudo ufw allow 8080` (Linux). Re-scan the QR code: the address changes when the PC's IP or port changes |
-| The browser says *Not secure* / certificate warning | The local CA is not installed on that device yet: open Settings > Security in the page and install the certificate once (or continue to the OpenDrop address only, never another site). To start fresh, delete `certs\` (see above) - every device must then trust the new CA |
+| The browser says *Not secure* / certificate warning | The local CA is not installed on that device yet: **on Windows the desktop app detects it and offers a one-click Install in the Status card** (no admin, no dialog); otherwise open Settings > Security in the page and install the certificate once (or continue to the OpenDrop address only, never another site). To start fresh, delete `certs\` (see above) - every device must then trust the new CA |
 | *Session locked* on the phone | Type the 6-character code shown in the desktop app. The code rotates when the token does |
 | *Port already in use* at start | An older server is still running: stop it (Stop server, or close the app), then start again. Otherwise OpenDrop moves to the next free port automatically |
 | Upload rejected with **507** (quota bar red) | The receive folder is full against the quota: raise it or set `0` (unlimited) in *Settings > Storage* |
