@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.4";
+export const WHATSNEW_VERSION = "1.0.5";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.4",
-  en: "What's new in OpenDrop 1.0.4",
+  fr: "Quoi de neuf dans OpenDrop 1.0.5",
+  en: "What's new in OpenDrop 1.0.5",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "La version affichée dans les réglages vient maintenant du binaire : plus de champ vide quand le moteur est arrêté, et plus de mise à jour proposée à chaque lancement.",
-    "Quitter l'application tue maintenant tous les processus du moteur (fini l'orphelin qui garde le port) et la mise à jour redémarre l'app sans droits administrateur.",
+    "Le panneau des fichiers partagés s'adapte à toutes les tailles de fenêtre : il n'est plus coupé sur le bord droit quand on réduit la fenêtre jusqu'à sa largeur minimale.",
+    "Sous le capot, les deux colonnes du contenu sont maintenant bornées (380 à 460 px à gauche, au moins 280 px à droite) au lieu d'une largeur fixe.",
   ],
   en: [
-    "The version shown in Settings now comes from the app itself: no more empty field while the engine is stopped, and no more update offered on every launch.",
-    "Quitting now stops every engine process (no more orphan holding the port), and an update restarts the app without administrator rights.",
+    "The shared-files panel adapts to any window size: it is no longer clipped at the right edge when the window shrinks to its minimum width.",
+    "Under the hood, the two content columns are now bounded (380-460px on the left, at least 280px on the right) instead of a fixed width.",
   ],
 };
 

@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.5] - 2026-11-14
+
+### Fixed
+
+- **The shared-files panel adapts down to the minimum window width**:
+  the content columns were fixed (460px + 1fr), so the layout's own
+  minimum width exceeded the window's: `.app-grid`'s implicit column
+  grows to its items' min-content (460 + the panel's ~437px content +
+  padding), which outgrew the window and clipped the panel at the
+  right edge from the 760px minimum up to the default 880px. The
+  columns are now bounded with `minmax(380px, 460px) 16px
+  minmax(280px, 1fr)`: the cards flex, the panel always keeps at
+  least 280px (toolbar wraps, filenames ellipsize), and the layout
+  stays inside the window at every width.
+
 ## [1.0.4] - 2026-11-11
 
 ### Fixed
