@@ -69,8 +69,8 @@ _TEXT_FR: dict[str, str] = {
         "Mets des fichiers dans le dossier Partage pour les partager.",
     "Scan the QR code with your device.":
         "Scanner le QR code avec votre appareil.",
-    "HTTPS: self-signed certificate; accept the browser warning on first access.":
-        "HTTPS : certificat auto-signe, acceptez l'avertissement au 1er acces.",
+    "HTTPS: install the certificate once per device: {url}":
+        "HTTPS : installez le certificat une fois par appareil : {url}",
     "Press Ctrl+C to stop.": "Ctrl+C pour arreter.",
     "Server stopped.": "Serveur arrete.",
     "An older server is probably still running: stop it,":

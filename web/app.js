@@ -55,6 +55,7 @@
             "settings.device": "Device",
             "settings.appearance": "Appearance",
             "settings.language": "Language",
+            "settings.security": "Security",
             "settings.forbidden": "Not allowed for this session. Pair this device first.",
             "pair.title": "Pair this device",
             "pair.hint": "Your PC just opened a pairing window. Paste the device token it displays to register this device (valid for one minute).",
@@ -65,6 +66,14 @@
             "appearance.dark": "Dark",
             "lang.fr": "Fran\u00e7ais",
             "lang.en": "English",
+            "trust.hint": "Install the local certificate once to remove the browser warning on this device.",
+            "trust.download": "Download the certificate",
+            "trust.steps": "How to install it (once per device)",
+            "trust.windows": "Windows: open the downloaded file, then Install > Local Machine > Trusted Root Certification Authorities > Yes.",
+            "trust.ios": "iPhone / iPad: install the profile in Settings, then Settings > General > About > Certificate Trust Settings and enable full trust for the OpenDrop Local CA.",
+            "trust.android": "Android: open the downloaded file, then Install a certificate > CA certificate (a screen lock is required).",
+            "trust.macos": "macOS: open the downloaded file, add it to the keychain, then in Keychain Access set Trust > Always Trust for the OpenDrop Local CA.",
+            "trust.linux": "Linux: move the file to /usr/local/share/ca-certificates/opendrop-ca.crt, then run sudo update-ca-certificates.",
             "qr.notOpendrop": "Unrecognized QR code: not an OpenDrop link.",
             "camera.blocked": "Camera unavailable: this browser blocks access (insecure " +
                 "context). Open the phone's camera app and scan the QR code: the " +
@@ -155,6 +164,7 @@
             "settings.device": "Appareil",
             "settings.appearance": "Apparence",
             "settings.language": "Langue",
+            "settings.security": "S\u00e9curit\u00e9",
             "settings.forbidden": "Refus\u00e9 pour cette session. Associez d'abord cet appareil.",
             "pair.title": "Associer cet appareil",
             "pair.hint": "Votre PC vient d'ouvrir une fen\u00eatre d'association. Collez le jeton d'appareil qu'il affiche pour enregistrer cet appareil (valable une minute).",
@@ -165,6 +175,14 @@
             "appearance.dark": "Sombre",
             "lang.fr": "Fran\u00e7ais",
             "lang.en": "English",
+            "trust.hint": "Installez le certificat local une fois pour supprimer l'avertissement du navigateur sur cet appareil.",
+            "trust.download": "T\u00e9l\u00e9charger le certificat",
+            "trust.steps": "Comment l'installer (une fois par appareil)",
+            "trust.windows": "Windows : ouvrez le fichier t\u00e9l\u00e9charg\u00e9, puis Installer > Ordinateur local > Autorit\u00e9s de certification racines de confiance > Oui.",
+            "trust.ios": "iPhone / iPad : installez le profil dans R\u00e9glages, puis R\u00e9glages > G\u00e9n\u00e9ral > \u00c0 propos > R\u00e9glages des certificats de confiance et activez la confiance totale pour l'autorit\u00e9 de certification OpenDrop Local CA.",
+            "trust.android": "Android : ouvrez le fichier t\u00e9l\u00e9charg\u00e9, puis Installer un certificat > Certificat d'autorit\u00e9 de certification (un verrou d'\u00e9cran est requis).",
+            "trust.macos": "macOS : ouvrez le fichier t\u00e9l\u00e9charg\u00e9, ajoutez-le au trousseau, puis dans Acc\u00e8s aux trousseaux r\u00e9glez Confiance > Faire toujours confiance pour l'autorit\u00e9 OpenDrop Local CA.",
+            "trust.linux": "Linux : d\u00e9placez le fichier vers /usr/local/share/ca-certificates/opendrop-ca.crt, puis lancez sudo update-ca-certificates.",
             "qr.notOpendrop": "QR code non reconnu : ce n'est pas un lien OpenDrop.",
             "camera.blocked": "Cam\u00e9ra indisponible : ce navigateur bloque l'acc\u00e8s (contexte " +
                 "non s\u00e9curis\u00e9). Ouvrez l'appareil photo du t\u00e9l\u00e9phone et scannez " +
@@ -784,6 +802,12 @@
     document.getElementById("set-lang-en").addEventListener("click", function () {
         postSettings("lang=en&theme=" + encodeURIComponent(serverTheme),
             function () { location.reload(); });
+    });
+
+    // Trust: download the local CA anchor (served as an attachment by
+    // /ca.crt) - the OS certificate installer takes over from there.
+    document.getElementById("trust-download").addEventListener("click", function () {
+        location.href = "/ca.crt";
     });
 
     // Appareil / share_info: the checkbox posts the new preference; a

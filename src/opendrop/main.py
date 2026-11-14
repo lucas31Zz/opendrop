@@ -91,7 +91,7 @@ def main():
     print(flush=True)
     print(f"  {t('Drop files into the Share folder to share them.', lang)}", flush=True)
     print(f"  {t('Scan the QR code with your device.', lang)}", flush=True)
-    print(f"  {t('HTTPS: self-signed certificate; accept the browser warning on first access.', lang)}", flush=True)
+    print(f"  {t('HTTPS: install the certificate once per device: {url}', lang, url=f'https://{ip}:{port}/ca.crt')}", flush=True)
     print(f"  {t('Press Ctrl+C to stop.', lang)}", flush=True)
     print(flush=True)
 

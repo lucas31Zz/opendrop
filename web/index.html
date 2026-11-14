@@ -278,6 +278,28 @@
                             data-i18n="lang.en">English</button>
                 </div>
             </section>
+
+            <!-- Trust: the local CA download + the one-time install per
+                 OS. Once the anchor is trusted, the browser shows a
+                 green padlock here for good - no warning on updates. -->
+            <section class="settings-section">
+                <h3 class="settings-subtitle" data-i18n="settings.security">Security</h3>
+                <p class="settings-hint" data-i18n="trust.hint">Install the local certificate once to remove the browser warning on this device.</p>
+                <div class="settings-row">
+                    <button class="settings-choice" id="trust-download" type="button"
+                            data-i18n="trust.download">Download the certificate</button>
+                </div>
+                <details class="trust-steps" id="trust-steps">
+                    <summary data-i18n="trust.steps">How to install it (once per device)</summary>
+                    <ul class="trust-list">
+                        <li data-i18n="trust.windows">Windows: open the downloaded file, then Install &gt; Local Machine &gt; Trusted Root Certification Authorities &gt; Yes.</li>
+                        <li data-i18n="trust.ios">iPhone / iPad: install the profile in Settings, then Settings &gt; General &gt; About &gt; Certificate Trust Settings and enable full trust for the OpenDrop Local CA.</li>
+                        <li data-i18n="trust.android">Android: open the downloaded file, then Install a certificate &gt; CA certificate (a screen lock is required).</li>
+                        <li data-i18n="trust.macos">macOS: open the downloaded file, add it to the keychain, then in Keychain Access set Trust &gt; Always Trust for the OpenDrop Local CA.</li>
+                        <li data-i18n="trust.linux">Linux: move the file to /usr/local/share/ca-certificates/opendrop-ca.crt, then run sudo update-ca-certificates.</li>
+                    </ul>
+                </details>
+            </section>
         </div>
     </div>
 

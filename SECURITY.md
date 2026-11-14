@@ -99,6 +99,7 @@ Truth table tested by `python -m tests.test_routes`:
 | `POST /api/settings` | main token or registered IP | language + theme, normalized then persisted to config.json; a code-unlocked guest token is refused |
 | `GET /api/info` | public | discovery route (ip + port) for the desktop app and the probe; the `session` block (active session count, duration) only goes out to a valid token holder, and a bad token gives 403 |
 | `GET /`, `/style.css`, `/app.js` | public | web interface shell, no secrets |
+| `GET /ca.crt` | public | the local CA certificate (trust anchor, no secret, no private key) served as a download; tested by `tests.test_tls` |
 | unknown `/api/*` route | - | 404 JSON `{"error": ..., "code": 404}` |
 | unknown HTML page | - | short 404 HTML, no internal detail |
 
@@ -150,10 +151,12 @@ Tested by `python -m tests.test_paths`:
 
 - Traffic is encrypted in transit: HTTPS enforced, TLS 1.2 minimum (see the
   "TLS certificate" section)
-- The certificate is self-signed: no authority vouches for the server's
-  identity. An attacker sitting on the same network can present their own
-  certificate; always accept the one from the OpenDrop machine, never
-  another device's
+- The certificate comes from a LOCAL CA generated on your machine: no
+  public authority vouches for the server's identity, and until that CA
+  is installed on a device the browser shows a trust warning. An
+  attacker sitting on the same network can present their own
+  certificate; install the OpenDrop CA once (Settings > Security)
+  rather than blindly accepting whatever certificate appears
 - The token sits in the URL (?token=...): it can end up in browser history,
   bookmarks, and the server's logs
 - An old http:// QR code no longer works: the server only listens on HTTPS.
@@ -231,33 +234,52 @@ Tested by `python -m tests.test_paths`:
 
 ## TLS certificate
 
-OpenDrop only speaks HTTPS. The certificate is generated locally on first
-launch: it's self-signed, so the browser shows a trust warning the first
-time you connect. That's expected.
+OpenDrop only speaks HTTPS. Two certificates are generated locally on
+first launch: a local CA (`ca.crt` / `ca.key`) that acts as the trust
+anchor, and a serving certificate (`server.crt` / `server.key`) signed
+by that CA. A device that installs the CA once (Settings > Security, or
+`GET /ca.crt`) gets a green padlock with no warning - on every visit,
+every app update, every IP change. Until then, the browser shows a
+trust warning the first time you connect: that's expected.
 
 ### Location
 
 - Folder: `%LOCALAPPDATA%\OpenDrop\certs\`
-- Files: `server.crt` (certificate) and `server.key` (private key, 600
-  permissions)
-- Algorithm: EC P-256 key, self-signed, SHA-256, 397-day validity
-- SAN: `localhost`, the machine name, `127.0.0.1`, and the current LAN IP
+- Files: `ca.crt` + `ca.key` (the local CA; the key has 600
+  permissions) and `server.crt` + `server.key` (the serving certificate,
+  signed by that CA; its key also 600)
+- Algorithm: EC P-256 keys, SHA-256. The CA is self-signed with a ~20
+  year validity (BasicConstraints CA, path length 0); the serving
+  certificate carries a 397-day validity
+- SAN (serving certificate): `localhost`, the machine name, `127.0.0.1`,
+  and the current LAN IP
 
 ### Automatic regeneration
 
-The certificate is regenerated when the server starts if:
+The serving certificate is regenerated - and re-signed by the SAME
+local CA - when the server starts if:
 
 - the file is missing or unreadable,
 - it expires in less than 30 days,
 - the current IP is no longer in the SAN (DHCP change),
 - the key no longer matches the certificate,
+- it is not issued by our CA (a leftover self-signed certificate from
+  an older install),
 - the serverAuth EKU extension is missing (required by iOS/Safari).
+
+The CA itself is NEVER regenerated for those reasons: only when it is
+missing, unreadable or expires in less than 30 days (~20 years away).
+That's exactly what keeps an installed trust working across updates,
+renewals and IP changes.
 
 ### Manual regeneration
 
 1. Quit OpenDrop (the desktop app and its server).
 2. Delete the `%LOCALAPPDATA%\OpenDrop\certs\` folder.
-3. Relaunch OpenDrop: a new certificate is created automatically.
+3. Relaunch OpenDrop: new certificates are created automatically.
+
+Deleting the folder also replaces the local CA: every device then has
+to install the new anchor once again (Settings > Security).
 
 The token, the QR code and the session code do NOT change when you
 regenerate (they only change on the Reset button, the timer, or the "New
@@ -266,8 +288,10 @@ the desktop app is always safe: that's the source of truth.
 
 ### First visit from a phone
 
-The self-signed certificate brings up a warning screen. Don't tap "Stop":
-accept the one from the OpenDrop machine only.
+Without the CA installed, the certificate brings up a warning screen.
+Don't tap "Stop": accept the one from the OpenDrop machine only - or
+install the CA once (Settings > Security in the page) and skip this
+whole step on every future visit.
 
 Chrome / Android:
 
@@ -286,24 +310,27 @@ Firefox:
 1. "The connection is not secure"
 2. "Continue to this site (unsafe)"
 
-If the certificate was regenerated (IP changed, expiry, certs folder
-deleted), the warning comes back: you have to accept it again.
+If the serving certificate was regenerated (IP changed, expiry, certs
+folder deleted), the warning comes back - unless the local CA is
+installed on the device, in which case nothing changes for it.
 
 ### Picking a stable IP
 
-The certificate carries your current IP. If the router hands out a
-different one (DHCP), the certificate is regenerated and the warning comes
-back on every phone. To avoid that: reserve the machine's IP in your
-router's DHCP settings (fixed lease / DHCP reservation). The IP then stays
-the same and the certificate stays valid until it expires (397 days).
+The serving certificate carries your current IP. If the router hands out
+a different one (DHCP), it is re-signed: devices that installed the
+local CA notice nothing, devices that never did get the warning again.
+To avoid the churn anyway: reserve the machine's IP in your router's
+DHCP settings (fixed lease / DHCP reservation). The IP then stays the
+same and the certificate stays valid until it expires (397 days).
 
 ### What the encryption covers
 
 - Done: the URL, the token and the file contents travel encrypted across
   the LAN. Passive sniffing (tcpdump, Wireshark) only sees TLS
-- Limit: no identity check by a trusted authority (self-signed
-  certificate). The user has to accept it by hand; accepting another
-  device's certificate would make the protection pointless
+- Limit: no identity check by a PUBLIC authority: the certificate comes
+  from a local CA. Trust it once per device (Settings > Security);
+  accepting another device's certificate instead would make the
+  protection pointless
 - Not done: encryption at rest, nor any attestation of the identity of the
   devices holding the token
 
@@ -336,9 +363,10 @@ application:
   unsupported digest format is refused as well (nothing is kept and
   nothing executes);
 - the release metadata call runs on its own client with certificate
-  verification **on** (only the local engine's self-signed certificate
-  is ever trusted) and a 15 second timeout, so an unreachable network
-  stays silent instead of alarming;
+  verification **on** (only the local engine's certificate - signed by
+  its own local CA - is ever accepted without verification) and a 15
+  second timeout, so an unreachable network stays silent instead of
+  alarming;
 - on Windows the installer is handed to the OS with elevation (`runas`,
   declining it aborts) and runs with the same `AppId` / prefix as the
   previous installation, **never** through the uninstaller (which would
@@ -368,14 +396,14 @@ Python 3.12, no external framework):
 | `python -m tests.test_paths` | no absolute path in any response (section 6) | 41/41 |
 | `python -m tests.test_quota` | global quota, simultaneous reservations, exact fill, 507 | 40/40 |
 | `python -m tests.test_sessions` | sessions, expiration, session code, rotation through `opendrop.main` | 34/34 |
-| `python -m tests.test_tls` | self-signed certificate, key/cert, EKU, renewal, forced HTTPS | 15/15 |
+| `python -m tests.test_tls` | local CA + signed leaf (issuer, BasicConstraints), `/ca.crt` download, key/cert, EKU, renewal, CA stability, forced HTTPS | 29/29 |
 | `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup, upload idle window, chunked-upload staging (append rules, 409 resync, uniquify-at-rename, cancel, query-name-wins, traversal containment, idempotent final retry) | 42/42 |
 | `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 63/63 and 75/75 |
 | `python -m tests.test_devices` | device pairing: registry, registered-IP trust, pairing quotas, dissociate vs reset | 62/62 |
 | `python -m tests.test_zip_web` | browser zip engine: streaming ZIP64, progress/cancel, ZipCrypto round-trip verified by Python's `zipfile` | 47/47 |
-| `python -m tests.test_e2e` | multi-browser UI flows against the real self-signed server: uploads (single- and two-slice), cancel, Range resume, the `beforeunload` guard, the PWA service worker | 16/16 |
+| `python -m tests.test_e2e` | multi-browser UI flows against the real HTTPS server: uploads (single- and two-slice), cancel, Range resume, the `beforeunload` guard, the PWA service worker | 16/16 |
 
-Eleven suites, 445 checks in total.
+Eleven suites, 459 checks in total.
 
 ---
 
@@ -394,10 +422,10 @@ Eleven suites, 445 checks in total.
 | Stack trace leak | No tracebacks in responses | Done |
 | Absolute path leak | Responses with no server path (upload = name + size + hash), disk errors with no path | Done |
 | Secret leak in logs | `token=`, `code=` and `device=` replaced with `***` in the server logs | Done |
-| Network interception | HTTPS enforced (TLS 1.2+), self-signed certificate | Done |
+| Network interception | HTTPS enforced (TLS 1.2+), certificate from the local CA | Done |
 | Encryption in transit | HTTPS enforced on every API route | Done |
 | Encryption at rest | Not protected | Future |
-| Identity attestation | Self-signed certificate, manual acceptance (tested: not approved by default) | Limited |
+| Identity attestation | Local CA, one-time install per device (tested: not trusted by default) | Limited |
 | Integrity check | SHA-256 returned only when the body is complete; displayed, no automatic comparison | Done |
 
 ---

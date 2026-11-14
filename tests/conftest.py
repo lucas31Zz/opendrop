@@ -30,9 +30,9 @@ cert_dir = os.path.join(_WORKSPACE, "certs")
 os.makedirs(dd, exist_ok=True)
 os.makedirs(sd, exist_ok=True)
 
-# The server speaks HTTPS with a self-signed certificate: the tests do
-# not verify the trust chain (it is generated on the fly inside the
-# temporary workspace).
+# The server speaks HTTPS with a locally issued certificate (its own
+# CA, generated on the fly inside the temporary workspace): the tests
+# do not verify the trust chain.
 SSL_CONTEXT = ssl._create_unverified_context()
 
 

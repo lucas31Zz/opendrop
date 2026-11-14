@@ -18,7 +18,7 @@ from opendrop.security.devices import DeviceRegistry
 from opendrop.security.tokens import validate_token
 from opendrop.security.validation import is_safe_path, sanitize_filename
 from opendrop.network.interfaces import _port_is_free
-from opendrop.security.tls_cert import ensure_certificate
+from opendrop.security.tls_cert import ensure_ca, ensure_certificate
 from opendrop.i18n import t, normalize_lang
 from opendrop.qr.generator import generate_qr_png
 from opendrop.server.multipart import (parse_multipart_upload, open_dest_exclusive,
@@ -487,13 +487,18 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         lang = getattr(self.server, "language", "en")
         self._send_json(format_error_response(exc, lang), exc.status)
 
-    def _send_file(self, path: Path, content_type: str) -> None:
+    def _send_file(self, path: Path, content_type: str,
+                   disposition: str | None = None) -> None:
         if not path.exists():
             self.send_error(404)
             return
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        if disposition:
+            # e.g. the CA download: attachment, so every OS offers its
+            # own "install certificate" flow instead of rendering PEM.
+            self.send_header("Content-Disposition", disposition)
         self.send_header("Content-Length", str(len(data)))
         self._send_security_headers()
         self.end_headers()
@@ -558,6 +563,19 @@ class OpenDropHandler(BaseHTTPRequestHandler):
                                 "image/png")
             elif path == "/favicon.ico":
                 self._send_file(WEB_DIR / "favicon.ico", "image/x-icon")
+            elif path == "/ca.crt":
+                # The local CA certificate: public on purpose (no
+                # token) - it is the trust anchor a device installs
+                # once (Settings > Security), and it holds no secret.
+                # Served as an attachment: the browser downloads the
+                # file and the OS installer takes over from there.
+                ca_path = getattr(self.server, "ca_path", None)
+                if ca_path is None or not Path(ca_path).is_file():
+                    self.send_error(404)
+                else:
+                    self._send_file(
+                        Path(ca_path), "application/x-x509-ca-cert",
+                        disposition='attachment; filename="OpenDrop-ca.crt"')
             elif path == "/qr":
                 self._route_qr(query, ip)
             elif path.startswith("/api/"):
@@ -1421,7 +1439,9 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     # every upload; the reservation is thread-safe.
     server.quota = QuotaTracker(download_dir, global_quota_bytes, lang=language)
 
-    # TLS: local self-signed certificate (regenerated when the IP changes).
+    # TLS: a leaf signed by the persistent local CA (re-signed when the
+    # IP changes; the CA itself never changes, so a device that trusts
+    # it once keeps a green padlock - see GET /ca.crt).
     # Clients probing the port in plain text fail the handshake, which
     # handle_error swallows silently.
     #
@@ -1429,6 +1449,9 @@ def create_server(ip: str, port: int, token: str, download_dir: str, share_dir: 
     # to each handler, which wraps its own connection in setup() (worker
     # thread). See the comment there for why.
     cert_path, key_path = ensure_certificate(ip, directory=tls_cert_dir)
+    ca_path, _ca_key_path = ensure_ca(directory=tls_cert_dir)
+    # Served by the /ca.crt branch above (the key never leaves disk).
+    server.ca_path = ca_path
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(str(cert_path), str(key_path))

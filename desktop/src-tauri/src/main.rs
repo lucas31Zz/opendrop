@@ -65,7 +65,8 @@ struct AppState {
 static HTTP: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
 
 fn http() -> &'static reqwest::blocking::Client {
-    // The engine serves HTTPS with a self-signed cert; desktop trusts it.
+    // The engine serves HTTPS with a certificate from its own local
+    // CA; the desktop trusts it as-is (no CA install on this side).
     HTTP.get_or_init(|| {
         reqwest::blocking::Client::builder()
             .danger_accept_invalid_certs(true)
@@ -90,10 +91,11 @@ fn http_dl() -> &'static reqwest::blocking::Client {
 }
 
 /// GitHub metadata gets its OWN client, with certificate verification
-/// FULLY ON. `http()` exists because the ENGINE serves a self-signed
-/// cert - trusting that for `api.github.com` would let an interceptor
-/// hand us both the download URL and the digest meant to check it, i.e.
-/// bypass every gate below. 15 s total, same as `http()`.
+/// FULLY ON. `http()` exists because the ENGINE serves a certificate
+/// signed by its own local CA - trusting that for `api.github.com`
+/// would let an interceptor hand us both the download URL and the
+/// digest meant to check it, i.e. bypass every gate below. 15 s total,
+/// same as `http()`.
 static HTTP_GITHUB: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
 
 fn http_github() -> &'static reqwest::blocking::Client {

@@ -33,7 +33,9 @@ server running on your machine, nothing goes over the internet.
 
 ## What it does
 
-- **HTTPS required**: self-signed certificate generated on first launch
+- **HTTPS required**: certificate from a local CA generated on first
+  launch; trust that CA once per device (Settings > Security) for a
+  warning-free, green-padlock browser
 - **Token-based sessions**: 32 random characters, configurable expiration,
   manual rotation (Reset button) or automatic (timer), plus a 6-character
   backup code to unlock a device
@@ -328,9 +330,10 @@ desktop is present, otherwise open the URL by hand in your browser.
    *Scan QR code* button on the session screen (it scans in the page
    itself - Safari, Chrome, Brave, Firefox, anything modern). Typing the
    URL with `?token=...` by hand still works too.
-3. On first visit the browser shows a self-signed certificate warning:
-   accept the one from the OpenDrop machine only (step-by-step in
-   [SECURITY.md](SECURITY.md)).
+3. On first visit the browser warns about the certificate: accept the
+   one from the OpenDrop machine only - or install the local CA once
+   (Settings > Security, step-by-step in
+   [SECURITY.md](SECURITY.md)) and never see the warning again.
 4. If the screen says **Session locked**, type the **6-character code**
    shown in the desktop app.
 5. Use the **Send** tab to send a file, the **Download** tab to grab the
@@ -374,7 +377,8 @@ Both are changed in **Settings** (browse + Save).
 |---|---|
 | `%LOCALAPPDATA%\OpenDrop\config.json` | folders, port, quota, options |
 | `%LOCALAPPDATA%\OpenDrop\session.json` | current token + session code |
-| `%LOCALAPPDATA%\OpenDrop\certs\server.crt` / `server.key` | self-signed TLS certificate (EC P-256, 397 days) |
+| `%LOCALAPPDATA%\OpenDrop\certs\ca.crt` / `ca.key` | local certificate authority (EC P-256, ~20 years) - the trust anchor each device installs once |
+| `%LOCALAPPDATA%\OpenDrop\certs\server.crt` / `server.key` | serving certificate signed by that CA (EC P-256, 397 days) |
 
 On Linux/macOS the same folder is `~/.opendrop/` (the receive and share
 folders, though, stay in `~/Downloads/OpenDrop`).
@@ -393,8 +397,10 @@ folders, though, stay in `~/Downloads/OpenDrop`).
 | `language` | `en` | interface language: server messages, web UI and desktop app (`en` or `fr`) |
 | `theme` | `dark` | desktop and web appearance (`light` or `dark`) |
 
-To regenerate the certificate: quit OpenDrop, delete the
+To regenerate the certificates: quit OpenDrop, delete the
 `%LOCALAPPDATA%\OpenDrop\certs\` folder, relaunch (see SECURITY.md).
+The local CA changes with them, so every device has to trust the new
+one once again.
 
 ---
 
@@ -403,7 +409,7 @@ To regenerate the certificate: quit OpenDrop, delete the
 | Symptom | What to do |
 |---|---|
 | The phone won't open the address | Same Wi-Fi/network as the PC, no guest network (they are usually isolated); then allow the port through the firewall: `sudo ufw allow 8080` (Linux). Re-scan the QR code: the address changes when the PC's IP or port changes |
-| The browser says *Not secure* / certificate warning | Expected: the certificate is self-signed. Continue to the OpenDrop address only, never another site. To start fresh, delete `certs\` (see above) |
+| The browser says *Not secure* / certificate warning | The local CA is not installed on that device yet: open Settings > Security in the page and install the certificate once (or continue to the OpenDrop address only, never another site). To start fresh, delete `certs\` (see above) - every device must then trust the new CA |
 | *Session locked* on the phone | Type the 6-character code shown in the desktop app. The code rotates when the token does |
 | *Port already in use* at start | An older server is still running: stop it (Stop server, or close the app), then start again. Otherwise OpenDrop moves to the next free port automatically |
 | Upload rejected with **507** (quota bar red) | The receive folder is full against the quota: raise it or set `0` (unlimited) in *Settings > Storage* |
@@ -429,8 +435,10 @@ No, by design: everything is bound to your local network. Do not expose
 the port to the internet.
 
 **Is it encrypted?**
-Traffic is HTTPS with a self-signed certificate. Files on disk are *not*
-encrypted - see [SECURITY.md](SECURITY.md) and *Security* above.
+Traffic is HTTPS with a certificate from a local CA: trust that CA once
+per device (Settings > Security) and the browser stops warning. Files
+on disk are *not* encrypted - see [SECURITY.md](SECURITY.md) and
+*Security* above.
 
 **How long does a session last?**
 `session_expires_in` seconds (3600 by default). The token can also be
@@ -493,7 +501,7 @@ python -m tests.test_routes       # 50/50 - route truth table
 python -m tests.test_paths        # 41/41 - no absolute paths in responses
 python -m tests.test_quota        # 40/40 - quota, simultaneous reservations, 507
 python -m tests.test_sessions     # 34/34 - sessions, expiration, code rotation
-python -m tests.test_tls          # 15/15 - self-signed certificate, forced HTTPS
+python -m tests.test_tls          # 29/29 - local CA + signed leaf, /ca.crt, renewal, forced HTTPS
 python -m tests.test_server       # 42/42 - general routes, theme fallback, port in use, TIME_WAIT probe, upload idle window, chunked-upload staging
 python -m tests.test_beta         # 63/63 - full run-through
 python -m tests.test_beta --large # 75/75 - file batches, traversal attempts
@@ -515,8 +523,9 @@ Windows and Linux, Python 3.10 and 3.12.
 The full threat model (routes, tokens, quota, certificate, limits) is
 documented in [SECURITY.md](SECURITY.md). In short:
 
-- everything goes over HTTPS, with a self-signed certificate you have to
-  accept by hand;
+- everything goes over HTTPS, with a certificate from a local CA: trust
+  that CA once per device (Settings > Security) and the browser stops
+  warning;
 - the token lives in the URL: it can end up in your browser history; the
   server logs, meanwhile, print `token=***` and `code=***`;
 - no encryption at rest: whatever lands on disk is stored in plain text;

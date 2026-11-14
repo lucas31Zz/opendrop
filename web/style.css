@@ -1862,6 +1862,38 @@ body::-webkit-scrollbar {
     color: var(--on-accent);
 }
 
+/* Trust steps: a native <details> dressed like the rest of the card -
+   the summary is tappable, the steps read as a quiet list. */
+.trust-steps {
+    margin-top: 0.7rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+.trust-steps summary {
+    cursor: pointer;
+    color: var(--text);
+    list-style-position: outside;
+    padding: 0.15rem 0;
+}
+
+.trust-steps summary::marker {
+    color: var(--text-faint);
+}
+
+.trust-steps[open] summary {
+    margin-bottom: 0.45rem;
+}
+
+.trust-list {
+    margin: 0;
+    padding-left: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    line-height: 1.45;
+}
+
 /* --- Pairing push: overlay + busy banner ---------------------------- */
 /* The veil sits one step above the settings one (z-40): a pairing
    window is a pushed state and must win over any open overlay. Same

@@ -49,8 +49,9 @@ _BROWSERS: dict = {}
 
 # Extra launch args, per engine. Chromium only: a context's
 # ignore_https_errors=True covers page loads, but the SERVICE WORKER
-# script fetch is not covered - against the suite's self-signed cert
-# the registration fails with the console error "An SSL certificate
+# script fetch is not covered - against the suite's untrusted cert
+# (the local CA is not installed on the test machine) the
+# registration fails with the console error "An SSL certificate
 # error occurred when fetching the script" and the worker never
 # installs (measured 2026-10-19; firefox and webkit install fine, so
 # the certificate is accepted session-wide there). The browser-wide
@@ -118,7 +119,7 @@ def _device_token(port, token):
 
 
 def _new_context(browser_name, port, token) -> "BrowserContext":
-    """Fresh context with ignore_https_errors=True (self-signed cert).
+    """Fresh context with ignore_https_errors=True (untrusted local cert).
 
     The first call of the process also pairs through the REAL overlay:
     a locked page opened by the #pair= QR link pre-fills #pair-token,
