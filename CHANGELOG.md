@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.6] - 2026-11-14
+
+### Added
+
+- **Local certificate authority + one-time trust**: the HTTPS
+  certificate is now issued by a persistent local CA
+  (`ca.crt` / `ca.key`, ~20 years) instead of being self-signed, and
+  the serving certificate is silently re-signed on IP changes,
+  renewals and app updates. Trust the CA once per device - new
+  **Security** section in the web settings, or `GET /ca.crt` - and
+  the browser's "Continue anyway" interstitial and "Not secure" badge
+  are gone for good (green padlock on PC and phone).
+- The Security section ships a step-by-step install guide for
+  Windows, iPhone/iPad, Android, macOS and Linux (FR/EN), and the
+  console banner now prints the certificate URL.
+
+### Changed
+
+- `GET /ca.crt` is a new public route that serves the CA certificate
+  as a download (a trust anchor carries no secret; the private key
+  never leaves disk).
+
 ## [1.0.5] - 2026-11-14
 
 ### Fixed

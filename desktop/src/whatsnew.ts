@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.5";
+export const WHATSNEW_VERSION = "1.0.6";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.5",
-  en: "What's new in OpenDrop 1.0.5",
+  fr: "Quoi de neuf dans OpenDrop 1.0.6",
+  en: "What's new in OpenDrop 1.0.6",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "Le panneau des fichiers partagés s'adapte à toutes les tailles de fenêtre : il n'est plus coupé sur le bord droit quand on réduit la fenêtre jusqu'à sa largeur minimale.",
-    "Sous le capot, les deux colonnes du contenu sont maintenant bornées (380 à 460 px à gauche, au moins 280 px à droite) au lieu d'une largeur fixe.",
+    "Fini l'avertissement « Non sécurisé » : installez une fois le certificat local depuis Réglages > Sécurité de la page web, et le cadenas vert s'affiche sur tous vos appareils, même après les mises à jour.",
+    "Nouvelle section Sécurité dans les réglages de la page web : téléchargement du certificat et guide d'installation pas à pas pour Windows, iPhone, Android, macOS et Linux.",
   ],
   en: [
-    "The shared-files panel adapts to any window size: it is no longer clipped at the right edge when the window shrinks to its minimum width.",
-    "Under the hood, the two content columns are now bounded (380-460px on the left, at least 280px on the right) instead of a fixed width.",
+    "No more \"Not secure\" warning: install the local certificate once from the web Settings > Security, and the green padlock shows on every device, updates included.",
+    "New Security section in the web settings: certificate download and a step-by-step install guide for Windows, iPhone, Android, macOS and Linux.",
   ],
 };
 
