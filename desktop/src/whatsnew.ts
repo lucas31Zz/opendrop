@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.7";
+export const WHATSNEW_VERSION = "1.0.8";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.7",
-  en: "What's new in OpenDrop 1.0.7",
+  fr: "Quoi de neuf dans OpenDrop 1.0.8",
+  en: "What's new in OpenDrop 1.0.8",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "Fini l'assistant d'installation de certificat : le bureau détecte l'absence de la CA locale et propose un bouton Installer en un clic dans la carte d'état, à côté de « Serveur actif ».",
-    "L'installation se fait dans les certificats de l'utilisateur actuel (sans droits administrateur ni fenêtre Windows) et l'application vérifie le résultat avant de l'afficher.",
+    "Le Service Worker ne répond plus jamais « vide » au navigateur : la page ouverte hors ligne se charge désormais correctement sur iPhone / Safari.",
+    "La suite de tests utilise une autorité de certification au nom unique, pour ne plus entrer en collision avec la CA installée sur le poste.",
   ],
   en: [
-    "No more certificate wizard: the desktop detects a missing local CA and offers a one-click Install in the status card, right next to \"Server running\".",
-    "The install goes into the current user's certificate store (no admin rights, no Windows dialog) and the app verifies the result before reporting it.",
+    "The service worker never answers \"empty\" to the browser anymore: the offline page now loads correctly on iPhone / Safari.",
+    "The test suite uses a uniquely named certificate authority, so it no longer collides with the CA installed on the machine.",
   ],
 };
 

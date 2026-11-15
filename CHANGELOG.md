@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.8] - 2026-11-15
+
+### Fixed
+
+- **The service worker never answers empty to the browser**: `sw.js`
+  could return `null` to `respondWith()` when a page was requested
+  with a `?token=` query string (its cache keys were tokenless), which
+  Safari turns into an error page instead of the offline fallback.
+  Requests now match the precached entries regardless of the query
+  string and a real 503 offline response is always sent, so the page
+  loads on iPhone / Safari even with a stale cache.
+
+### Tests
+
+- **The suite's certificate authority now uses a unique common
+  name**: with a CA of the same DN installed in the Windows store
+  (via the 1.0.7 install chip), Firefox chained the suite's temporary
+  certificate onto the stored CA and failed with a bad-signature
+  error that `ignore_https_errors` cannot mask. The suite pre-generates
+  `CN=OpenDrop Local CA e2e`, keeping e2e green on any machine.
+
 ## [1.0.7] - 2026-11-14
 
 ### Fixed
