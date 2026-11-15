@@ -26,6 +26,24 @@ const SHELL = [
     "/icons/icon-512.png"
 ];
 
+// Last-resort body when BOTH the network and the cache failed for a
+// shell navigation. Handing `undefined`/null to respondWith would make
+// Safari surface its own internal error page ("FetchEvent.respondWith
+// received an error: Returned response is null") - what a QR scan used
+// to show whenever the server was unreachable. A real Response keeps
+// the failure inside the app (its own i18n "Server unreachable" state)
+// or, here, on a small dedicated page.
+const OFFLINE_HTML =
+    "<!doctype html><html lang=en><meta charset=utf-8>" +
+    "<meta name=viewport content=\"width=device-width,initial-scale=1\">" +
+    "<title>OpenDrop</title>" +
+    "<style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;" +
+    "min-height:100vh;margin:0;background:#101014;color:#e8e8ee;text-align:center}" +
+    "p{line-height:1.7;padding:0 24px}b{font-size:17px}</style>" +
+    "<p><b>OpenDrop est injoignable.</b><br>Le serveur est peut-être " +
+    "arrêté : réessayez plus tard.<br><br><b>OpenDrop is unreachable." +
+    "</b><br>The server may be stopped - try again later.</p></html>";
+
 // Install: precache the whole shell, all-or-nothing. A missing shell
 // asset REJECTS the install - that is a feature, not a bug: a broken
 // precache can never activate and replace a working worker.
@@ -52,7 +70,8 @@ self.addEventListener("activate", (event) => {
 // on this origin. /api/** therefore always reaches the server
 // untouched. For shell paths: network-first - the network answers
 // (and a 2xx answer refreshes the cache), the cache only covers a
-// network failure.
+// network failure - and a total miss answers the offline page, never
+// null (see OFFLINE_HTML).
 self.addEventListener("fetch", (event) => {
     const request = event.request;
     if (request.method !== "GET") return;
@@ -77,6 +96,22 @@ self.addEventListener("fetch", (event) => {
                 }
                 return response;
             })
-            .catch(() => caches.match(request))
+            .catch(() =>
+                // The fallback must NEVER resolve to null: Safari turns a
+                // null respondWith into its internal error page. The QR
+                // navigation always carries ?token= while the precache
+                // keys are the plain paths, so match IGNORING the query;
+                // if iOS evicted the cache entirely, answer with
+                // OFFLINE_HTML instead of falling into the same hole.
+                caches.match(request, { ignoreSearch: true }).then(
+                    (cached) =>
+                        cached ||
+                        new Response(OFFLINE_HTML, {
+                            status: 503,
+                            statusText: "Service Unavailable",
+                            headers: { "content-type": "text/html; charset=utf-8" },
+                        })
+                )
+            )
     );
 });
