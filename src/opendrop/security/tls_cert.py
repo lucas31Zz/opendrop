@@ -50,6 +50,12 @@ VALIDITY_DAYS = 397
 # The anchor must outlive every leaf it signs by far: ~20 years.
 CA_VALIDITY_DAYS = 7300
 RENEW_BEFORE_DAYS = 30
+# The subject DN of the anchor, and the name trust UIs display. Tests
+# pass a different one (see tests/conftest.py): Firefox reads the
+# Windows Root store (security.enterprise_roots.enabled defaults to
+# true) and would chain a same-DN suite CA onto the installed real CA,
+# which fails with a hard SEC_ERROR_BAD_SIGNATURE no flag can override.
+CA_COMMON_NAME = "OpenDrop Local CA"
 
 
 def get_cert_dir(directory: str | Path | None = None) -> Path:
@@ -75,13 +81,19 @@ def ensure_certificate(ip: str, directory: str | Path | None = None) -> tuple[Pa
     return cert_path, key_path
 
 
-def ensure_ca(directory: str | Path | None = None) -> tuple[Path, Path]:
+def ensure_ca(directory: str | Path | None = None,
+               common_name: str = CA_COMMON_NAME) -> tuple[Path, Path]:
     """Return the persistent local CA (cert, key), generating it once.
 
     This is the trust anchor devices install once (GET /ca.crt): it must
     stay byte-identical across leaf renewals, IP changes and app
     updates, so it is regenerated ONLY when unusable (missing,
     unreadable, expired soon, or not actually a CA).
+
+    `common_name` only applies when the CA has to be created, and an
+    existing valid CA is kept whatever its subject - so the tests can
+    ask for a unique DN (module docstring of this file) without ever
+    churning a real anchor.
     """
     base = get_cert_dir(directory)
     cert_path = base / CA_CERT_FILE
@@ -91,7 +103,7 @@ def ensure_ca(directory: str | Path | None = None) -> tuple[Path, Path]:
         return cert_path, key_path
 
     base.mkdir(parents=True, exist_ok=True)
-    _generate_ca(cert_path, key_path)
+    _generate_ca(cert_path, key_path, common_name)
     return cert_path, key_path
 
 
@@ -241,11 +253,12 @@ def _write_key(path: Path, key) -> None:
         pass
 
 
-def _generate_ca(cert_path: Path, key_path: Path) -> None:
+def _generate_ca(cert_path: Path, key_path: Path,
+                 common_name: str = CA_COMMON_NAME) -> None:
     """Create the local CA: self-signed anchor, ~20 years, path_length 0."""
     key = ec.generate_private_key(ec.SECP256R1())
     now = datetime.datetime.now(datetime.timezone.utc)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "OpenDrop Local CA")])
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
 
     cert = (
         x509.CertificateBuilder()

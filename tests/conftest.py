@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from opendrop.network.interfaces import get_local_ip, find_available_port
 from opendrop.server.server import create_server
 from opendrop.security.devices import DeviceRegistry
+from opendrop.security.tls_cert import ensure_ca
 
 # --- Test isolation ------------------------------------------------------
 # Tests ALWAYS work in a temporary folder created here.
@@ -29,6 +30,18 @@ sd = os.path.join(_WORKSPACE, "partage")
 cert_dir = os.path.join(_WORKSPACE, "certs")
 os.makedirs(dd, exist_ok=True)
 os.makedirs(sd, exist_ok=True)
+
+# The suite CA is created up front with a UNIQUE subject DN (the product
+# default is "OpenDrop Local CA"). Firefox reads the Windows Root store
+# (security.enterprise_roots.enabled defaults to true): on a machine
+# trusting the real OpenDrop CA - the status-bar install chip does that
+# in one click - a same-DN suite CA chains onto the STORE CA instead of
+# its own key: signature mismatch, hard SEC_ERROR_BAD_SIGNATURE (-8182),
+# 5/5 e2e Firefox failures that ignore_https_errors cannot override
+# (measured 2026-11-15; with this unique DN the suite is green on any
+# machine, store or not).
+os.makedirs(cert_dir, exist_ok=True)
+ensure_ca(directory=cert_dir, common_name="OpenDrop Local CA e2e")
 
 # The server speaks HTTPS with a locally issued certificate (its own
 # CA, generated on the fly inside the temporary workspace): the tests
