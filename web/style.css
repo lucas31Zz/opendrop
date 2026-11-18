@@ -1894,6 +1894,154 @@ body::-webkit-scrollbar {
     line-height: 1.45;
 }
 
+/* --- iOS trust guide: 4 steps to the green padlock ----------------- */
+/* iOS refuses every automation here (no API for the profile install or
+   the trust toggle), so this card is a CHECKLIST instead: a step stays
+   ticked (localStorage), the progress line always names the NEXT step,
+   and the address comes from location.origin so step 4 never needs
+   typing. Shown by app.js on iPhone/iPad only. */
+.trust-guide {
+    margin-top: 0.7rem;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 14px;
+    background: var(--accent-soft);
+}
+
+.trust-guide-intro {
+    margin: 0 0 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-dim);
+}
+
+.trust-guide-steps {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--text-dim);
+}
+
+.trust-step.done {
+    color: var(--success);
+}
+
+.trust-step-alt {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--text-faint);
+}
+
+.trust-step-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+
+.trust-mini,
+.trust-done {
+    padding: 0.28rem 0.75rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.76rem;
+    line-height: 1.3;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.trust-mini:active,
+.trust-done:active {
+    transform: scale(0.97);
+}
+
+.trust-step.done .trust-done {
+    background: linear-gradient(180deg, var(--glass-accent-a), var(--glass-accent-b));
+    border-color: var(--glass-accent-edge);
+    color: var(--on-accent);
+}
+
+.trust-origin {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    color: var(--text);
+    word-break: break-all;
+}
+
+.trust-progress {
+    margin: 0.55rem 0 0;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+}
+
+.trust-finish {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--success);
+}
+
+/* Body-level banner: the entry point from the red Safari interstitial
+   (z-25 = below the settings overlay, above the app shell). */
+.trust-banner {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    max-width: min(94vw, 430px);
+    padding: 0.45rem 0.4rem 0.45rem 0.8rem;
+    border: 1px solid var(--glass-edge);
+    border-radius: 999px;
+    background: var(--glass-blur-float);
+    -webkit-backdrop-filter: var(--glass-blur-float);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-shadow);
+}
+
+.trust-banner-open {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font-size: 0.8rem;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+}
+
+.trust-banner-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.trust-banner-close {
+    flex: none;
+    padding: 0.25rem 0.5rem;
+    border: 0;
+    background: none;
+    color: var(--text-faint);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
 /* --- Pairing push: overlay + busy banner ---------------------------- */
 /* The veil sits one step above the settings one (z-40): a pairing
    window is a pushed state and must win over any open overlay. Same

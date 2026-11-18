@@ -13,6 +13,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 
@@ -584,7 +585,7 @@ def scenario_pwa_manifest_sw(page, server, port, token) -> None:
     #    activate-time deletion of every other cache (read from the
     #    reloaded, worker-controlled page).
     keys = page.evaluate("async () => await caches.keys()")
-    assert keys == ["opendrop-shell-v1"], f"caches.keys() = {keys!r}"
+    assert keys == ["opendrop-shell-v2"], f"caches.keys() = {keys!r}"
 
     # 6) from the reloaded, SW-CONTROLLED page: /api/download with a
     #    Range header has to pass the worker by untouched: 206, the
@@ -626,6 +627,191 @@ def scenario_pwa_manifest_sw(page, server, port, token) -> None:
     page.wait_for_selector("#drop-zone", state="visible", timeout=10_000)
 
 
+# Real phone user agents: the platform trust guide below is UA-driven,
+# and the runner's own context (default desktop UA) stays the contrast.
+_IPHONE_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+              "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 "
+              "Mobile/15E148 Safari/604.1")
+_ANDROID_UA = ("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
+               "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+
+# The progress line is JS-rendered through t(), never a [data-i18n] node:
+# the suite runs on a configured machine (fr) and in CI (en), so both
+# spellings are accepted - and the count differs per guide (iOS = 4
+# steps, Android = 3), hence one regex per guide.
+_PROGRESS_STEP2_4 = re.compile(r"(Step 2 of 4|\u00c9tape 2 sur 4)")
+_PROGRESS_STEP2_3 = re.compile(r"(Step 2 of 3|\u00c9tape 2 sur 3)")
+
+
+def scenario_trust_guides(page, server, port, token) -> None:
+    """The platform trust guide: detected device -> its own checklist.
+
+    Neither iOS nor Android offers an API to install a certificate or
+    flip the trust settings, so web/app.js guides instead - and this
+    scenario proves that contract from the OUTSIDE on real phone user
+    agents (each in its own context, since the guide keys off the agent):
+    1) the desktop UA sees neither guide nor banner, and the manual
+       per-OS list leads with the DETECTED desktop system (never a
+       phone one),
+    2) iPhone: the banner opens Settings on the 4-step iOS checklist,
+       step 4's address is location.origin verbatim, one tick names the
+       NEXT step and SURVIVES a reload (iOS drops tabs freely),
+    3) Android: the same contract on its own 3-step checklist, with the
+       manual list promoted to android - every other OS stays below it
+       (detection can be wrong, nothing is ever removed),
+    4) 4 (iOS) / 3 (Android) ticks show the success line, empty the
+       progress and hide the banner for good.
+    Progress strings are matched in both languages (fr on the
+    configured machine, en in CI).
+    """
+    # 0) the runner's own DESKTOP context: no guide, no banner.
+    page.goto(_url(port, "/"))
+    page.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+    page.click("#settings-btn")
+    page.wait_for_selector("#settings-screen", state="visible")
+    assert not page.locator("#trust-guide").is_visible(), \
+        "the iOS guide must stay hidden on a desktop UA"
+    assert not page.locator("#trust-banner").is_visible(), \
+        "the trust banner must stay hidden on a desktop UA"
+    # The manual list is REORDERED by detection (never shortened): on a
+    # desktop the desktop line must lead - and never a phone one.
+    head_os = page.locator("#trust-steps .trust-list li").first \
+        .get_attribute("data-os")
+    assert head_os in ("windows", "macos", "linux"), \
+        f"a desktop system must lead the list, got {head_os!r}"
+
+    browser = page.context.browser
+    context = browser.new_context(ignore_https_errors=True,
+                                   user_agent=_IPHONE_UA)
+    try:
+        phone = context.new_page()
+        phone.goto(_url(port, "/"))
+        phone.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+
+        # 1) the banner: the FIRST thing the checklist offers an
+        #    iPhone that has not completed the trust setup yet.
+        banner = phone.locator("#trust-banner")
+        assert banner.is_visible(), "no trust banner on an iPhone UA"
+
+        # 2) the banner is the entry point: it opens Settings directly
+        #    on the unfolded guide (smooth scroll aside).
+        phone.click("#trust-banner-open")
+        phone.wait_for_selector("#settings-screen", state="visible")
+        guide = phone.locator("#trust-guide")
+        assert guide.is_visible(), "the iOS guide must unfold on an iPhone UA"
+
+        # 3) step 4 carries this origin verbatim: compare what the page
+        #    shows against BOTH the live location.origin and the URL the
+        #    scenario itself navigated to.
+        shown = phone.locator("#trust-origin").text_content()
+        live = phone.evaluate("location.origin")
+        assert shown == live, f"trust-origin {shown!r} != live origin {live!r}"
+        assert shown == f"https://{ip}:{port}", \
+            f"trust-origin {shown!r} != https://{ip}:{port}"
+
+        # 4) one tick: step 1 reads as done, the progress line names
+        #    step 2 (in whatever language the server publishes). Tick
+        #    selectors are scoped to the iOS body: both checklists ship
+        #    the same data-trust-step attributes and the Android one is
+        #    display:none here (never clickable).
+        phone.click('#trust-guide-ios [data-trust-step="1"]')
+        assert phone.locator("#trust-step-1").evaluate(
+            "el => el.classList.contains('done')"), "step 1 not ticked"
+        progress = phone.locator("#trust-progress").text_content() or ""
+        assert _PROGRESS_STEP2_4.search(progress), \
+            f"progress after tick 1 = {progress!r}"
+
+        # 5) a reload (iOS drops tabs all the time) keeps the thread:
+        #    the tick survives and the banner is still there.
+        phone.reload()
+        phone.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+        assert banner.is_visible(), \
+            "an unfinished checklist must keep the banner after a reload"
+        phone.click("#settings-btn")
+        phone.wait_for_selector("#settings-screen", state="visible")
+        assert phone.locator("#trust-step-1").evaluate(
+            "el => el.classList.contains('done')"), \
+            "the tick did not survive the reload"
+        progress = phone.locator("#trust-progress").text_content() or ""
+        assert _PROGRESS_STEP2_4.search(progress), \
+            f"progress after reload = {progress!r}"
+
+        # 6) four ticks: success line in, progress cleared, banner out.
+        for step in (2, 3, 4):
+            phone.click(f'#trust-guide-ios [data-trust-step="{step}"]')
+        assert phone.locator("#trust-finish").is_visible(), \
+            "no success line after the 4th tick"
+        assert not banner.is_visible(), \
+            "the banner must hide once the checklist is complete"
+        progress = phone.locator("#trust-progress").text_content() or ""
+        assert progress == "", \
+            f"the progress line must clear when complete: {progress!r}"
+    finally:
+        context.close()
+
+    # --- Android: same contract, its own 3-step checklist -------------
+    context = browser.new_context(ignore_https_errors=True,
+                                   user_agent=_ANDROID_UA)
+    try:
+        droid = context.new_page()
+        droid.goto(_url(port, "/"))
+        droid.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+
+        # 1) the banner greets an Android the same way it greets an
+        #    iPhone - and the Android checklist is the one unfolded.
+        assert droid.locator("#trust-banner").is_visible(), \
+            "no trust banner on an Android UA"
+        droid.click("#trust-banner-open")
+        droid.wait_for_selector("#settings-screen", state="visible")
+        assert droid.locator("#trust-guide-android").is_visible(), \
+            "the Android guide must unfold on an Android UA"
+        assert not droid.locator("#trust-guide-ios").is_visible(), \
+            "the iOS checklist must never show on Android"
+
+        # 2) the manual list leads with android - and keeps every other
+        #    OS below (reordered, never shortened).
+        head_os = droid.locator("#trust-steps .trust-list li").first \
+            .get_attribute("data-os")
+        assert head_os == "android", \
+            f"android must lead the list, got {head_os!r}"
+        assert droid.locator("#trust-steps .trust-list li").count() == 5, \
+            "reordering must never remove a system from the list"
+
+        # 3) step 3 carries this origin verbatim (the Android checklist
+        #    ends at step 3, not 4).
+        shown = droid.locator("#trust-origin-android").text_content()
+        live = droid.evaluate("location.origin")
+        assert shown == live, \
+            f"trust-origin-android {shown!r} != live origin {live!r}"
+
+        # 4) one tick: the progress line names step 2 of 3 (the count
+        #    follows the checklist, both languages accepted).
+        droid.click('#trust-guide-android [data-trust-step="1"]')
+        assert droid.locator("#trust-step-a1").evaluate(
+            "el => el.classList.contains('done')"), "step a1 not ticked"
+        progress = droid.locator("#trust-progress").text_content() or ""
+        assert _PROGRESS_STEP2_3.search(progress), \
+            f"android progress after tick 1 = {progress!r}"
+
+        # 5) a reload keeps the thread here too, then three ticks show
+        #    the success line and clear the banner.
+        droid.reload()
+        droid.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+        droid.click("#settings-btn")
+        droid.wait_for_selector("#settings-screen", state="visible")
+        assert droid.locator("#trust-step-a1").evaluate(
+            "el => el.classList.contains('done')"), \
+            "the android tick did not survive the reload"
+        for step in (2, 3):
+            droid.click(f'#trust-guide-android [data-trust-step="{step}"]')
+        assert droid.locator("#trust-finish").is_visible(), \
+            "no success line after the 3rd android tick"
+        assert not droid.locator("#trust-banner").is_visible(), \
+            "the banner must hide once the android checklist is complete"
+    finally:
+        context.close()
+
+
 # Scenario -> the browsers it runs on. webkit is out of the two-slice
 # scenarios by the PRINTED KNOWN_DRIVER_ISSUES limitation above - it is
 # genuinely exercised by upload_single_slice all the same.
@@ -640,6 +826,8 @@ SCENARIOS = [("upload_single_slice", scenario_upload_single_slice,
              ("title_beforeunload", scenario_title_beforeunload,
               ["chromium", "firefox", "webkit"]),
              ("pwa_manifest_sw", scenario_pwa_manifest_sw,
+              ["chromium", "firefox", "webkit"]),
+             ("trust_guides", scenario_trust_guides,
               ["chromium", "firefox", "webkit"])]
 
 

@@ -74,6 +74,19 @@
             "trust.android": "Android: open the downloaded file, then Install a certificate > CA certificate (a screen lock is required).",
             "trust.macos": "macOS: open the downloaded file, add it to the keychain, then in Keychain Access set Trust > Always Trust for the OpenDrop Local CA.",
             "trust.linux": "Linux: move the file to /usr/local/share/ca-certificates/opendrop-ca.crt, then run sudo update-ca-certificates.",
+            "trust.guide.intro": "Your iPhone asks for Face ID or your passcode in steps 2 and 3: that is Apple's own confirmation, nothing more is needed.",
+            "trust.guide.step1": "Download the profile: Safari stores the local CA and Settings offers to install it.",
+            "trust.guide.step2": "Settings > General > VPN & Device Management > \"OpenDrop Local CA\" > Install (Face ID / passcode).",
+            "trust.guide.step3": "Settings > General > About > Certificate Trust Settings > enable \"OpenDrop Local CA\" (Face ID / passcode).",
+            "trust.guide.step4": "Close this site's tabs, then reopen this address:",
+            "trust.guide.done": "Done",
+            "trust.guide.progress": "Step {0} of {1}",
+            "trust.guide.androidIntro": "Android installs the certificate in one go: a screen lock (pattern, PIN or fingerprint) is required - that is Google's own confirmation, nothing more is needed.",
+            "trust.guide.androidStep1": "Download the certificate: your browser saves the local CA to the device (open it from Downloads).",
+            "trust.guide.androidStep2": "Settings > Security > Encryption & credentials > Install a certificate > CA certificate, then pick the downloaded file (screen lock required).",
+            "trust.guide.androidSamsung": "Samsung: Settings > Biometrics and security > Other security settings > Install from device storage > CA certificate.",
+            "trust.guide.finished": "No more warning on this address - the padlock is green for good.",
+            "trust.guide.banner": "Certificate warning? A guide to the green padlock.",
             "qr.notOpendrop": "Unrecognized QR code: not an OpenDrop link.",
             "camera.blocked": "Camera unavailable: this browser blocks access (insecure " +
                 "context). Open the phone's camera app and scan the QR code: the " +
@@ -183,6 +196,19 @@
             "trust.android": "Android : ouvrez le fichier t\u00e9l\u00e9charg\u00e9, puis Installer un certificat > Certificat d'autorit\u00e9 de certification (un verrou d'\u00e9cran est requis).",
             "trust.macos": "macOS : ouvrez le fichier t\u00e9l\u00e9charg\u00e9, ajoutez-le au trousseau, puis dans Acc\u00e8s aux trousseaux r\u00e9glez Confiance > Faire toujours confiance pour l'autorit\u00e9 OpenDrop Local CA.",
             "trust.linux": "Linux : d\u00e9placez le fichier vers /usr/local/share/ca-certificates/opendrop-ca.crt, puis lancez sudo update-ca-certificates.",
+            "trust.guide.intro": "Votre iPhone demande Face ID ou votre code aux \u00e9tapes 2 et 3 : c'est la confirmation d'Apple elle-m\u00eame, rien d'autre n'est n\u00e9cessaire.",
+            "trust.guide.step1": "T\u00e9l\u00e9chargez le profil : Safari enregistre la CA locale et R\u00e9glages propose de l'installer.",
+            "trust.guide.step2": "R\u00e9glages > G\u00e9n\u00e9ral > VPN et gestion des appareils > \u00ab OpenDrop Local CA \u00bb > Installer (Face ID / code).",
+            "trust.guide.step3": "R\u00e9glages > G\u00e9n\u00e9ral > \u00c0 propos > Validation des certificats > activer \u00ab OpenDrop Local CA \u00bb (Face ID / code).",
+            "trust.guide.step4": "Fermez les onglets de ce site, puis rouvrez cette adresse :",
+            "trust.guide.done": "Fait",
+            "trust.guide.progress": "\u00c9tape {0} sur {1}",
+            "trust.guide.androidIntro": "Android installe le certificat en une fois : un verrou d'\u00e9cran (sch\u00e9ma, code ou empreinte) est demand\u00e9 - c'est la confirmation de Google, rien d'autre n'est n\u00e9cessaire.",
+            "trust.guide.androidStep1": "T\u00e9l\u00e9chargez le certificat : votre navigateur enregistre la CA locale sur l'appareil (ouvrez-la depuis T\u00e9l\u00e9chargements).",
+            "trust.guide.androidStep2": "R\u00e9glages > S\u00e9curit\u00e9 > Chiffrement et identifiants > Installer un certificat > Certificat d'autorit\u00e9, puis choisissez le fichier t\u00e9l\u00e9charg\u00e9 (verrou d'\u00e9cran requis).",
+            "trust.guide.androidSamsung": "Samsung : R\u00e9glages > Biophysique et s\u00e9curit\u00e9 > Autres param\u00e8tres de s\u00e9curit\u00e9 > Installer depuis le stockage de l'appareil > CA.",
+            "trust.guide.finished": "Plus d'avertissement sur cette adresse : le cadenas est vert pour de bon.",
+            "trust.guide.banner": "Avertissement de certificat ? Un guide pour le cadenas vert.",
             "qr.notOpendrop": "QR code non reconnu : ce n'est pas un lien OpenDrop.",
             "camera.blocked": "Cam\u00e9ra indisponible : ce navigateur bloque l'acc\u00e8s (contexte " +
                 "non s\u00e9curis\u00e9). Ouvrez l'appareil photo du t\u00e9l\u00e9phone et scannez " +
@@ -410,6 +436,9 @@
             // Settings overlay (defined below, hoisted): refresh the
             // active light/dark + lang buttons if it is already open.
             syncSettingsChoices();
+            // The iOS guide's progress line is language-dependent and
+            // applyLang only rewrites [data-i18n] nodes, so repaint it.
+            renderTrustGuide();
         })
         .catch(function () { /* server unreachable: keep the defaults */ });
 
@@ -808,6 +837,195 @@
     // /ca.crt) - the OS certificate installer takes over from there.
     document.getElementById("trust-download").addEventListener("click", function () {
         location.href = "/ca.crt";
+    });
+
+    // --- Platform trust guide -----------------------------------------
+    // iOS and Android both offer NO API that would let a page (or an
+    // app) install a certificate or flip the trust settings - only MDM
+    // on a supervised device can do that silently. The confirmation
+    // (Face ID / passcode on iOS, screen lock on Android) is the OS's
+    // own gate, so the most an app can automate is the GUIDANCE: the
+    // device is detected from the user agent and the matching checklist
+    // unfolds - iOS walks the two Settings taps, Android the one
+    // certificate install - carrying this origin verbatim (the last
+    // step is the only one to repeat after an IP change), remembering
+    // its progress per device, with a body-level banner opening it from
+    // the very first visit - the exact moment the red certificate
+    // interstitial sends the visitor back to us. Detection may be
+    // wrong: the full per-OS list stays below, only reordered to lead
+    // with the detected system.
+    var TRUST_KEY = "opendrop_trust_steps";
+    var TRUST_BANNER_KEY = "opendrop_trust_banner";
+
+    // ios | android | windows | macos | linux | null. Mobile first
+    // (their tell-tales are unambiguous); iPadOS 13+ is checked before
+    // macos because it hides behind a Macintosh user agent.
+    function guidePlatform() {
+        var ua = navigator.userAgent || "";
+        if (/iPad|iPhone|iPod/.test(ua)) return "ios";
+        if (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1) return "ios";
+        if (/Android/.test(ua)) return "android";
+        if (/Windows/.test(ua)) return "windows";
+        if (/Macintosh|Mac OS X/.test(ua)) return "macos";
+        if (/Linux/.test(ua)) return "linux";
+        return null;
+    }
+
+    // What a mobile platform unfolds: its body and its step ids in
+    // order. A device runs ONE of them - the other body is never shown
+    // (and, being display:none, never clickable).
+    var GUIDE_SPECS = {
+        ios: {
+            body: "trust-guide-ios",
+            steps: ["trust-step-1", "trust-step-2", "trust-step-3", "trust-step-4"]
+        },
+        android: {
+            body: "trust-guide-android",
+            steps: ["trust-step-a1", "trust-step-a2", "trust-step-a3"]
+        }
+    };
+
+    function trustStepsRead() {
+        return (storeRead(TRUST_KEY) || "").split(",")
+            .map(function (p) { return p === "1"; });
+    }
+
+    function trustStepsWrite(steps) {
+        storeWrite(TRUST_KEY, steps.map(function (s) {
+            return s ? "1" : "0";
+        }).join(","));
+    }
+
+    // Ticks, progress line ("the NEXT step" while incomplete) and the
+    // banner are all derived from the stored state, so a reload, a
+    // language switch or an IP change never loses the thread. The
+    // platform is re-read on every render: it selects WHICH checklist
+    // shows and how many steps it has.
+    function renderTrustGuide() {
+        var platform = guidePlatform();
+        var spec = GUIDE_SPECS[platform] || null;   // null on desktop
+        var guide = document.getElementById("trust-guide");
+        if (guide) guide.style.display = spec ? "" : "none";
+        var name;
+        for (name in GUIDE_SPECS) {
+            var body = document.getElementById(GUIDE_SPECS[name].body);
+            if (body) body.style.display = (spec && name === platform) ? "" : "none";
+        }
+        var steps = trustStepsRead();
+        var total = spec ? spec.steps.length : 0;
+        var done = 0;
+        var i;
+        if (spec) {
+            for (i = 0; i < total; i++) {
+                var step = document.getElementById(spec.steps[i]);
+                if (step) step.classList.toggle("done", !!steps[i]);
+                if (steps[i]) done++;
+            }
+        }
+        var complete = !!spec && done === total;
+        var progress = document.getElementById("trust-progress");
+        var finish = document.getElementById("trust-finish");
+        if (progress) {
+            progress.textContent = complete ? "" :
+                t("trust.guide.progress", String(done + 1), String(total));
+        }
+        if (finish) finish.style.display = complete ? "" : "none";
+        var banner = document.getElementById("trust-banner");
+        if (banner) {
+            banner.style.display = (spec && !complete &&
+                storeRead(TRUST_BANNER_KEY) !== "hidden") ? "" : "none";
+        }
+    }
+
+    // The manual list below keeps EVERY system (the detection can be
+    // wrong) - the detected one is only promoted to the first line.
+    function promoteOsLine(platform) {
+        if (!platform) return;
+        var list = document.querySelector("#trust-steps .trust-list");
+        if (!list) return;
+        var line = list.querySelector('[data-os="' + platform + '"]');
+        if (line && line !== list.firstElementChild) {
+            list.insertBefore(line, list.firstElementChild);
+        }
+    }
+
+    // Both checklists close with the SAME live origin ("reopen this
+    // address"): filled once here, for whichever guide the device runs.
+    var trustGuideEl = document.getElementById("trust-guide");
+    var trustOriginIds = ["trust-origin", "trust-origin-android"];
+    var oi;
+    for (oi = 0; oi < trustOriginIds.length; oi++) {
+        var originEl = document.getElementById(trustOriginIds[oi]);
+        if (originEl) originEl.textContent = location.origin;
+    }
+
+    // Every tick button of BOTH checklists toggles the same stored
+    // state: a device runs one guide, the other body can never be
+    // clicked.
+    Array.prototype.forEach.call(
+        document.querySelectorAll("[data-trust-step]"),
+        function (btn) {
+            btn.addEventListener("click", function () {
+                var steps = trustStepsRead();
+                var index = parseInt(btn.getAttribute("data-trust-step"), 10) - 1;
+                steps[index] = !steps[index];
+                trustStepsWrite(steps);
+                renderTrustGuide();
+            });
+        }
+    );
+
+    function goCa() { location.href = "/ca.crt"; }
+    document.getElementById("trust-guide-download")
+        .addEventListener("click", goCa);
+    document.getElementById("trust-guide-download-android")
+        .addEventListener("click", goCa);
+
+    // The address never gets typed: the copy button feeds it straight
+    // back into the address bar (one binder per checklist's button).
+    function bindTrustCopy(id) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener("click", function () {
+            function say(message) {
+                btn.textContent = message;
+                window.setTimeout(function () {
+                    btn.textContent = t("device.copy");
+                }, 1600);
+            }
+            function ok() { say(t("device.copied")); }
+            function fail() { say(t("device.copyFailed")); }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(location.origin).then(ok, function () {
+                    if (copyTokenFallback(location.origin)) ok();
+                    else fail();
+                });
+            } else if (copyTokenFallback(location.origin)) {
+                ok();
+            } else {
+                fail();
+            }
+        });
+    }
+    bindTrustCopy("trust-copy");
+    bindTrustCopy("trust-copy-android");
+
+    // Detected system first, every other system one scroll lower.
+    promoteOsLine(guidePlatform());
+    renderTrustGuide();
+
+    // The banner is body-level, therefore always present: tapping it
+    // opens the Security section and lands on the checklist.
+    var trustBanner = document.getElementById("trust-banner");
+    document.getElementById("trust-banner-open").addEventListener("click", function () {
+        trustBanner.style.display = "none";
+        openSettings();
+        renderTrustGuide();
+        trustGuideEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    document.getElementById("trust-banner-close").addEventListener("click", function () {
+        storeWrite(TRUST_BANNER_KEY, "hidden");
+        renderTrustGuide();
     });
 
     // Appareil / share_info: the checkbox posts the new preference; a

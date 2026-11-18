@@ -409,7 +409,7 @@ one once again.
 | Symptom | What to do |
 |---|---|
 | The phone won't open the address | Same Wi-Fi/network as the PC, no guest network (they are usually isolated); then allow the port through the firewall: `sudo ufw allow 8080` (Linux). Re-scan the QR code: the address changes when the PC's IP or port changes |
-| The browser says *Not secure* / certificate warning | The local CA is not installed on that device yet: **on Windows the desktop app detects it and offers a one-click Install in the Status card** (no admin, no dialog); otherwise open Settings > Security in the page and install the certificate once (or continue to the OpenDrop address only, never another site). To start fresh, delete `certs\` (see above) - every device must then trust the new CA |
+| The browser says *Not secure* / certificate warning | The local CA is not installed on that device yet: **on Windows the desktop app detects it and offers a one-click Install in the Status card** (no admin, no dialog); **on iPhone / iPad and Android the page's Security section opens a platform checklist** picked automatically from your device (iOS: download the profile, install it in Settings, enable Certificate Trust Settings, reload - iOS asks Face ID / your passcode at the two Settings steps; Android: download the certificate, install it from Settings > Security as a CA certificate - a screen lock is required), with a banner opening it from the very first visit; otherwise open Settings > Security in the page and install the certificate once (or continue to the OpenDrop address only, never another site). To start fresh, delete `certs\` (see above) - every device must then trust the new CA |
 | *Session locked* on the phone | Type the 6-character code shown in the desktop app. The code rotates when the token does |
 | *Port already in use* at start | An older server is still running: stop it (Stop server, or close the app), then start again. Otherwise OpenDrop moves to the next free port automatically |
 | Upload rejected with **507** (quota bar red) | The receive folder is full against the quota: raise it or set `0` (unlimited) in *Settings > Storage* |
@@ -507,7 +507,7 @@ python -m tests.test_beta         # 63/63 - full run-through
 python -m tests.test_beta --large # 75/75 - file batches, traversal attempts
 python -m tests.test_devices      # 62/62 - device pairing, registered IPs, reset
 python -m tests.test_zip_web      # 47/47 - ZIP64, password zips, browser zip engine
-python -m tests.test_e2e          # 16/16 - multi-browser upload flows
+python -m tests.test_e2e          # 19/19 - multi-browser upload flows
 ```
 
 Before building, close the desktop app: a running `OpenDrop.exe` blocks

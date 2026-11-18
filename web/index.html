@@ -285,6 +285,77 @@
             <section class="settings-section">
                 <h3 class="settings-subtitle" data-i18n="settings.security">Security</h3>
                 <p class="settings-hint" data-i18n="trust.hint">Install the local certificate once to remove the browser warning on this device.</p>
+
+                <!-- Platform trust guide: app.js detects the device and
+                     unfolds ONLY its checklist here (iPhone/iPad ->
+                     profile + trust toggle, Android -> certificate from
+                     Settings). Neither OS lets a page do the install
+                     itself, so the page walks the taps and the OS asks
+                     Face ID / the passcode / the screen lock. The
+                     detection may be wrong: the per-OS list below never
+                     loses an entry, it only reorders. Progress lives in
+                     localStorage per device. -->
+                <div class="trust-guide" id="trust-guide" style="display:none;">
+                    <div class="trust-guide-body" id="trust-guide-ios">
+                        <p class="trust-guide-intro" data-i18n="trust.guide.intro">Your iPhone asks for Face ID or your passcode in steps 2 and 3: that is Apple's own confirmation, nothing more is needed.</p>
+                        <ol class="trust-guide-steps">
+                            <li class="trust-step" id="trust-step-1">
+                                <span class="trust-step-text" data-i18n="trust.guide.step1">Download the profile: Safari stores the local CA and Settings offers to install it.</span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-mini" id="trust-guide-download" type="button" data-i18n="trust.download">Download the certificate</button>
+                                    <button class="trust-done" type="button" data-trust-step="1" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                            <li class="trust-step" id="trust-step-2">
+                                <span class="trust-step-text" data-i18n="trust.guide.step2">Settings &gt; General &gt; VPN &amp; Device Management &gt; "OpenDrop Local CA" &gt; Install (Face ID / passcode).</span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-done" type="button" data-trust-step="2" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                            <li class="trust-step" id="trust-step-3">
+                                <span class="trust-step-text" data-i18n="trust.guide.step3">Settings &gt; General &gt; About &gt; Certificate Trust Settings &gt; enable "OpenDrop Local CA" (Face ID / passcode).</span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-done" type="button" data-trust-step="3" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                            <li class="trust-step" id="trust-step-4">
+                                <span class="trust-step-text"><span data-i18n="trust.guide.step4">Close this site's tabs, then reopen this address:</span> <code class="trust-origin" id="trust-origin"></code></span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-mini" id="trust-copy" type="button" data-i18n="device.copy">Copy</button>
+                                    <button class="trust-done" type="button" data-trust-step="4" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                        </ol>
+                    </div>
+                    <div class="trust-guide-body" id="trust-guide-android" style="display:none;">
+                        <p class="trust-guide-intro" data-i18n="trust.guide.androidIntro">Android installs the certificate in one go: a screen lock (pattern, PIN or fingerprint) is required - that is Google's own confirmation, nothing more is needed.</p>
+                        <ol class="trust-guide-steps">
+                            <li class="trust-step" id="trust-step-a1">
+                                <span class="trust-step-text" data-i18n="trust.guide.androidStep1">Download the certificate: your browser saves the local CA to the device (open it from Downloads).</span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-mini" id="trust-guide-download-android" type="button" data-i18n="trust.download">Download the certificate</button>
+                                    <button class="trust-done" type="button" data-trust-step="1" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                            <li class="trust-step" id="trust-step-a2">
+                                <span class="trust-step-text" data-i18n="trust.guide.androidStep2">Settings &gt; Security &gt; Encryption &amp; credentials &gt; Install a certificate &gt; CA certificate, then pick the downloaded file (screen lock required).</span>
+                                <span class="trust-step-alt" data-i18n="trust.guide.androidSamsung">Samsung: Settings &gt; Biometrics and security &gt; Other security settings &gt; Install from device storage &gt; CA certificate.</span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-done" type="button" data-trust-step="2" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                            <li class="trust-step" id="trust-step-a3">
+                                <span class="trust-step-text"><span data-i18n="trust.guide.step4">Close this site's tabs, then reopen this address:</span> <code class="trust-origin" id="trust-origin-android"></code></span>
+                                <span class="trust-step-actions">
+                                    <button class="trust-mini" id="trust-copy-android" type="button" data-i18n="device.copy">Copy</button>
+                                    <button class="trust-done" type="button" data-trust-step="3" data-i18n="trust.guide.done">Done</button>
+                                </span>
+                            </li>
+                        </ol>
+                    </div>
+                    <p class="trust-progress" id="trust-progress"></p>
+                    <p class="trust-finish" id="trust-finish" style="display:none;" data-i18n="trust.guide.finished">No more warning on this address - the padlock is green for good.</p>
+                </div>
                 <div class="settings-row">
                     <button class="settings-choice" id="trust-download" type="button"
                             data-i18n="trust.download">Download the certificate</button>
@@ -292,15 +363,30 @@
                 <details class="trust-steps" id="trust-steps">
                     <summary data-i18n="trust.steps">How to install it (once per device)</summary>
                     <ul class="trust-list">
-                        <li data-i18n="trust.windows">Windows: open the downloaded file, then Install &gt; Local Machine &gt; Trusted Root Certification Authorities &gt; Yes.</li>
-                        <li data-i18n="trust.ios">iPhone / iPad: install the profile in Settings, then Settings &gt; General &gt; About &gt; Certificate Trust Settings and enable full trust for the OpenDrop Local CA.</li>
-                        <li data-i18n="trust.android">Android: open the downloaded file, then Install a certificate &gt; CA certificate (a screen lock is required).</li>
-                        <li data-i18n="trust.macos">macOS: open the downloaded file, add it to the keychain, then in Keychain Access set Trust &gt; Always Trust for the OpenDrop Local CA.</li>
-                        <li data-i18n="trust.linux">Linux: move the file to /usr/local/share/ca-certificates/opendrop-ca.crt, then run sudo update-ca-certificates.</li>
+                        <li data-os="windows" data-i18n="trust.windows">Windows: open the downloaded file, then Install &gt; Local Machine &gt; Trusted Root Certification Authorities &gt; Yes.</li>
+                        <li data-os="ios" data-i18n="trust.ios">iPhone / iPad: install the profile in Settings, then Settings &gt; General &gt; About &gt; Certificate Trust Settings and enable full trust for the OpenDrop Local CA.</li>
+                        <li data-os="android" data-i18n="trust.android">Android: open the downloaded file, then Install a certificate &gt; CA certificate (a screen lock is required).</li>
+                        <li data-os="macos" data-i18n="trust.macos">macOS: open the downloaded file, add it to the keychain, then in Keychain Access set Trust &gt; Always Trust for the OpenDrop Local CA.</li>
+                        <li data-os="linux" data-i18n="trust.linux">Linux: move the file to /usr/local/share/ca-certificates/opendrop-ca.crt, then run sudo update-ca-certificates.</li>
                     </ul>
                 </details>
             </section>
         </div>
+    </div>
+
+    <!-- iOS trust banner: the red Safari interstitial is the FIRST
+         thing an untrusted iPhone sees, so the entry point to the
+         guide lives at body level too (z-25, below the settings
+         overlay). It hides itself once the checklist is complete or
+         the author dismisses it - the guide stays reachable in
+         Settings > Security either way. -->
+    <div class="trust-banner" id="trust-banner" style="display:none;">
+        <button class="trust-banner-open" id="trust-banner-open" type="button">
+            <span class="trust-banner-badge" aria-hidden="true">&#128274;</span>
+            <span class="trust-banner-text" data-i18n="trust.guide.banner">Safari warning "This Connection Is Not Private"? 4 steps to the green padlock.</span>
+        </button>
+        <button class="trust-banner-close" id="trust-banner-close" type="button"
+                aria-label="Close" data-i18n-attr="aria-label:settings.close">&times;</button>
     </div>
 
     <!-- Pairing overlay: a pushed state, not a user action. Body level

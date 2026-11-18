@@ -312,7 +312,18 @@ the desktop app is always safe: that's the source of truth.
 Without the CA installed, the certificate brings up a warning screen.
 Don't tap "Stop": accept the one from the OpenDrop machine only - or
 install the CA once (Settings > Security in the page) and skip this
-whole step on every future visit.
+whole step on every future visit. The same section also unfolds a
+platform trust guide, picked automatically from the user agent: on
+iPhone / iPad a 4-step checklist (download the profile, install it in
+Settings, enable Certificate Trust Settings, reload), on Android a
+3-step one (download the certificate, install it from Settings >
+Security as a CA certificate, reload - a screen lock is required, and
+a Samsung variant is spelled out). A banner offers it from the very
+first visit on both: the page carries the exact address, the OS itself
+asks Face ID / the passcode / the screen lock at the permission steps
+- no app can do those taps for you. The detection may be wrong: the
+full per-OS list stays below the checklist, only reordered to lead
+with the detected system, and progress is remembered per device.
 
 Chrome / Android:
 

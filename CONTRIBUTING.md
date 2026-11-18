@@ -36,7 +36,7 @@ python -m tests.test_server       # 42
 python -m tests.test_beta         # 63
 python -m tests.test_devices      # 62
 python -m tests.test_zip_web      # 47
-python -m tests.test_e2e          # 16
+python -m tests.test_e2e          # 19
 ```
 
 Eleven suites, 445 checks in total.
