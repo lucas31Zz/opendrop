@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.9] - 2026-11-18
+
+### Added
+
+- **Device-aware trust guide in the page's Security section**: the
+  user agent picks the checklist - iPhone / iPad gets the 4-step one
+  (download the profile, install it in Settings, enable Certificate
+  Trust Settings, reload), Android the 3-step one (download the
+  certificate, install it from Settings > Security as a CA
+  certificate - screen lock required, with a Samsung variant). Neither
+  OS exposes any API to do those taps itself, so the page walks them
+  and the OS asks Face ID / the passcode / the screen lock; a banner
+  opens the guide from the very first visit, progress is remembered
+  per device, and the last step carries the live address (the only
+  one to repeat after an IP change).
+- **The detected system leads the manual list**: the full per-OS list
+  never loses an entry - the detected one is only promoted to the
+  first line, so a wrong detection costs one scroll.
+
+### Changed
+
+- **The service worker cache was bumped to `opendrop-shell-v2`**: the
+  shell's static files changed with the guide above, so the stale
+  cache cannot serve the previous page.
+
+### Tests
+
+- **New `trust_guides` e2e scenario (19/19 total)**: it drives the
+  whole contract from the outside on real phone user agents - banner,
+  unfolded checklist, correct body shown while the other stays hidden,
+  list promotion without any entry lost, a tick surviving a reload,
+  and the success state - on chromium, firefox and webkit.
+
 ## [1.0.8] - 2026-11-15
 
 ### Fixed

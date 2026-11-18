@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.8";
+export const WHATSNEW_VERSION = "1.0.9";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.8",
-  en: "What's new in OpenDrop 1.0.8",
+  fr: "Quoi de neuf dans OpenDrop 1.0.9",
+  en: "What's new in OpenDrop 1.0.9",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "Le Service Worker ne répond plus jamais « vide » au navigateur : la page ouverte hors ligne se charge désormais correctement sur iPhone / Safari.",
-    "La suite de tests utilise une autorité de certification au nom unique, pour ne plus entrer en collision avec la CA installée sur le poste.",
+    "La page propose un guide de confiance adapté à votre appareil : iPhone / iPad (profil à installer, Validation des certificats) et Android (certificat d'autorité, verrou d'écran requis), avec la bannière qui l'ouvre dès la première visite.",
+    "L'OS est détecté automatiquement : sa checklist est mise en avant et la liste complète des systèmes reste juste en dessous, au cas où la détection se trompe.",
   ],
   en: [
-    "The service worker never answers \"empty\" to the browser anymore: the offline page now loads correctly on iPhone / Safari.",
-    "The test suite uses a uniquely named certificate authority, so it no longer collides with the CA installed on the machine.",
+    "The page now offers a device-aware trust guide: iPhone / iPad (profile to install, Certificate Trust Settings) and Android (CA certificate, screen lock required), with a banner opening it from the very first visit.",
+    "The OS is detected automatically: its checklist is brought forward and the full system list stays right below, in case the detection is wrong.",
   ],
 };
 
