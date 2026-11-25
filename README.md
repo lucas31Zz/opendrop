@@ -482,8 +482,11 @@ code.
   phone just sent.
 - **A cancelled or interrupted update** leaves a partial file in
   `%TEMP%\opendrop-update` until the next attempt reuses or drops it.
-- **No transfer resume**: an interrupted upload or download must be started
-  again.
+- **Resume is per open page**: an interrupted download resumes via HTTP
+  `Range` (`bytes=N-`), and a stalled upload slice retries itself from
+  the byte count the server actually committed (3 attempts, idempotent)
+  - but closing the tab mid-transfer drops it, the next send starts
+  over (the `beforeunload` guard is there to ask first).
 - **Windows installer**: Python 3.10+ must already be installed (the
   installer only ships the wheels).
 - **Per-IP rate limits** (5 unlock attempts/minute) and the optional
@@ -505,9 +508,9 @@ python -m tests.test_tls          # 29/29 - local CA + signed leaf, /ca.crt, ren
 python -m tests.test_server       # 42/42 - general routes, theme fallback, port in use, TIME_WAIT probe, upload idle window, chunked-upload staging
 python -m tests.test_beta         # 63/63 - full run-through
 python -m tests.test_beta --large # 75/75 - file batches, traversal attempts
-python -m tests.test_devices      # 62/62 - device pairing, registered IPs, reset
+python -m tests.test_devices      # 72/72 - device pairing, registered IPs, reset
 python -m tests.test_zip_web      # 47/47 - ZIP64, password zips, browser zip engine
-python -m tests.test_e2e          # 19/19 - multi-browser upload flows
+python -m tests.test_e2e          # 22/22 - multi-browser upload flows
 ```
 
 Before building, close the desktop app: a running `OpenDrop.exe` blocks

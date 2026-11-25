@@ -438,14 +438,22 @@ class OpenDropHandler(BaseHTTPRequestHandler):
         # 2) The pairing token in the query heals this IP (a new IP for a
         #    known device, or a lost registry record). An invalid one
         #    falls through to the session-token check below - it never
-        #    authenticates on its own.
+        #    authenticates on its own. The exception: a dissociated
+        #    identity is tombstoned, and the tombstone outranks the heal,
+        #    so a desktop Disconnect STICKS instead of being undone by
+        #    the next request of the browser that still stores the token
+        #    (the pairing token only rotates via reset). An explicit
+        #    re-pair clears the tombstone (see _route_device_pair).
         device = query.get("device", [None])[0]
-        if device and self._devices and validate_token(device, self._devices.token):
+        did = query.get("did", [""])[0]
+        if (device and self._devices
+                and validate_token(device, self._devices.token)
+                and not self._devices.is_revoked(ip, did)):
             # ua/did passed explicitly: register() with the defaults
             # would wipe them on an existing record.
             self._devices.register(ip,
                                    ua=self.headers.get("User-Agent", ""),
-                                   did=query.get("did", [""])[0])
+                                   did=did)
             print(f"[OpenDrop] Device healed: {ip}", flush=True)
             return
         # 3) Session / main token (unchanged).
@@ -805,6 +813,10 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             print(f"[OpenDrop] Rejected device pairing ({ip})", flush=True)
             raise TokenInvalidError("Invalid device token")
         share_info = query.get("share_info", ["0"])[0] == "1"
+        # An explicit pair is the amnesty: it clears any tombstone this
+        # ip/identity left behind at a previous Disconnect (the user is
+        # pairing this device again on purpose).
+        self._devices.unrevoke(ip, query.get("did", [""])[0])
         # ua/did passed explicitly: register() with the defaults would
         # wipe them on an existing record.
         self._devices.register(ip,
@@ -865,6 +877,11 @@ class OpenDropHandler(BaseHTTPRequestHandler):
             if not self._devices or not self._devices.is_registered(ip):
                 raise TokenInvalidError("Not a registered device")
         if self._devices:
+            # Tombstone BEFORE removing: with the record gone, its did
+            # would be lost, and the browser's stored device token must
+            # not heal this identity back in on its next request.
+            rec = self._devices.get(target)
+            self._devices.revoke(target, rec.get("did", "") if rec else "")
             self._devices.remove(target)
         if self._sessions:
             # Kills that device's sessions; the main (ip=None) session

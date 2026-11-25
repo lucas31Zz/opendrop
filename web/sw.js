@@ -12,9 +12,11 @@
 // One versioned cache name. BUMP THE -vN SUFFIX whenever the shell's
 // static assets change (style.css, app.js, zip.js, index.html, icons):
 // the activate handler below then deletes every older cache, so no
-// previous release survives an update. -v2 ships the iOS trust guide
-// (web/index.html, web/app.js, web/style.css).
-const CACHE = "opendrop-shell-v2";
+// previous release survives an update. -v4 ships the iPhone perf
+// batch (web/app.js + web/style.css: rAF scroll pill, diffed
+// transfer/quota paints, touch blur+entrance budget); -v3 shipped
+// the pinned #pair= pairing overlay (web/app.js).
+const CACHE = "opendrop-shell-v4";
 
 // Exact allowlist of the shell's static paths (pathname only).
 const SHELL = [

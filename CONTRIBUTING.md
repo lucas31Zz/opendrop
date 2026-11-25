@@ -34,12 +34,12 @@ python -m tests.test_sessions     # 34
 python -m tests.test_tls          # 15
 python -m tests.test_server       # 42
 python -m tests.test_beta         # 63
-python -m tests.test_devices      # 62
+python -m tests.test_devices      # 72
 python -m tests.test_zip_web      # 47
-python -m tests.test_e2e          # 19
+python -m tests.test_e2e          # 22
 ```
 
-Eleven suites, 445 checks in total.
+Eleven suites, 461 checks in total.
 
 - Every suite exits with a non-zero status when it fails.
 - `python -m tests.test_beta --large` (75) is slower: run it before merging

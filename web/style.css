@@ -262,6 +262,14 @@ body {
 
 /* --- 4. Components ------------------------------------------------- */
 
+/* iOS Safari: controls opt out of the double-tap zoom (pinch zoom is
+   untouched). A stray double-tap used to zoom the whole glass page -
+   a full-scale repaint that read as a stall on older phones. */
+button, a, input, label, select,
+.tab, .drop-zone, [class*="-card"], .crumb, .trust-step {
+    touch-action: manipulation;
+}
+
 /* Rounded rectangles whose radius eats their padding: a card inside a
    card gets a proportionally smaller corner (concentric radii). */
 
@@ -2169,4 +2177,38 @@ body::-webkit-scrollbar {
     display: block;
     width: 100%;
     margin-top: 0.85rem;
+}
+
+/* --- 7. Touch-device budget (iPhone / iPad) --------------------------
+   Coarse pointers only. The phone's GPU pays for every backdrop-filter
+   pass and for every frame of an entrance that MOVES glass - a
+   translated .tab-content re-blurs each of its panels on every frame,
+   which is the stutter felt on older iPhones. Two dials, composition
+   unchanged:
+     1. entrances become a pure fade (no translateY on the subtree
+        that holds the glass panels);
+     2. the blur radius drops a notch (22/30 -> 15/20px): the same
+        frosted material, ~1/3 less kernel work per pass at 3x DPR.
+   Both rules key on pointer: coarse - fine-pointer devices keep the
+   exact original look. Rollback = delete this block (pre-perf backup:
+   %LOCALAPPDATA%\Temp\opencode\backup-web-pre-perf-2026-11-25). */
+@media (pointer: coarse) {
+    :root,
+    [data-theme="light"] {
+        --glass-blur: blur(15px) saturate(170%);
+        --glass-blur-float: blur(20px) saturate(190%);
+    }
+
+    /* Same keyframe names, later rules win outright (keyframes do
+       not merge): on touch the entrances only fade, so the glass
+       behind them never has to re-sample per frame. */
+    @keyframes rise-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes card-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
 }
