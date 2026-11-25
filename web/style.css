@@ -2190,8 +2190,9 @@ body::-webkit-scrollbar {
      2. the blur radius drops a notch (22/30 -> 15/20px): the same
         frosted material, ~1/3 less kernel work per pass at 3x DPR.
    Both rules key on pointer: coarse - fine-pointer devices keep the
-   exact original look. Rollback = delete this block (pre-perf backup:
-   %LOCALAPPDATA%\Temp\opencode\backup-web-pre-perf-2026-11-25). */
+   exact original look. Rollback = delete this block (the pre-perf
+   backup of the web folder lives outside the repo, see the release
+   notes in the ledger). */
 @media (pointer: coarse) {
     :root,
     [data-theme="light"] {
