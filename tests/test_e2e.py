@@ -19,6 +19,9 @@ import time
 
 from tests.conftest import (TestResult, _start_server, _WORKSPACE, _url,
                             dd, ip, sd, urlopen)
+from opendrop.server.rate_limit import (limiter_general, limiter_upload,
+                                        limiter_download, limiter_part,
+                                        limiter_session)
 
 r = TestResult()
 
@@ -583,9 +586,14 @@ def scenario_pwa_manifest_sw(page, server, port, token) -> None:
     # 5) exactly ONE cache, and it is the versioned shell cache: this
     #    single comparison proves both the versioned name and the
     #    activate-time deletion of every other cache (read from the
-    #    reloaded, worker-controlled page).
+    #    reloaded, worker-controlled page). The expected name is parsed
+    #    from the served worker itself: sw.js bumps its -vN suffix on
+    #    every shell change, a hardcoded one would break on the next
+    #    bump.
+    expected = re.search(r'const CACHE = "([^"]+)"', sw.text())
+    assert expected, "CACHE constant not found in the served sw.js"
     keys = page.evaluate("async () => await caches.keys()")
-    assert keys == ["opendrop-shell-v2"], f"caches.keys() = {keys!r}"
+    assert keys == [expected.group(1)], f"caches.keys() = {keys!r}"
 
     # 6) from the reloaded, SW-CONTROLLED page: /api/download with a
     #    Range header has to pass the worker by untouched: 206, the
@@ -812,6 +820,81 @@ def scenario_trust_guides(page, server, port, token) -> None:
         context.close()
 
 
+def scenario_pair_link(page, server, port, token) -> None:
+    """The desktop's #pair= link always opens the overlay pre-filled.
+
+    Both v1.0.10 author reports ("Open in browser" and scanning the QR
+    landed on the bare site) come from the same page logic: a browser
+    that paired before skipped the overlay outright, and no production
+    code ever opens the 60 s pairing window (the desktop's old Pair
+    button is gone), so the first 5 s quota tick closed whatever did
+    open. The link itself carries the pairing token - it IS the
+    desktop's consent - so the contract proved here from the outside:
+      1) a paired browser reopening the link gets the overlay,
+         pre-filled, and it SURVIVES the quota tick,
+      2) closing it stays a "not now" (no tick reopens it),
+      3) a desktop Disconnect sticks: the stored device token does not
+         heal the device back in, the page lands on the lock screen,
+      4) an explicit re-pair is the amnesty - and restores the
+         registered loopback the following scenarios rely on.
+    """
+    device = _device_token(port, token)
+
+    def devices_now():
+        with urlopen(_url(port, "/api/devices", token)) as resp:
+            return json.loads(resp.read())["devices"]
+
+    # 1) pair through the real overlay: this context becomes exactly
+    #    the "paired before" browser of the author's report.
+    page.goto(f"https://{ip}:{port}/#pair={device}")
+    page.wait_for_selector("#pair-screen", state="visible", timeout=15_000)
+    page.fill("#pair-token", device)
+    page.click("#btn-pair")
+    page.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+
+    # 2) the same browser opens the link again (a fresh document, like
+    #    the desktop's button or a QR scan): overlay there, pre-filled,
+    #    and STILL there after a quota beat - no pairing window backs
+    #    it, the link is the consent.
+    page.goto("about:blank")
+    page.goto(f"https://{ip}:{port}/#pair={device}")
+    overlay = page.locator("#pair-screen")
+    assert overlay.is_visible(), "the #pair= link opened the bare site"
+    assert page.locator("#pair-token").input_value() == device, \
+        "#pair-token not pre-filled from the link"
+    page.wait_for_timeout(6500)  # > one 5 s quota tick
+    assert overlay.is_visible(), "the quota tick closed the link's overlay"
+
+    # 3) closing stays a "not now": a later tick must not reopen it.
+    page.click("#btn-pair-close")
+    page.wait_for_timeout(6500)
+    assert not overlay.is_visible(), "a tick reopened a dismissed overlay"
+
+    # 4) Disconnect from the desktop: gone NOW, and still gone after
+    #    the next quota tick (pre-fix: the stored device token healed
+    #    the record straight back); the page itself lands locked.
+    with urlopen(f"https://{ip}:{port}/api/device/dissociate"
+                 f"?token={token}&ip={ip}", data=b"") as resp:
+        assert json.loads(resp.read()).get("success") is True, \
+            "dissociate refused"
+    assert devices_now() == [], "record not gone right after dissociate"
+    page.wait_for_selector("#session-screen", state="visible", timeout=15_000)
+    assert devices_now() == [], \
+        "stored device token healed a dissociated device back"
+
+    # 5) an explicit re-pair is the amnesty: back in the registry, and
+    #    the suite's shared loopback registered again for the next
+    #    browser.
+    page.goto("about:blank")
+    page.goto(f"https://{ip}:{port}/#pair={device}")
+    page.wait_for_selector("#pair-screen", state="visible", timeout=15_000)
+    page.fill("#pair-token", device)
+    page.click("#btn-pair")
+    page.wait_for_selector("#drop-zone", state="visible", timeout=15_000)
+    assert any(d["ip"] == ip for d in devices_now()), \
+        "re-pair did not re-register the device"
+
+
 # Scenario -> the browsers it runs on. webkit is out of the two-slice
 # scenarios by the PRINTED KNOWN_DRIVER_ISSUES limitation above - it is
 # genuinely exercised by upload_single_slice all the same.
@@ -828,6 +911,8 @@ SCENARIOS = [("upload_single_slice", scenario_upload_single_slice,
              ("pwa_manifest_sw", scenario_pwa_manifest_sw,
               ["chromium", "firefox", "webkit"]),
              ("trust_guides", scenario_trust_guides,
+              ["chromium", "firefox", "webkit"]),
+             ("pair_link", scenario_pair_link,
               ["chromium", "firefox", "webkit"])]
 
 
@@ -872,6 +957,21 @@ def test_e2e():
                 for name, fn, browsers in SCENARIOS:
                     if browser_name not in browsers:
                         continue
+                    # House rule, exactly like every unit suite (see
+                    # test_beta): each scenario starts with a CLEAN
+                    # rate-limit budget. The suite drives all three
+                    # browsers from the one IP (127.0.0.1) inside a few
+                    # minutes, so the process-global buckets would
+                    # otherwise let an early scenario starve a later one
+                    # (the general bucket backs every polled /api route,
+                    # the download bucket both /api/download AND
+                    # /api/files). Rate limits themselves are asserted
+                    # by the unit suites, never here.
+                    limiter_general.reset()
+                    limiter_upload.reset()
+                    limiter_download.reset()
+                    limiter_part.reset()
+                    limiter_session.reset()
                     context = None
                     try:
                         context = _new_context(browser_name, port, token)

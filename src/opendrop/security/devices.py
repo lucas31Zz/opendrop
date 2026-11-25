@@ -5,8 +5,12 @@ paired with this instance, so the web UI can recognise them on later
 visits ("Share info with this device" opt-in, remember-device label).
 
 The token lets a device prove it was paired before; the records survive
-server restarts. Like the session state, the file is only rewritten when
-something actually changes: reading the registry never creates it.
+server restarts. A Disconnect (dissociate) leaves an identity tombstone
+(ip + device id) behind so the pairing token that browser still stores
+can never heal itself back into the registry - only an explicit re-pair
+or a token reset clears it. Like the session state, the file is only
+rewritten when something actually changes: reading the registry never
+creates it.
 """
 import json
 import os
@@ -71,6 +75,9 @@ class DeviceRegistry:
         self._lock = threading.Lock()
         self._token: str | None = None
         self._devices: dict[str, dict] = {}
+        # Identity tombstones of dissociated devices: [{"ip", "did"}].
+        # A tombstone outranks the device-token heal in _check_token.
+        self._revoked: list[dict] = []
         self._load()
 
     # --- persistence ----------------------------------------------------
@@ -91,6 +98,12 @@ class DeviceRegistry:
         if isinstance(devices, dict):
             self._devices = {ip: rec for ip, rec in devices.items()
                              if isinstance(rec, dict)}
+        revoked = data.get("revoked")
+        if isinstance(revoked, list):
+            # Older files have no tombstones at all; a malformed entry
+            # is dropped, never a reason to refuse the whole file.
+            self._revoked = [r for r in revoked
+                             if isinstance(r, dict) and r.get("ip")]
 
     def save(self) -> None:
         """Write state to disk (utf-8, indent 2), atomically."""
@@ -105,7 +118,8 @@ class DeviceRegistry:
             tmp = self._path.with_name(self._path.name + ".tmp")
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump({"device_token": self._token,
-                           "devices": self._devices}, f, indent=2)
+                           "devices": self._devices,
+                           "revoked": self._revoked}, f, indent=2)
             os.replace(tmp, self._path)
         except OSError:
             pass
@@ -121,9 +135,15 @@ class DeviceRegistry:
             return self._token
 
     def rotate(self) -> str:
-        """Generate a new token, persist it, and return it."""
+        """Generate a new token, persist it, and return it.
+
+        A reset is the amnesty: with the pairing token rotated, the old
+        tombstones can no longer block anyone (their token is dead
+        anyway), so they go too instead of piling up in the file.
+        """
         with self._lock:
             self._token = generate_token()
+            self._revoked = []
             self._save_locked()
             return self._token
 
@@ -208,3 +228,34 @@ class DeviceRegistry:
             del self._devices[ip]
             self._save_locked()
             return True
+
+    # --- revocation tombstones -----------------------------------------
+
+    def revoke(self, ip: str, did: str = "") -> None:
+        """Tombstone the identity behind `ip` (dissociate).
+
+        The tombstone matches by ip OR by did, so a disconnected
+        browser stays out even when its DHCP lease (hence its ip)
+        changes. Persisted; cleared by unrevoke() or rotate().
+        """
+        with self._lock:
+            if any(r.get("ip") == ip or (did and r.get("did") == did)
+                   for r in self._revoked):
+                return  # this identity is already tombstoned
+            self._revoked.append({"ip": ip, "did": did})
+            self._save_locked()
+
+    def is_revoked(self, ip: str, did: str = "") -> bool:
+        """True when a tombstone matches this ip or this (non-empty) did."""
+        with self._lock:
+            return any(r.get("ip") == ip or (did and r.get("did") == did)
+                       for r in self._revoked)
+
+    def unrevoke(self, ip: str, did: str = "") -> None:
+        """Clear every tombstone matching this ip or did (explicit re-pair)."""
+        with self._lock:
+            keep = [r for r in self._revoked
+                    if not (r.get("ip") == ip or (did and r.get("did") == did))]
+            if len(keep) != len(self._revoked):
+                self._revoked = keep
+                self._save_locked()

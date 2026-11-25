@@ -14,7 +14,7 @@
 ;   iscc packaging\windows\OpenDrop.iss /DMyAppVersion=1.0.0
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.9"
+  #define MyAppVersion "1.0.10"
 #endif
 #define MyAppName "OpenDrop"
 #define MyAppPublisher "lucas31Zz"

@@ -93,7 +93,7 @@ Truth table tested by `python -m tests.test_routes`:
 | `GET /api/device/status` | token or registered IP | `device_token` + `share_info` only go to a registered IP, never to a session-token caller |
 | `POST /api/device/pair` | device token | rate limit 5/min per IP, response = session token |
 | `POST /api/device/prefs` | token (registered IP included) | sets `share_info` on the caller's own device record |
-| `POST /api/device/dissociate` | main token + `ip=`, or own registered IP | removes the record, invalidates that IP's sessions (the main session survives) |
+| `POST /api/device/dissociate` | main token + `ip=`, or own registered IP | removes the record, invalidates that IP's sessions (the main session survives), tombstones the device (ip + device id) so the pairing token it still stores cannot heal it back in - only an explicit re-pair or a reset clears the tombstone |
 | `POST /api/device/reset` | main token only | rotates device_token, removes ALL records, invalidates their sessions (main/QR kept) |
 | `POST /api/device/pairing` | main token only | opens the 60 s pairing window |
 | `POST /api/settings` | main token or registered IP | language + theme, normalized then persisted to config.json; a code-unlocked guest token is refused |
@@ -108,11 +108,13 @@ Truth table tested by `python -m tests.test_routes`:
   response (delivered to whoever holds the code) carry the token
 - Device pairing state lives in `devices.json` (config folder): the
   long-lived device token, one record per paired device (IP, user agent,
-  device id, `share_info`, pairing date) and nothing else. It is written
+  device id, `share_info`, pairing date) plus the `revoked` tombstones
+  (ip + device id) left by each Disconnect, and nothing else. It is written
   only by the device registry; a config save (e.g. the language/theme from
   `POST /api/settings`) rewrites `config.json` and never touches this file
   (tested: byte-identical after a settings write). The device token
-  changes only via `POST /api/device/reset`.
+  changes only via `POST /api/device/reset` (which also clears the
+  tombstones); an explicit re-pair clears the tombstones it matches.
 - The download filename is encoded with an ASCII fallback first, then
   `filename*=UTF-8''...`: a non-Latin-1 name no longer breaks the header,
   and no control character (CR/LF) can be injected into it
@@ -431,11 +433,11 @@ Python 3.12, no external framework):
 | `python -m tests.test_tls` | local CA + signed leaf (issuer, BasicConstraints), `/ca.crt` download, key/cert, EKU, renewal, CA stability, forced HTTPS | 29/29 |
 | `python -m tests.test_server` | general routes, port already in use, TIME_WAIT probe, fast startup, upload idle window, chunked-upload staging (append rules, 409 resync, uniquify-at-rename, cancel, query-name-wins, traversal containment, idempotent final retry) | 42/42 |
 | `python -m tests.test_beta` (+ `--large`) | full run-through, file batches, traversal attempts | 63/63 and 75/75 |
-| `python -m tests.test_devices` | device pairing: registry, registered-IP trust, pairing quotas, dissociate vs reset | 62/62 |
+| `python -m tests.test_devices` | device pairing: registry, registered-IP trust, pairing quotas, dissociate vs reset, revocation tombstones | 72/72 |
 | `python -m tests.test_zip_web` | browser zip engine: streaming ZIP64, progress/cancel, ZipCrypto round-trip verified by Python's `zipfile` | 47/47 |
-| `python -m tests.test_e2e` | multi-browser UI flows against the real HTTPS server: uploads (single- and two-slice), cancel, Range resume, the `beforeunload` guard, the PWA service worker | 16/16 |
+| `python -m tests.test_e2e` | multi-browser UI flows against the real HTTPS server: uploads (single- and two-slice), cancel, Range resume, the `beforeunload` guard, the PWA service worker, the trust guides, the `#pair=` pairing overlay vs a desktop Disconnect | 22/22 |
 
-Eleven suites, 459 checks in total.
+Eleven suites, 475 checks in total.
 
 ---
 

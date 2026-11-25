@@ -1234,6 +1234,9 @@
             // Never queue a second detect() while one is running: on a
             // slow phone the promises would pile up and starve the UI.
             if (detecting) return;
+            // Same pause as the jsQR loop: no decoding work while the
+            // tab sits in the background.
+            if (document.hidden) return;
             detecting = true;
             detector.detect(scannerVideo).then(function (codes) {
                 if (codes && codes.length) handleScanned(codes[0].rawValue);
@@ -1333,39 +1336,71 @@
         };
     }
 
+    // Perf (iOS): scroll and pointermove fire faster than the screen
+    // refreshes, and every old call did forced-layout reads
+    // (scrollHeight) followed by style writes - a read/write thrash
+    // loop worth up to 60 layouts per second while scrolling. All
+    // paths now coalesce into ONE paint per animation frame, and a
+    // write whose value did not change is skipped (inline-style reads
+    // never force layout).
+    var thumbFrame = 0;
+    var thumbWantShow = false;
+
     function paintScrollThumb() {
         var m = scrollMetrics();
         if (m.scrollable < 8) {
             // Nothing to scroll: the pill must not float around.
             scrollThumb.classList.remove("visible");
-            scrollThumb.style.pointerEvents = "";
+            if (scrollThumb.style.pointerEvents !== "") {
+                scrollThumb.style.pointerEvents = "";
+            }
             return;
         }
         // Short pages get a longer thumb, exactly like a native bar.
         var h = Math.max(34, m.track * (m.track / m.total));
         var travel = m.track - h;
         var y = travel > 0 ? (window.scrollY / m.scrollable) * travel : 0;
-        scrollThumb.style.height = h + "px";
-        scrollThumb.style.setProperty("--y", y.toFixed(1) + "px");
-        scrollThumb.style.pointerEvents = "auto";
+        var hs = h + "px";
+        var ys = y.toFixed(1) + "px";
+        if (scrollThumb.style.height !== hs) scrollThumb.style.height = hs;
+        if (scrollThumb.style.getPropertyValue("--y") !== ys) {
+            scrollThumb.style.setProperty("--y", ys);
+        }
+        if (scrollThumb.style.pointerEvents !== "auto") {
+            scrollThumb.style.pointerEvents = "auto";
+        }
     }
 
-    function showScrollThumb() {
-        paintScrollThumb();
-        scrollThumb.classList.add("visible");
-        window.clearTimeout(scrollHideTimer);
-        scrollHideTimer = window.setTimeout(function () {
-            // Stays up while it is hovered or dragged.
-            if (!scrollThumb.matches(":hover, :active")) {
-                scrollThumb.classList.remove("visible");
-            }
-        }, 900);
+    // One rAF at most per frame; `show` also (re)arms the hide timer,
+    // so the pill stays up while the page moves exactly like before.
+    function scheduleScrollThumb(show) {
+        thumbWantShow = thumbWantShow || !!show;
+        if (thumbFrame) return;
+        thumbFrame = window.requestAnimationFrame(function () {
+            thumbFrame = 0;
+            var showNow = thumbWantShow;
+            thumbWantShow = false;
+            paintScrollThumb();
+            if (!showNow) return;
+            scrollThumb.classList.add("visible");
+            window.clearTimeout(scrollHideTimer);
+            scrollHideTimer = window.setTimeout(function () {
+                // Stays up while it is hovered or dragged.
+                if (!scrollThumb.matches(":hover, :active")) {
+                    scrollThumb.classList.remove("visible");
+                }
+            }, 900);
+        });
     }
 
-    window.addEventListener("scroll", showScrollThumb, { passive: true });
-    window.addEventListener("resize", paintScrollThumb);
+    window.addEventListener("scroll", function () {
+        scheduleScrollThumb(true);
+    }, { passive: true });
+    window.addEventListener("resize", function () {
+        scheduleScrollThumb(false);
+    });
     window.addEventListener("pointermove", function (e) {
-        if (e.clientX > window.innerWidth - 48) showScrollThumb();
+        if (e.clientX > window.innerWidth - 48) scheduleScrollThumb(true);
     }, { passive: true });
 
     var scrollDragging = false;
@@ -1395,7 +1430,7 @@
         });
     });
 
-    showScrollThumb();
+    scheduleScrollThumb(true);
 
     // --- Pairing push: overlay + busy banner -------------------------
     // Every quota tick reports the desktop's pairing window and whether
@@ -1415,6 +1450,9 @@
     var PAIR_DISMISSED_KEY = "opendrop_pair_dismissed";
     var pairManuallyOpened = false;   // banner-tap open: survives busy
                                       // ticks (the only way in while busy)
+    var pairFromLink = false;         // #pair= link: the overlay the
+                                      // desktop's QR/link opened stays up
+                                      // (quota ticks never step it down)
 
     // sessionStorage, not localStorage: the dismissal belongs to this
     // tab's pairing window, not to the device's whole pairing life.
@@ -1448,9 +1486,12 @@
 
     // Any manual close (Close pill, backdrop tap, Escape) is a "not
     // now": the quota tick must not push the overlay again this window.
+    // It also releases the #pair= pin: the user saw the link's overlay
+    // and turned it down.
     function closePairScreen() {
         setPairDismissed(true);
         pairManuallyOpened = false;
+        pairFromLink = false;
         pairScreen.style.display = "none";
     }
 
@@ -1480,15 +1521,22 @@
     });
 
     // Reads the pairing link/QR hash (desktop "Pour parrainer" section); nothing auto-submits.
+    // The link itself carries the pairing token, so it IS the desktop's
+    // pairing consent: it opens the overlay pre-filled even in a browser
+    // that paired before (the "Open in browser" / QR-scan report), and
+    // pairFromLink pins it open - no pairing window backs it in
+    // production (nothing opens /api/device/pairing), so a quota tick
+    // would otherwise close it on the next 5 s beat. Only an explicit
+    // close or a successful pair (page reload) releases the pin.
     (function () {
         var m = /^#pair=([A-Za-z0-9]{32})$/.exec(location.hash || "");
         if (!m) return;
         var tok = m[1];
         history.replaceState(null, "", location.pathname + location.search);
-        if (storeRead(DEVICE_KEY) === tok) return; // already paired with this token
         openPairScreen(true);
         var input = document.getElementById("pair-token");
         if (input) input.value = tok; // after openPairScreen: it clears the field
+        pairFromLink = true;
     })();
 
     // The overlay wiring runs above the no-token gate below: the #pair=
@@ -1652,25 +1700,36 @@
         return parseFloat(value).toString().replace(".", fr ? "," : ".") + unit;
     }
 
+    // Perf: every value is diffed before it is written - the old code
+    // replaced the text node and rewrote className on every 5 s tick
+    // even when nothing had changed (a pointless style invalidation
+    // every 5 seconds). The resulting DOM state is identical, class
+    // for class; the "offline" class from a failed poll is still
+    // wiped by the next successful render (it never matches).
     function renderQuota(usage, limit) {
-        quotaBar.style.display = "block";
-        quotaText.className = "quota-text";
+        if (quotaBar.style.display !== "block") quotaBar.style.display = "block";
+        var cls = "quota-text";
+        var txt;
         if (limit > 0) {
-            quotaText.textContent = formatQuota(usage) + " / " + formatQuota(limit);
-            quotaText.classList.add(usage >= limit ? "full" : "ok");
+            txt = formatQuota(usage) + " / " + formatQuota(limit);
+            cls += usage >= limit ? " full" : " ok";
+        } else {
+            txt = t("quota.unlimited", formatQuota(usage));
+        }
+        if (quotaText.textContent !== txt) quotaText.textContent = txt;
+        if (quotaText.className !== cls) quotaText.className = cls;
+        if (quotaTrack.style.display !== "") quotaTrack.style.display = "";
+        if (limit > 0) {
             // The fill eases to its new value (see .quota-fill in the
             // CSS); a first paint at 0 keeps it from jumping.
-            quotaTrack.style.display = "";
             quotaFill.classList.remove("indeterminate");
             quotaFill.classList.toggle("full", usage >= limit);
-            quotaFill.style.width =
-                Math.min(100, (usage / limit) * 100).toFixed(1) + "%";
+            var w = Math.min(100, (usage / limit) * 100).toFixed(1) + "%";
+            if (quotaFill.style.width !== w) quotaFill.style.width = w;
         } else {
-            quotaText.textContent = t("quota.unlimited", formatQuota(usage));
             // No percentage to show: the fill sweeps instead, so the
             // panel never looks unfinished.
-            quotaTrack.style.display = "";
-            quotaFill.style.width = "";
+            if (quotaFill.style.width !== "") quotaFill.style.width = "";
             quotaFill.classList.add("indeterminate");
             quotaFill.classList.remove("full");
         }
@@ -1684,6 +1743,13 @@
 
     // Runs on every quota tick (no new poll of its own).
     function handlePairing(pairing, associated) {
+        if (pairFromLink) {
+            // Pinned by the #pair= link: the desktop asked for this
+            // overlay explicitly, so neither an expired window nor the
+            // "already registered" shortcut may close it behind the
+            // user's back. The unpin happens in closePairScreen.
+            return;
+        }
         if (!pairing) {
             // Window expired: hide everything (manual open or not -
             // expiry wins), arm the next window.
@@ -1751,7 +1817,17 @@
     }
 
     refreshQuota();
-    setInterval(refreshQuota, 5000);
+    // Perf: no quota fetch while the tab is hidden (iOS suspends the
+    // page anyway - the tick would only cost a wake-up); coming back
+    // to the tab refreshes immediately instead of waiting out the
+    // interval. The 5 s cadence while visible is unchanged, so the
+    // pairing window still ticks exactly every 5 seconds.
+    setInterval(function () {
+        if (!document.hidden) refreshQuota();
+    }, 5000);
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) refreshQuota();
+    });
 
     // --- UPLOAD ---
     var dropZone = document.getElementById("drop-zone");
@@ -1908,9 +1984,44 @@
         fetch(url, { method: "POST", keepalive: true }).catch(function () {});
     }
 
+    // --- Perf: the transfer readout paints only what moved. XHR
+    // upload progress and zip onProgress fire far more often than the
+    // screen can show: every event used to rewrite the bar width (a
+    // layout invalidation), the tab title (a document-level
+    // mutation) and the text node. Width and title now move only
+    // with the integer percentage; the text - its speed/ETA suffix
+    // changes on every call - is throttled to 4 Hz, except when the
+    // percentage itself moved, so milestones stay instant. Every
+    // transfer start calls resetTransferPaint() to arm the diff.
+    var progLastPct = -1;
+    var progLastTxt = null;
+    var progLastTxtAt = 0;
+
+    function resetTransferPaint() {
+        progLastPct = -1;
+        progLastTxt = null;
+        progLastTxtAt = 0;
+    }
+
+    function paintTransfer(pct, txt) {
+        var pctChanged = pct !== progLastPct;
+        if (pctChanged) {
+            progLastPct = pct;
+            progressBar.style.width = pct + "%";
+            if (transferActive) setTransferActive(true, pct);
+        }
+        if (txt === progLastTxt) return;
+        var now = performance.now();
+        if (!pctChanged && now - progLastTxtAt < 250) return;
+        progLastTxt = txt;
+        progLastTxtAt = now;
+        progressText.textContent = txt;
+    }
+
     function uploadFile(file) {
         filenameEl.textContent = file.name;
         filesizeEl.textContent = formatSize(file.size);
+        resetTransferPaint();
         progressBar.style.width = "0%";
         progressText.textContent = "0%";
         showSendView("transfer");
@@ -1957,8 +2068,6 @@
                 var pct = file.size > 0
                     ? Math.min(100, Math.round((overall / file.size) * 100))
                     : 100;
-                progressBar.style.width = pct + "%";
-                if (transferActive) setTransferActive(true, pct);
                 var txt = pct + "%";
                 var elapsed = (performance.now() - uploadStart) / 1000;
                 var speed = formatSpeed(overall / elapsed);
@@ -1969,7 +2078,7 @@
                 // The last slice's answer carries a whole-file hash read
                 // back from disk; say so while that is computed.
                 if (pct === 100 && isLast) txt = t("upload.finalizing");
-                progressText.textContent = txt;
+                paintTransfer(pct, txt);
             });
 
             xhr.addEventListener("load", function () {
@@ -2199,6 +2308,7 @@
         showSendView("transfer");
         filenameEl.textContent = label;
         filesizeEl.textContent = "";
+        resetTransferPaint();
         progressBar.style.width = "0%";
         progressText.textContent = t("send.preparing");
     }
@@ -2351,6 +2461,7 @@
         filesizeEl.textContent = formatSize(batch.totalRaw);
         progressWrap.style.display = "";
         progressText.style.display = "";
+        resetTransferPaint();
         progressBar.style.width = "0%";
         progressText.textContent = t("send.zipping", "0%",
             formatSize(0), formatSize(totalZipRaw));
@@ -2370,10 +2481,8 @@
                         if (epoch !== prepareEpoch) return;
                         var done = Math.min(base + doneRaw, totalZipRaw);
                         var pct = totalZipRaw ? Math.round((done / totalZipRaw) * 100) : 100;
-                        progressBar.style.width = pct + "%";
-                        if (transferActive) setTransferActive(true, pct);
-                        progressText.textContent = t("send.zipping",
-                            pct + "%", formatSize(done), formatSize(totalZipRaw));
+                        paintTransfer(pct, t("send.zipping",
+                            pct + "%", formatSize(done), formatSize(totalZipRaw)));
                     }
                 }).then(function (blob) {
                     doneBefore = base + item.rawSize;

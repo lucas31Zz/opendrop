@@ -6,24 +6,24 @@
 import type { Lang } from "./strings";
 
 /** The version this note belongs to - must equal tauri.conf.json. */
-export const WHATSNEW_VERSION = "1.0.9";
+export const WHATSNEW_VERSION = "1.0.10";
 
 /** localStorage key: written once the note has been dismissed for `v`. */
 export const whatsnewKey = (v: string) => `opendrop-whatsnew-${v}`;
 
 export const WHATSNEW_TITLE: Record<Lang, string> = {
-  fr: "Quoi de neuf dans OpenDrop 1.0.9",
-  en: "What's new in OpenDrop 1.0.9",
+  fr: "Quoi de neuf dans OpenDrop 1.0.10",
+  en: "What's new in OpenDrop 1.0.10",
 };
 
 export const WHATSNEW: Record<Lang, string[]> = {
   fr: [
-    "La page propose un guide de confiance adapté à votre appareil : iPhone / iPad (profil à installer, Validation des certificats) et Android (certificat d'autorité, verrou d'écran requis), avec la bannière qui l'ouvre dès la première visite.",
-    "L'OS est détecté automatiquement : sa checklist est mise en avant et la liste complète des systèmes reste juste en dessous, au cas où la détection se trompe.",
+    "Envois et scan plus fluides sur iPhone : les animations d'entrée ne re-floutent plus le verre, le défilement est plus régulier et le zoom accidentel au double-tap est désactivé.",
+    "La liaison d'appareil ne se perd plus au rechargement de la page, et un appareil révoqué reste révoqué jusqu'à une nouvelle liaison (ou une réinitialisation).",
   ],
   en: [
-    "The page now offers a device-aware trust guide: iPhone / iPad (profile to install, Certificate Trust Settings) and Android (CA certificate, screen lock required), with a banner opening it from the very first visit.",
-    "The OS is detected automatically: its checklist is brought forward and the full system list stays right below, in case the detection is wrong.",
+    "Smoother sending and scanning on iPhone: entrances no longer re-blur the glass, scrolling is steadier and the accidental double-tap zoom is disabled.",
+    "Pairing no longer resets when the page reloads, and a revoked device stays revoked until it pairs again (or the list is reset).",
   ],
 };
 

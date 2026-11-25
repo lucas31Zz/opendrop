@@ -42,9 +42,24 @@ def test_registry_core():
             not reg.is_registered("1.2.3.4") and reg.is_registered("5.5.5.5"))
     r.check("did dedup: exactly one device", len(reg.list_devices()) == 1)
 
+    # Dissociation tombstones: the pairing token a disconnected browser
+    # still stores must never heal that identity back into the registry
+    # (only an explicit re-pair or a reset may).
+    reg.revoke("5.5.5.5", "dX")
+    r.check("revoke: ip+did tombstoned", reg.is_revoked("5.5.5.5", "dX"))
+    r.check("revoke: same identity at a NEW ip blocked too",
+            reg.is_revoked("7.7.7.7", "dX"))
+    r.check("revoke: other identities unaffected",
+            not reg.is_revoked("8.8.8.8", "OTHERDID")
+            and not reg.is_revoked("8.8.8.8", ""))
+    r.check("revoke: persisted across a reload",
+            DeviceRegistry(d).is_revoked("5.5.5.5", "dX"))
+
     tok = reg.token
     r.check("rotate: token changes", reg.rotate() != tok)
     r.check("rotate: devices kept", reg.is_registered("5.5.5.5"))
+    r.check("rotate: tombstones cleared (reset amnesty)",
+            not reg.is_revoked("5.5.5.5", "dX"))
     r.check("remove: unknown ip False", reg.remove("9.9.9.9") is False)
     r.check("remove: known ip True", reg.remove("5.5.5.5") is True)
 
@@ -224,6 +239,27 @@ def test_desktop_endpoints():
         r.check("Review2: that IP's session invalidated by dissociate", status == 403, status)
         status, _, _ = _get(port, "/api/files?token=" + token)
         r.check("Review2: main/QR session SURVIVES dissociate", status == 200, status)
+
+        # Fix: Disconnect must stick. The browser that was just removed
+        # still stores the pairing token (it only rotates via reset) and
+        # sends it on every request - that heal must be refused now, and
+        # only an explicit re-pair may bring the device back.
+        status, _, _ = _get(port, "/api/quota?device=" + tok_before
+                            + "&did=D1&token=" + guest)
+        r.check("dissociate sticks: stored device token refused (403)",
+                status == 403, status)
+        r.check("dissociate sticks: no heal re-registered the IP",
+                not server.devices.is_registered("127.0.0.1"))
+        status, _, body = _post(port, "/api/device/pair?device=" + tok_before
+                                + "&did=D1")
+        r.check("explicit re-pair after dissociate = 200, record back",
+                status == 200 and server.devices.is_registered("127.0.0.1"),
+                (status, body))
+        r.check("re-pair clears the tombstone",
+                not server.devices.is_revoked("127.0.0.1", "D1"))
+        status, _, _ = _get(port, "/api/files?device=" + tok_before + "&did=D1")
+        r.check("after re-pair: the stored device token heals again",
+                status == 200, status)
     finally:
         server.shutdown(); server.server_close()
 
