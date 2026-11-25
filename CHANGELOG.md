@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 Format adapted from [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [1.0.10] - 2026-11-25
+
+### Fixed
+
+- **Pairing survives a page reload**: the `#pair=` overlay link pins
+  the session token (the link itself is the consent) until the pairing
+  screen is closed or the device is paired, so scanning a code and
+  reloading no longer drops the fresh pairing.
+- **A revoked device stays revoked**: `devices.json` keeps a `revoked`
+  tombstone per device; the heal loop skips it, and re-pairing (or a
+  list reset) is the only way back.
+- **The README now states the real resume limitation**: resume works
+  per open page (as shipped since 0.16.0) instead of claiming
+  transfers cannot resume at all.
+
+### Changed
+
+- **iPhone / touch performance batch**: the scroll pill paints once
+  per animation frame with diffed writes, the transfer readout (bar,
+  tab title, text) only moves when the percentage does, the quota
+  render is fully diffed, quota polling and the camera scan loop
+  pause while the tab is hidden, and `touch-action: manipulation` on
+  controls kills the accidental double-tap zoom repaint.
+- **Touch-only glass budget** (`pointer: coarse`): tab and card
+  entrances become a pure fade - a moving subtree re-blurs its glass
+  panels on every frame - and the blur radius drops to 15/20px from
+  22/30px; fine-pointer devices keep the exact previous look.
+- **The service worker cache was bumped to `opendrop-shell-v4`**: the
+  shell's static files changed with the batch above.
+
 ## [1.0.9] - 2026-11-18
 
 ### Added
